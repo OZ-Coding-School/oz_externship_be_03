@@ -1,0 +1,11 @@
+.python-version
+.env
+envs/
+.DS_Store
+__pycache__/
+.idea/
+docker-compose.*
+Dockerfile
+.gitignore
+.git/
+.github/
