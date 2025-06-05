@@ -24,13 +24,13 @@ jobs:
         id: cache-poetry
         uses: actions/cache@v3
         with:
-          key: poetry-1.8.5
+          key: poetry-2.0.0
           path: ~/.local/ # poetry 의 실제 설치 경로를 통째로 캐시함.
 
       - name: Install Poetry
         if: steps.cache-poetry.outputs.cache-hit != 'true'
         run: | # 개행을 하여 여러줄로 명령어를 사용하고 싶을때 파이프라인 기호 | 를 사용한다.
-          curl -sSL https://install.python-poetry.org | python3 - --version 1.8.5
+          curl -sSL https://install.python-poetry.org | python3 -
 
       # 포에트리 환경변수를 깃허브 패스(.zshrc 같은 쉘 설정파일)에 기입하여 포에트리 명령어를 사용할 수 있게 합니다.
       - name: Register Poetry bin
@@ -42,7 +42,7 @@ jobs:
         with:
           # hashFiles를 사용하여 파일의 해시값을 비교하여 파이썬 버전이 바뀌었을 때, lock 파일이나 toml 파일이 바뀌었을때 종속성을 재설치합니다.
           # 바뀐 것이 없는 경우에는 캐싱된 종속성을 사용합니다.
-          key: python-${{ steps.setup-python.outputs.python-version }}-poetry-lock-${{ hashFiles('poetry.lock') }}-toml-${{ hashFiles('pyproject.toml') }}-poetry-1.8.5
+          key: python-${{ steps.setup-python.outputs.python-version }}-poetry-lock-${{ hashFiles('poetry.lock') }}-toml-${{ hashFiles('pyproject.toml') }}-poetry-2.0.0
           path: /home/runner/.cache/pypoetry/virtualenvs/
 
       - name: Install dependencies
@@ -107,13 +107,13 @@ jobs:
         id: cache-poetry
         uses: actions/cache@v3
         with:
-          key: poetry-1.8.5
+          key: poetry-2.0.0
           path: ~/.local/
 
       - name: Install Poetry
         if: steps.cache-poetry.outputs.cache-hit != 'true'
         run: |
-          curl -sSL https://install.python-poetry.org | python3 - --version 1.8.5
+          curl -sSL https://install.python-poetry.org | python3 -
 
       # 포에트리 환경변수를 깃허브 패스(.zshrc 같은 쉘 설정파일)에 기입하여 포에트리 명령어를 사용할 수 있게 합니다.
       - name: Register Poetry bin
@@ -123,7 +123,7 @@ jobs:
         id: cache-venv
         uses: actions/cache@v3
         with:
-          key: python-${{ steps.setup-python.outputs.python-version }}-poetry-lock-${{ hashFiles('poetry.lock') }}-toml-${{ hashFiles('pyproject.toml') }}-poetry-1.8.5
+          key: python-${{ steps.setup-python.outputs.python-version }}-poetry-lock-${{ hashFiles('poetry.lock') }}-toml-${{ hashFiles('pyproject.toml') }}-poetry-2.0.0
           path: /home/runner/.cache/pypoetry/virtualenvs/
 
       - name: Install dependencies
