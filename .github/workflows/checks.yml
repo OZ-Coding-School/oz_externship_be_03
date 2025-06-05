@@ -57,6 +57,12 @@ jobs:
         run: |
           poetry run black . --check
 
+      - name: Set multiline environment variable
+        run: |
+          echo "DJANGO_ENV<<EOF" >> $GITHUB_ENV
+          echo "${{ secrets.DJANGO_ENV }}" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
       - name: Run Mypy
         run: poetry run mypy .
 
@@ -139,7 +145,7 @@ jobs:
       # test db connection
       - name: Wait for PostgreSQL
         run: |
-          until pg_isready -h localhost -p 5432 -U ${{ env.DB_USER }}; do
+          until pg_isready -h localhost -p 5432 -U ${{ env.POSTGRES_USER }}; do
             sleep 3
           done
 
