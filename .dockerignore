@@ -9,3 +9,6 @@ Dockerfile
 .gitignore
 .git/
 .github/
+.dmypy.json
+.coverage
+htmlcov/
