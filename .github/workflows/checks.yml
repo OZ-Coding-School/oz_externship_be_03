@@ -59,9 +59,7 @@ jobs:
 
       - name: Set multiline environment variable
         run: |
-          echo "DJANGO_ENV<<EOF" >> $GITHUB_ENV
           echo "${{ secrets.DJANGO_ENVS }}" >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
 
       - name: Run Mypy
         run: poetry run mypy .
@@ -133,9 +131,7 @@ jobs:
 
       - name: Set multiline environment variable
         run: |
-          echo "DJANGO_ENV<<EOF" >> $GITHUB_ENV
           echo "${{ secrets.DJANGO_ENVS }}" >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
 
       # run migration
       - name: Run Django Migration
