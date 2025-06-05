@@ -1,0 +1,9 @@
+.python-version
+.env
+envs/
+.DS_Store
+__pycache__/
+.idea/
+.dmypy.json
+htmlcov/
+.coverage
