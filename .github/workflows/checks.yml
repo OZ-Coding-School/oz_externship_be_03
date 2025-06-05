@@ -60,7 +60,7 @@ jobs:
       - name: Set multiline environment variable
         run: |
           echo "DJANGO_ENV<<EOF" >> $GITHUB_ENV
-          echo "${{ secrets.DJANGO_ENV }}" >> $GITHUB_ENV
+          echo "${{ secrets.DJANGO_ENVS }}" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
 
       - name: Run Mypy
@@ -68,21 +68,16 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
-    env:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: pw1234
-      POSTGRES_DB: ozcoding_externship
     services:
       # postgresql db service
       db:
         image: postgres:14
         ports:
           - 5432:5432
-        # postgresql envs
         env:
-          POSTGRES_USER: ${{ env.POSTGRES_USER }}
-          POSTGRES_PASSWORD: ${{ env.POSTGRES_PASSWORD }}
-          POSTGRES_DB: ${{ env.POSTGRES_DB }}
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: pw1234
+          POSTGRES_DB: ozcoding_externship
           TZ: Asia/Seoul
         # health check
         options: >-
@@ -139,22 +134,8 @@ jobs:
       - name: Set multiline environment variable
         run: |
           echo "DJANGO_ENV<<EOF" >> $GITHUB_ENV
-          echo "${{ secrets.DJANGO_ENV }}" >> $GITHUB_ENV
+          echo "${{ secrets.DJANGO_ENVS }}" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
-
-      # test db connection
-      - name: Wait for PostgreSQL
-        run: |
-          until pg_isready -h localhost -p 5432 -U ${{ env.POSTGRES_USER }}; do
-            sleep 3
-          done
-
-      # test redis connection
-      - name: Wait for Redis
-        run: |
-          until redis-cli -h localhost ping | grep PONG; do
-            sleep 3
-          done
 
       # run migration
       - name: Run Django Migration
