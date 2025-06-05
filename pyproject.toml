@@ -54,8 +54,12 @@ django_settings_module = "config.settings.local"
 omit = [
     "*/migrations/*",
     "*/tests/*",
+    "*/test_*.py",
     "*/settings/*",
     "*/manage.py",
+    "*/urls.py",
+    "*/wsgi.py",
+    "*/asgi.py",
 ]
 
 [tool.coverage.report]
