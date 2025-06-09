@@ -1,7 +1,7 @@
 ---
 name: ✨ Feature Request
 about: 새로운 기능이나 개선사항을 제안하고 싶은 것을 작성합니다.
-title: "[Feat] "
+title: "[feature] "
 labels: enhancement
 ---
 
