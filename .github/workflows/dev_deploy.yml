@@ -25,7 +25,7 @@ jobs:
         run: |
           docker build --platform linux/amd64 -t ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPO }}:django-dev .
           docker push ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPO }}:django-dev
-          docker build --platform linux/amd64 -t ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPO }}:nginx-dev ./resources/nginx
+          docker build --platform linux/amd64 -t ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPO }}:nginx-dev -f ./resources/nginx/Dockerfile.dev ./resources/nginx
           docker push ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPO }}:nginx-dev
 
       - name: get GitHub Actions IP
@@ -62,13 +62,13 @@ jobs:
           
             docker pull ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPO }}:django-dev
             docker run -d \
-            --name django \
-            --network ws \
-            -p 8000:8000\
-            --env-file .env ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPO }}:django-dev \
-            sh -c "python manage.py migrate && \
-            python manage.py collectstatic --noinput && \
-            gunicorn --workers 3 --bind 0.0.0.0:8000 config.wsgi:application"
+              --name django \
+              --network ws \
+              -p 8000:8000\
+              --env-file .env ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPO }}:django-dev \
+              sh -c "python manage.py migrate && \
+                python manage.py collectstatic --noinput && \
+                gunicorn --workers 3 --bind 0.0.0.0:8000 config.wsgi:application"
             
                         
             docker stop ${{ secrets.NGINX_CONTAINER_NAME }} || true
@@ -77,10 +77,10 @@ jobs:
             
             docker pull ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPO }}:nginx-dev
             docker run -d \
-            --network ws \
-            --name nginx \
-            -p 80:80 \
-            ${{ secrets.DOCKER_USERNAME }}//${{ secrets.DOCKER_REPO }}:nginx-dev
+              --network ws \
+              --name nginx \
+              -p 80:80 \
+              ${{ secrets.DOCKER_USERNAME }}//${{ secrets.DOCKER_REPO }}:nginx-dev
             
             docker image prune -af
 
@@ -91,3 +91,4 @@ jobs:
             --group-id ${{ secrets.AWS_SG_ID }} \
             --protocol tcp --port 22 \
             --cidr ${{ steps.ip.outputs.ipv4 }}/32
+            --region ap-northeast-2
