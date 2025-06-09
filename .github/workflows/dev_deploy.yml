@@ -65,7 +65,8 @@ jobs:
               --name django \
               --network ws \
               -p 8000:8000\
-              --env-file .env ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPO }}:django-dev \
+              --env-file ${{ secrets.ENV_FILE_NAME }} \
+              ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPO }}:django-dev \
               sh -c "python manage.py migrate && \
                 python manage.py collectstatic --noinput && \
                 gunicorn --workers 3 --bind 0.0.0.0:8000 config.wsgi:application"
@@ -80,7 +81,7 @@ jobs:
               --network ws \
               --name nginx \
               -p 80:80 \
-              ${{ secrets.DOCKER_USERNAME }}//${{ secrets.DOCKER_REPO }}:nginx-dev
+              ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPO }}:nginx-dev
             
             docker image prune -af
 
