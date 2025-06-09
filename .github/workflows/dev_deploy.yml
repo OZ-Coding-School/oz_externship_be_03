@@ -55,7 +55,16 @@ jobs:
           script: |
             sudo rm -f ${{ secrets.ENV_FILE_NAME }}
             echo "${{ secrets.DJANGO_DEV_ENVS }}" >> ${{ secrets.ENV_FILE_NAME }}
-
+            
+            for VOLUME in static-volume media-volume; do
+              if ! docker volume inspect "$VOLUME" > /dev/null 2>&1; then
+                echo "🛠 Creating volume: $VOLUME"
+                docker volume create "$VOLUME"
+              else
+                echo "✅ Volume $VOLUME already exists"
+              fi
+            done
+            
             docker stop ${{ secrets.DJANGO_CONTAINER_NAME }} || true
             docker rm ${{ secrets.DJANGO_CONTAINER_NAME }} || true
             docker rmi ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPO }}:django-dev
@@ -64,6 +73,8 @@ jobs:
             docker run -d \
               --name django \
               --network ws \
+              -v static-volume:/oz_externship/app/static \
+              -v media-volume:/oz_externship/app/media \
               -p 8000:8000\
               --env-file ${{ secrets.ENV_FILE_NAME }} \
               ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPO }}:django-dev \
@@ -77,9 +88,13 @@ jobs:
             docker rmi ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPO }}:nginx-dev
             
             docker pull ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPO }}:nginx-dev
+            
+
             docker run -d \
               --network ws \
               --name nginx \
+              -v static-volume:/vol/web/static \
+              -v media-volume:/vol/web/media \
               -p 80:80 \
               ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPO }}:nginx-dev
             
