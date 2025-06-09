@@ -30,13 +30,13 @@ services:
     container_name: nginx
     ports:
       - "80:80"
-      - "443:443"  # 🔥 HTTPS 열기
+      - "443:443"
     depends_on:
       - django
     volumes:
       - ./resources/nginx/nginx.local.conf:/etc/nginx/nginx.conf:ro
-      - static_volume:/oz_externship/oz_externship/app/static
-      - media_volume:/oz_externship/oz_externship/app/media
+      - static_volume:/oz_externship/app/static
+      - media_volume:/oz_externship/app/media
     networks:
       - ws
 
