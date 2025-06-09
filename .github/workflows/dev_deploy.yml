@@ -1,14 +1,12 @@
 name: Development Server Deployment
 
 on:
-  workflow_run:
-    workflows: [ "Code Quality Checks" ]
-    types:
-      - completed
+  push:
+    branches:
+      - develop
 
 jobs:
   dev_deploy:
-    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'develop' }}
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout Repository
@@ -51,9 +49,9 @@ jobs:
       - name: Deploy to Server via SSH
         uses: appleboy/ssh-action@v0.1.7
         with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
+          host: ${{ secrets.EC2_DEV_HOST }}
+          username: ${{ secrets.EC2_DEV_USER }}
+          key: ${{ secrets.EC2_DEV_SSH_KEY }}
           script: |
             sudo rm -f ${{ secrets.ENV_FILE_NAME }}
             echo "${{ secrets.DJANGO_DEV_ENVS }}" >> ${{ secrets.ENV_FILE_NAME }}
