@@ -1,12 +1,14 @@
 name: Development Server Deployment
 
 on:
-  push:
-    branches:
-      - "dev"
+  workflow_run:
+    workflows: [ "Code Quality Checks" ]
+    types:
+      - completed
 
 jobs:
   dev_deploy:
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'develop' }}
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout Repository
