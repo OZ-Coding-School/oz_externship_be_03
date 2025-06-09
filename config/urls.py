@@ -1,6 +1,10 @@
 from django.conf import settings
 from django.urls import URLPattern, URLResolver, include, path
-from drf_spectacular.views import SpectacularRedocView, SpectacularSwaggerView, SpectacularAPIView
+from drf_spectacular.views import (
+    SpectacularAPIView,
+    SpectacularRedocView,
+    SpectacularSwaggerView,
+)
 
 urlpatterns: list[URLPattern | URLResolver] = []
 
