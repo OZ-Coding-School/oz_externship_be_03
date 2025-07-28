@@ -6,7 +6,8 @@ from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
-load_dotenv()
+if os.getenv("DJANGO_SETTINGS_MODULE") == "config.settings.local":
+    load_dotenv(dotenv_path=BASE_DIR / "envs/.local.env")
 
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY")
 if not SECRET_KEY:
