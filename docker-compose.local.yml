@@ -3,8 +3,6 @@ services:
     container_name: django
     env_file:
       - envs/.local.env
-    environment:
-      - DJANGO_SETTINGS_MODULE=config.settings.local
     build:
       context: .
     working_dir: /oz_externship
@@ -15,8 +13,9 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - static_volume:/oz_externship/app/static
-      - media_volume:/oz_externship/app/media
+      - .:/oz_externship
+      - static_volume:/oz_externship/static
+      - media_volume:/oz_externship/media
     networks:
       - ws
     depends_on:
@@ -35,8 +34,8 @@ services:
       - django
     volumes:
       - ./resources/nginx/nginx.local.conf:/etc/nginx/nginx.conf:ro
-      - static_volume:/oz_externship/app/static
-      - media_volume:/oz_externship/app/media
+      - static_volume:/oz_externship/static
+      - media_volume:/oz_externship/media
     networks:
       - ws
 

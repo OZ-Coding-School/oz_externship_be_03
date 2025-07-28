@@ -1,7 +1,10 @@
+import os
+
 from config.settings.base import *
+import sentry_sdk
 
 DEBUG = True
-ALLOWED_HOSTS = ["54.180.237.77"]
+ALLOWED_HOSTS = os.getenv('DJANGO_ALLOWED_HOSTS').split(' ')
 
 # Static files (CSS, JavaScript, Images)
 STATIC_URL = "static/"
@@ -13,3 +16,17 @@ MEDIA_ROOT = BASE_DIR / "media"
 INTERNAL_IPS = [
     "127.0.0.1",
 ]
+
+# cors & csrf settings
+CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS').split(' ')
+CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS
+
+# sentry logging settings
+SENTRY_DSN = os.getenv("SENTRY_DSN")
+if not SENTRY_DSN:
+    raise ValueError("SENTRY_DSN must be set. For Error Logging")
+sentry_sdk.init(
+    dsn=SENTRY_DSN,
+    traces_sample_rate=float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", 1)),
+    profiles_sample_rate=float(os.getenv("SENTRY_PROFILES_SAMPLE_RATE", 1)),
+)
