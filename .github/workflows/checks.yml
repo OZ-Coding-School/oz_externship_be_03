@@ -61,6 +61,7 @@ jobs:
         run: |
           mkdir envs
           echo "${{ secrets.DJANGO_ENVS }}" >> envs/.local.env
+          ln -sf envs/.local.env .env
 
       - name: Run Mypy
         run: poetry run mypy .
