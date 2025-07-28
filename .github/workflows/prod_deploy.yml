@@ -1,13 +1,13 @@
-name: Development Server Deployment
+name: Production Server Deployment
 
 on:
   pull_request:
     types: ['closed']
     branches:
-      - develop
+      - main
 
 jobs:
-  dev_deploy:
+  prod_deploy:
     if: github.event.pull_request.merged == true
     runs-on: ubuntu-24.04
     steps:
@@ -25,10 +25,10 @@ jobs:
 
       - name: Build and Push Docker Image
         run: |
-          docker build --platform linux/amd64 -t ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPO }}:django-dev .
-          docker push ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPO }}:django-dev
-          docker build --platform linux/amd64 -t ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPO }}:nginx-dev -f ./resources/nginx/dev.Dockerfile ./resources/nginx
-          docker push ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPO }}:nginx-dev
+          docker build --platform linux/amd64 -t ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPO }}:django-prod .
+          docker push ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPO }}:django-prod
+          docker build --platform linux/amd64 -t ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPO }}:nginx-prod -f ./resources/nginx/prod.Dockerfile ./resources/nginx
+          docker push ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPO }}:nginx-prod
 
       - name: get GitHub Actions IP
         id: ip
@@ -51,12 +51,12 @@ jobs:
       - name: Deploy to Server via SSH
         uses: appleboy/ssh-action@v0.1.7
         with:
-          host: ${{ secrets.EC2_DEV_HOST }}
-          username: ${{ secrets.EC2_DEV_USER }}
-          key: ${{ secrets.EC2_DEV_SSH_KEY }}
+          host: ${{ secrets.EC2_PROD_HOST }}
+          username: ${{ secrets.EC2_PROD_USER }}
+          key: ${{ secrets.EC2_PROD_SSH_KEY }}
           script: |
             sudo rm -f ${{ secrets.ENV_FILE_NAME }}
-            echo "${{ secrets.DJANGO_DEV_ENVS }}" >> ${{ secrets.ENV_FILE_NAME }}
+            echo "${{ secrets.DJANGO_PROD_ENVS }}" >> ${{ secrets.ENV_FILE_NAME }}
             
             for VOLUME in static-volume media-volume; do
               if ! docker volume inspect "$VOLUME" > /dev/null 2>&1; then
@@ -69,17 +69,17 @@ jobs:
             
             docker stop ${{ secrets.DJANGO_CONTAINER_NAME }} || true
             docker rm ${{ secrets.DJANGO_CONTAINER_NAME }} || true
-            docker rmi ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPO }}:django-dev
+            docker rmi ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPO }}:django-prod
           
-            docker pull ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPO }}:django-dev
+            docker pull ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPO }}:django-prod
             docker run -d \
               --name django \
               --network ws \
-              -v static-volume:/oz_externship/app/static \
-              -v media-volume:/oz_externship/app/media \
+              -v static-volume:/oz_externship/static \
+              -v media-volume:/oz_externship/media \
               -p 8000:8000\
               --env-file ${{ secrets.ENV_FILE_NAME }} \
-              ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPO }}:django-dev \
+              ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPO }}:django-prod \
               sh -c "python manage.py migrate && \
                 python manage.py collectstatic --noinput && \
                 gunicorn --workers 3 --bind 0.0.0.0:8000 config.wsgi:application"
@@ -87,9 +87,9 @@ jobs:
                         
             docker stop ${{ secrets.NGINX_CONTAINER_NAME }} || true
             docker rm ${{ secrets.NGINX_CONTAINER_NAME }} || true
-            docker rmi ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPO }}:nginx-dev
+            docker rmi ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPO }}:nginx-prod
             
-            docker pull ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPO }}:nginx-dev
+            docker pull ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPO }}:nginx-prod
             
 
             docker run -d \
@@ -98,7 +98,7 @@ jobs:
               -v static-volume:/vol/web/static \
               -v media-volume:/vol/web/media \
               -p 80:80 \
-              ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPO }}:nginx-dev
+              ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPO }}:nginx-prod
             
             docker image prune -af
 

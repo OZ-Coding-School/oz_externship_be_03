@@ -2,20 +2,17 @@ import os
 from datetime import timedelta
 from pathlib import Path
 
-import sentry_sdk
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
-load_dotenv(dotenv_path=BASE_DIR / "envs/.local.env")
+if os.getenv("DJANGO_SETTINGS_MODULE") == "config.settings.local":
+    load_dotenv(dotenv_path=BASE_DIR / "envs/.local.env")
 
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY")
 if not SECRET_KEY:
     raise ValueError("DJANGO_SECRET_KEY environment variable not set")
 
-DEBUG = True
-
-ALLOWED_HOSTS: list[str | None] = []
 
 # Application definition
 DJANGO_APPS = [
@@ -149,9 +146,6 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # CORS Settings
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
-]
 CORS_ALLOW_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
 CORS_ALLOW_HEADERS = [
     "accept",
@@ -161,9 +155,6 @@ CORS_ALLOW_HEADERS = [
     "user-agent",
     "x-csrftoken",
     "x-requested-with",
-]
-CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:5173",
 ]
 
 # drf 관련 설정
@@ -182,7 +173,7 @@ SPECTACULAR_SETTINGS = {
     "DESCRIPTION": "오즈 코딩 스쿨의 웹 사이트 개발을 위한 API입니다.",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
-    "COMPONENT_SPLIT_REQUEST": False,
+    "COMPONENT_SPLIT_REQUEST": True,
     "SWAGGER_UI_SETTINGS": {
         "dom_id": "#swagger-ui",
         "layout": "BaseLayout",
@@ -202,12 +193,3 @@ SPECTACULAR_SETTINGS = {
         }
     ],
 }
-
-SENTRY_DSN = os.getenv("SENTRY_DSN")
-if not SENTRY_DSN:
-    raise ValueError("SENTRY_DSN must be set. For Error Logging")
-sentry_sdk.init(
-    dsn=SENTRY_DSN,
-    traces_sample_rate=float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", 1)),
-    profiles_sample_rate=float(os.getenv("SENTRY_PROFILES_SAMPLE_RATE", 1)),
-)

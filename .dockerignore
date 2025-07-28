@@ -6,9 +6,13 @@ __pycache__/
 .idea/
 docker-compose.*
 Dockerfile
+*.Dockerfile
 .gitignore
 .git/
 .github/
 .dmypy.json
 .coverage
 htmlcov/
+media/
+static/
+staticfiles/
