@@ -1,4 +1,4 @@
-name: Development Server Deployment
+name: Production Server Deployment
 
 on:
   pull_request:
@@ -7,7 +7,7 @@ on:
       - main
 
 jobs:
-  dev_deploy:
+  prod_deploy:
     if: github.event.pull_request.merged == true
     runs-on: ubuntu-24.04
     steps:
