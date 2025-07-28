@@ -1,12 +1,18 @@
-from config.settings.base import *
+import os
+from datetime import timedelta
+
 import sentry_sdk
 
+from config.settings.base import *
 
 DEBUG = False
-ALLOWED_HOSTS = os.getenv('DJANGO_ALLOWED_HOSTS').split(' ')
+RAW_ALLOWED_HOSTS = os.getenv("DJANGO_ALLOWED_HOSTS", "")
+if not RAW_ALLOWED_HOSTS:
+    raise ValueError("DJANGO_ALLOWED_HOSTS must be set")
+ALLOWED_HOSTS = RAW_ALLOWED_HOSTS.split(" ")
 
 # cors & csrf settings
-CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS').split(' ')
+CORS_ALLOWED_ORIGINS = os.getenv("CORS_ALLOWED_ORIGINS", "").split(" ")
 CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS
 
 # sentry logging settings

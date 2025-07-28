@@ -134,6 +134,7 @@ jobs:
         run: |
           mkdir envs
           echo "${{ secrets.DJANGO_ENVS }}" >> envs/.local.env
+          ln -sf envs/.local.env .env
 
       # run migration
       - name: Run Django Migration
