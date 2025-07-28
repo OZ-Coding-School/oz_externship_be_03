@@ -1,7 +1,8 @@
 name: Development Server Deployment
 
 on:
-  push:
+  pull_request:
+    types: ['closed']
     branches:
       - develop
 
