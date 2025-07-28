@@ -61,7 +61,6 @@ jobs:
         run: |
           mkdir envs
           echo "${{ secrets.DJANGO_ENVS }}" >> envs/.local.env
-          ln -sf envs/.local.env .env
 
       - name: Run Mypy
         run: poetry run mypy .
@@ -135,7 +134,6 @@ jobs:
         run: |
           mkdir envs
           echo "${{ secrets.DJANGO_ENVS }}" >> envs/.local.env
-          ln -sf envs/.local.env .env
 
       # run migration
       - name: Run Django Migration
@@ -145,27 +143,23 @@ jobs:
       - name: Check each app has test & Run coverage
         run: |
           ran_tests=false
-          apps="community courses qna tests users"
-
+          apps=$(find apps -maxdepth 1 -mindepth 1 -type d -exec basename {} \;)
+      
           for app_name in $apps; do
             app_path="apps/$app_name"
-            if [ -d "$app_path" ]; then
-              test_files=$(find "$app_path" -type f \( -name "tests.py" -o -name "test_*.py" \))
-              if [ -n "$test_files" ] && grep -q "def test_" $test_files 2>/dev/null; then
-                echo "✅ Running tests for $app_name"
-                poetry run coverage run --source="$app_path" --append manage.py test "apps.$app_name"
-                ran_tests=true
-                echo "📊 Coverage for $app_name:"
-                poetry run coverage report -m --include="$app_path/*"
-                echo ""
-              else
-                echo "⚠️  No test functions found in $app_name"
-              fi
+            test_files=$(find "$app_path" -type f \( -name "tests.py" -o -name "test_*.py" \))
+            if [ -n "$test_files" ] && grep -q "def test_" $test_files 2>/dev/null; then
+              echo "✅ Running tests for $app_name"
+              poetry run coverage run --source="$app_path" --append manage.py test "apps.$app_name"
+              ran_tests=true
+              echo "📊 Coverage for $app_name:"
+              poetry run coverage report -m --include="$app_path/*"
+              echo ""
             else
-              echo "⛔️ Directory not found for $app_name"
+              echo "⚠️  No test functions found in $app_name"
             fi
           done
-
+      
           if [ "$ran_tests" = true ]; then
             echo "======================="
             echo "📊 Total Coverage Report:"
