@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.conf.urls.static import static
 from django.urls import URLPattern, URLResolver, include, path
 from drf_spectacular.views import (
     SpectacularAPIView,
@@ -9,6 +10,7 @@ from drf_spectacular.views import (
 urlpatterns: list[URLPattern | URLResolver] = []
 
 if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
     if "debug_toolbar" in settings.INSTALLED_APPS:
         urlpatterns += [path("__debug__/", include("debug_toolbar.urls"))]
     if "drf_spectacular" in settings.INSTALLED_APPS:
