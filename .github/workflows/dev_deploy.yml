@@ -83,14 +83,12 @@ jobs:
               sh -c "python manage.py migrate && \
                 python manage.py collectstatic --noinput && \
                 gunicorn --workers 3 --bind 0.0.0.0:8000 config.wsgi:application"
-            
                         
             docker stop ${{ secrets.NGINX_CONTAINER_NAME }} || true
             docker rm ${{ secrets.NGINX_CONTAINER_NAME }} || true
             docker rmi ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPO }}:nginx-dev
             
             docker pull ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPO }}:nginx-dev
-            
 
             docker run -d \
               --network ws \
