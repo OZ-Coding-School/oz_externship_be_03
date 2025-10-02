@@ -61,6 +61,7 @@ omit = [
     "*/urls.py",
     "*/wsgi.py",
     "*/asgi.py",
+    "*testcase.py",
 ]
 
 [tool.coverage.report]
