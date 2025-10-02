@@ -73,7 +73,7 @@ jobs:
           
             docker pull ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPO }}:django-dev
             docker run -d \
-              --name django \
+              --name ${{ secrets.DJANGO_CONTAINER_NAME }} \
               --network ws \
               -v static-volume:/oz_externship/app/static \
               -v media-volume:/oz_externship/app/media \
@@ -92,7 +92,7 @@ jobs:
 
             docker run -d \
               --network ws \
-              --name nginx \
+              --name ${{ secrets.NGINX_CONTAINER_NAME }} \
               -v static-volume:/vol/web/static \
               -v media-volume:/vol/web/media \
               -v certbot-conf:/etc/letsencrypt \
