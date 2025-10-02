@@ -75,8 +75,9 @@ jobs:
             docker run -d \
               --name ${{ secrets.DJANGO_CONTAINER_NAME }} \
               --network ws \
-              -v static-volume:/oz_externship/app/static \
-              -v media-volume:/oz_externship/app/media \
+              -v static-volume:/oz_externship/static \
+              -v media-volume:/oz_externship/media \
+              -v logs-volume:/oz_externship/logs \
               -p 8000:8000\
               --env-file ${{ secrets.ENV_FILE_NAME }} \
               ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPO }}:django-dev \
@@ -95,7 +96,6 @@ jobs:
               --name ${{ secrets.NGINX_CONTAINER_NAME }} \
               -v static-volume:/vol/web/static \
               -v media-volume:/vol/web/media \
-              -v logs-volume:/oz_externship/logs \
               -v certbot-conf:/etc/letsencrypt \
               -v certbot-www:/var/www/certbot \
               -p 80:80 \
