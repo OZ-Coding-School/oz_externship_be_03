@@ -95,6 +95,7 @@ jobs:
               --name ${{ secrets.NGINX_CONTAINER_NAME }} \
               -v static-volume:/vol/web/static \
               -v media-volume:/vol/web/media \
+              -v logs-volume:/oz_externship/logs \
               -v certbot-conf:/etc/letsencrypt \
               -v certbot-www:/var/www/certbot \
               -p 80:80 \

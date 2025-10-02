@@ -27,3 +27,43 @@ sentry_sdk.init(
 
 # jwt access token lifetime
 SIMPLE_JWT["ACCESS_TOKEN_LIFETIME"] = timedelta(minutes=60)
+
+# logging settings
+LOG_ROOT = os.path.join(BASE_DIR, "logs")
+if not os.path.exists(LOG_ROOT):
+    os.makedirs(LOG_ROOT)
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "filters": {
+        "require_debug_false": {"()": "django.utils.log.RequireDebugFalse"},
+    },
+    "formatters": {
+        "verbose": {
+            "format": "{levelname} {asctime} {module} {process:d} {thread:d} {message}",
+            "style": "{",
+        },
+    },
+    "handlers": {
+        "file": {
+            "level": "INFO",
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": os.path.join(LOG_ROOT, "django.log"),
+            "formatter": "verbose",
+            "maxBytes": 1024 * 1024 * 10,
+            "backupCount": 10,
+        },
+        "mail_admins": {
+            "level": "ERROR",
+            "filters": ["require_debug_false"],
+            "class": "django.utils.log.AdminEmailHandler",
+        },
+    },
+    "loggers": {
+        "django": {
+            "handlers": ["file", "mail_admins"],
+            "level": "INFO",
+            "propagate": True,
+        },
+    },
+}
