@@ -12,9 +12,8 @@ jobs:
         id: map
         run: |
           declare -A mapping=(
-            ["야간 PR 멘토님 성함"]="<@야간 PR 멘토님 디스코드 id>"
             ["Meoyoug"]="<@383265658705805313>"
-            ["Umdoong"]="<@1351555977282977833>"
+            ["2joonkim"]="<@1294189058687500309>"
           )
 
           mentions=""
