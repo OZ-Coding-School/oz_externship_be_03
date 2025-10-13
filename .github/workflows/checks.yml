@@ -142,28 +142,29 @@ jobs:
 
       - name: Check each app has test & Run coverage
         run: |
-          ran_tests=false
-          apps=$(find apps -maxdepth 1 -mindepth 1 -type d -exec basename {} \;)
+          # 전체 테스트를 병렬로 실행하며 coverage 수집
+          poetry run coverage run --parallel-mode --concurrency=multiprocessing manage.py test --parallel
       
+          # 커버리지 데이터 합치기
+          poetry run coverage combine
+          
+          # apps 디렉터리 하위의 앱 디렉터리 배열 수집
+          apps=$(find apps -maxdepth 1 -mindepth 1 -type d ! -name "__pycache__" -exec basename {} \;)
+          
+          # 각 app 디렉터리를 순회하며 test 코드가 존재하는 지 확인 후 coverage report 도출
           for app_name in $apps; do
             app_path="apps/$app_name"
             test_files=$(find "$app_path" -type f \( -name "tests.py" -o -name "test_*.py" \))
             if [ -n "$test_files" ] && grep -q "def test_" $test_files 2>/dev/null; then
-              echo "✅ Running tests for $app_name"
-              poetry run coverage run --source="$app_path" --append manage.py test "apps.$app_name"
-              ran_tests=true
-              echo "📊 Coverage for $app_name:"
+              echo "📊 Coverage for apps.$app_name:"
               poetry run coverage report -m --include="$app_path/*"
               echo ""
             else
-              echo "⚠️  No test functions found in $app_name"
+              echo "⚠️  No test functions found in apps.$app_name"
             fi
           done
-      
-          if [ "$ran_tests" = true ]; then
-            echo "======================="
-            echo "📊 Total Coverage Report:"
-            poetry run coverage report -m
-          else
-            echo "🚫 No tests were run. Skipping coverage report."
-          fi
+          
+          # 전체 커버리지 보고
+          echo "======================="
+          echo "📊 Total Coverage Report:"
+          poetry run coverage report -m
