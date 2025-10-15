@@ -11,6 +11,11 @@ class DifficultyEnum(models.TextChoices):
     HARD = "HARD", "어려움"
 
 
+class PlatformEnum(models.TextChoices):
+    UDEMY = "UDEMY", "Udemy"
+    INFLEARN = "INFLEARN", "Inflearn"
+
+
 class CrawledLecture(UUIDBaseModel):
     title = models.CharField(max_length=255, null=False)
     instructor = models.CharField(max_length=20, null=False)
@@ -18,7 +23,7 @@ class CrawledLecture(UUIDBaseModel):
     duration = models.SmallIntegerField(null=False)
     difficulty = models.CharField(max_length=10, choices=DifficultyEnum.choices, null=False)
     description = models.TextField(null=False)
-    platform = models.CharField(max_length=50, null=False)
+    platform = models.CharField(max_length=10, choices=PlatformEnum.choices, null=False)
     original_price = models.BigIntegerField(default=0, null=False)
     discount_price = models.BigIntegerField(default=0, null=False)
     url_link = models.CharField(max_length=500, null=False)
