@@ -196,6 +196,8 @@ SPECTACULAR_SETTINGS = {
     ],
 }
 
+AUTH_USER_MODEL = "users.User"
+
 # SMTP Settings
 EMAIL_BACKEND = os.environ.get("EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend")
 EMAIL_HOST = os.environ.get("EMAIL_HOST", "smtp.gmail.com")
