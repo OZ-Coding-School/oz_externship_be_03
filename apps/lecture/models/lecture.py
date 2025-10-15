@@ -1,6 +1,7 @@
 import uuid
 
 from django.db import models
+from apps.core.models import UUIDBaseModel
 
 
 class DifficultyEnum(models.TextChoices):
@@ -9,21 +10,18 @@ class DifficultyEnum(models.TextChoices):
     HARD = "HARD", "어려움"
 
 
-class CrawledLecture(models.Model):
-    uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
-    title = models.CharField(max_length=255)
-    instructor = models.CharField(max_length=20)
-    average_rating = models.DecimalField(max_digits=3, decimal_places=2, default=0.00)
-    duration = models.SmallIntegerField()
-    difficulty = models.CharField(max_length=10, choices=DifficultyEnum.choices)
-    description = models.TextField()
-    platform = models.CharField(max_length=50)
-    original_price = models.BigIntegerField(default=0)
-    discount_price = models.BigIntegerField(default=0)
-    url_link = models.CharField(max_length=500)
+class CrawledLecture(UUIDBaseModel):
+    title = models.CharField(max_length=255, null=False)
+    instructor = models.CharField(max_length=20, null=False)
+    average_rating = models.DecimalField(max_digits=3, decimal_places=2, default=0.00, null=False)
+    duration = models.SmallIntegerField(null=False)
+    difficulty = models.CharField(max_length=10, choices=DifficultyEnum.choices, null=False)
+    description = models.TextField(null=False)
+    platform = models.CharField(max_length=50, null=False)
+    original_price = models.BigIntegerField(default=0, null=False)
+    discount_price = models.BigIntegerField(default=0, null=False)
+    url_link = models.CharField(max_length=500, null=False)
     thumbnail_img_url = models.CharField(max_length=500, null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True, null=True)
 
     class Meta:
         db_table = "crawled_lectures"
