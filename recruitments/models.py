@@ -1,14 +1,17 @@
-from django.db import models
 import uuid
-from django.utils import timezone
 from datetime import timedelta
+
 from django.contrib.auth.models import User
+from django.db import models
+from django.utils import timezone
+
 
 # ----------------------------
 # 기본 마감일 함수
 # ----------------------------
 def default_close_at():
     return timezone.now() + timedelta(days=14)
+
 
 # ----------------------------
 # 스터디 그룹
@@ -19,6 +22,7 @@ class StudyGroup(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)  # 생성일시
     updated_at = models.DateTimeField(null=True, blank=True)  # 수정일시
 
+
 # ----------------------------
 # 태그 (사용자 정의 태그)
 # ----------------------------
@@ -27,11 +31,14 @@ class Tag(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)  # 생성일시
     updated_at = models.DateTimeField(null=True, blank=True)  # 수정일시
 
+
 # ----------------------------
 # 스터디 구인 공고
 # ----------------------------
 class Recruitment(models.Model):
-    uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)  # 외부 노출용 UUID
+    uuid = models.UUIDField(
+        default=uuid.uuid4, editable=False, unique=True
+    )  # 외부 노출용 UUID
     study_group = models.ForeignKey(
         StudyGroup, on_delete=models.CASCADE, related_name="recruitments"
     )  # 소속 스터디 그룹
@@ -47,6 +54,7 @@ class Recruitment(models.Model):
     is_closed = models.BooleanField(default=False)  # 공고 마감 상태
     created_at = models.DateTimeField(auto_now_add=True)  # 생성일시
     updated_at = models.DateTimeField(null=True, blank=True)  # 수정일시
+
 
 # ----------------------------
 # 스터디 구인 공고 ↔ 태그 중간 테이블
@@ -64,6 +72,7 @@ class RecruitmentTag(models.Model):
     class Meta:
         unique_together = ("recruitment", "tag")  # 공고-태그 조합 유니크
 
+
 # ----------------------------
 # 공고 첨부 파일
 # ----------------------------
@@ -76,6 +85,7 @@ class RecruitmentAttachment(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)  # 생성일시
     updated_at = models.DateTimeField(null=True, blank=True)  # 수정일시
 
+
 # ----------------------------
 # 공고 이미지
 # ----------------------------
@@ -86,6 +96,7 @@ class RecruitmentImage(models.Model):
     img_url = models.CharField(max_length=255)  # 이미지 URL
     created_at = models.DateTimeField(auto_now_add=True)  # 생성일시
     updated_at = models.DateTimeField(null=True, blank=True)  # 수정일시
+
 
 # ----------------------------
 # 공고 북마크
