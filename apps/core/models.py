@@ -1,5 +1,7 @@
 import uuid
+
 from django.db import models
+
 from apps.core.utils.base62 import Base62
 
 
