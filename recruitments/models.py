@@ -1,5 +1,5 @@
 import uuid
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from django.contrib.auth.models import User
 from django.db import models
@@ -9,7 +9,7 @@ from django.utils import timezone
 # ----------------------------
 # 기본 마감일 함수
 # ----------------------------
-def default_close_at():
+def default_close_at() -> datetime:
     return timezone.now() + timedelta(days=14)
 
 
