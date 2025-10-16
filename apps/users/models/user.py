@@ -2,33 +2,28 @@ from __future__ import annotations
 
 import uuid as _uuid
 
-from django.contrib.auth.models import AbstractUser
+from django.contrib.auth.base_user import AbstractBaseUser
 from django.core.validators import RegexValidator
 from django.db import models
 
 from apps.core.models import BaseModel
 
 
-class User(AbstractUser, BaseModel):
+class User(AbstractBaseUser, BaseModel):
     """
     User 모델
     - 로그인 키: email
     """
 
-    username = None
     USERNAME_FIELD = "email"
+    last_login = None
 
     # 회원가입 필수 항목
     REQUIRED_FIELDS = ["nickname", "name", "phone_number", "birthday", "gender"]
 
-    id = models.BigAutoField(primary_key=True)
-
     uuid = models.UUIDField(default=_uuid.uuid4, unique=True)
 
     email = models.EmailField(unique=True)
-
-    # password / is_staff / is_superuser 등은 AbstractUser가 제공
-    # password = models.CharField(max_length=128)
 
     name = models.CharField(max_length=30)
 
@@ -44,7 +39,7 @@ class User(AbstractUser, BaseModel):
         ("M", "남"),
         ("F", "여"),
     )
-    gender = models.CharField(max_length=1, choices=GENDER)
+    gender = models.CharField(max_length=6, choices=GENDER)
 
     birthday = models.DateField()
 
@@ -52,9 +47,9 @@ class User(AbstractUser, BaseModel):
 
     is_active = models.BooleanField(default=False)
 
-    # is_staff = models.BooleanField(default=False)
+    is_staff = models.BooleanField(default=False)
 
-    # is_superuser = models.BooleanField(default=False)
+    is_superuser = models.BooleanField(default=False)
 
     # created_at, updated_at 상속
 
@@ -62,5 +57,5 @@ class User(AbstractUser, BaseModel):
         db_table = "users"
         # PK 자동 고유 인덱스 생성
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.email} ({self.nickname})"
