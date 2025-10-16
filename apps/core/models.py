@@ -18,7 +18,3 @@ class UUIDBaseModel(BaseModel):
 
     class Meta:
         abstract = True
-
-    def get_short_uuid(self, length: int = 6) -> str:
-        """UUID를 Base62로 인코딩한 짧은 문자열 반환"""
-        return Base62.uuid_encode(self.uuid, length)
