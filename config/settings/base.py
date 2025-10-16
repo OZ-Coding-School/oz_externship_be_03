@@ -32,7 +32,13 @@ THIRD_PARTY_APPS = [
     "django_filters",
 ]
 
-INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS
+INSTALLED_APPS = (
+    DJANGO_APPS
+    + THIRD_PARTY_APPS
+    + [
+        "apps.studies",
+    ]
+)
 
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
