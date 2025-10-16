@@ -17,7 +17,9 @@ class StudyGroup(models.Model):
     uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
     name = models.CharField(max_length=20)
     introduction = models.CharField(max_length=500, null=True, blank=True)
-    max_headcount = models.PositiveSmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(10)])
+    max_headcount = models.PositiveSmallIntegerField(
+        default=10, validators=[MinValueValidator(1), MaxValueValidator(10)]
+    )
     profile_img_url = models.URLField(null=True, blank=True)
     start_at = models.DateTimeField()
     end_at = models.DateTimeField()
