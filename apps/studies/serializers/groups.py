@@ -226,5 +226,5 @@ class AdminStudyGroupDetailSerializer(serializers.ModelSerializer[StudyGroup]):
         ]
 
     def get_current_members(self, obj: StudyGroup) -> int:
-        members: "QuerySet[GroupMember]" = obj.members.all()  # type: ignore[attr-defined]
+        members: "QuerySet[GroupMember]" = obj.members.all()
         return int(members.count())
