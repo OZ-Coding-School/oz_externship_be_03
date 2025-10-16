@@ -6,92 +6,82 @@ from django.db import models
 from django.utils import timezone
 
 
-# ----------------------------
-# 기본 마감일 함수
-# ----------------------------
+# 공통 타임스탬프
+class TimeStamped(models.Model):
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        abstract = True
+
+
+class StudyGroup(TimeStamped):
+    name = models.CharField(max_length=50, unique=True)
+    description = models.TextField(blank=True)  # 그룹 설명
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class Tag(TimeStamped):
+    name = models.CharField(max_length=20, unique=True)  # 태그명
+
+    def __str__(self) -> str:
+        return self.name
+
+
+# mypy 오류 수정: 반환 타입을 datetime으로 지정
 def default_close_at() -> datetime:
     return timezone.now() + timedelta(days=14)
 
 
-# ----------------------------
-# 스터디 그룹
-# ----------------------------
-class StudyGroup(models.Model):
-    name = models.CharField(max_length=50, unique=True)
-    description = models.TextField(blank=True, null=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(null=True, blank=True)
-
-
-# ----------------------------
-# 태그 (사용자 정의 태그)
-# ----------------------------
-class Tag(models.Model):
-    name = models.CharField(max_length=20, unique=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(null=True, blank=True)
-
-
-# ----------------------------
-# 스터디 구인 공고
-# ----------------------------
-class Recruitment(models.Model):
+class Recruitment(TimeStamped):
     uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
     study_group = models.ForeignKey(StudyGroup, on_delete=models.CASCADE, related_name="recruitments")
     author = models.ForeignKey(User, on_delete=models.CASCADE, related_name="recruitments")
     title = models.CharField(max_length=50)
     content = models.TextField()
-    estimated_fee = models.IntegerField()
-    expected_headcount = models.PositiveSmallIntegerField()
-    views_count = models.IntegerField(default=0)
-    close_at = models.DateTimeField(default=default_close_at)
-    is_closed = models.BooleanField(default=False)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(null=True, blank=True)
+    estimated_fee = models.IntegerField()  # 예상 회비
+    expected_headcount = models.PositiveSmallIntegerField()  # 모집 인원
+    views_count = models.PositiveIntegerField(default=0)  # 조회수
+    close_at = models.DateTimeField(default=default_close_at)  # 마감일
+    is_closed = models.BooleanField(default=False)  # 마감 여부
+
+    def __str__(self) -> str:
+        return self.title
 
 
-# ----------------------------
-# 스터디 구인 공고 ↔ 태그 중간 테이블
-# ----------------------------
-class RecruitmentTag(models.Model):
+class RecruitmentTag(TimeStamped):
     recruitment = models.ForeignKey(Recruitment, on_delete=models.CASCADE, related_name="tags")
     tag = models.ForeignKey(Tag, on_delete=models.CASCADE, related_name="recruitments")
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
-        constraints = [models.UniqueConstraint(fields=["recruitment", "tag"], name="unique_recruitment_tag")]
+        unique_together = ("recruitment", "tag")  # 중복 방지
 
 
-# ----------------------------
-# 공고 첨부 파일
-# ----------------------------
-class RecruitmentAttachment(models.Model):
+class RecruitmentAttachment(TimeStamped):
     recruitment = models.ForeignKey(Recruitment, on_delete=models.CASCADE, related_name="attachments")
-    file_url = models.CharField(max_length=255, unique=True)
+    file = models.FileField(upload_to="recruitments/files/")  # 첨부 파일
     file_name = models.CharField(max_length=50)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self) -> str:
+        return self.file_name
 
 
-# ----------------------------
-# 공고 이미지
-# ----------------------------
-class RecruitmentImage(models.Model):
+class RecruitmentImage(TimeStamped):
     recruitment = models.ForeignKey(Recruitment, on_delete=models.CASCADE, related_name="images")
-    img_url = models.CharField(max_length=255)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(null=True, blank=True)
+    image = models.ImageField(upload_to="recruitments/images/")  # 공고 이미지
+
+    def __str__(self) -> str:
+        return f"{self.recruitment.title} 이미지"
 
 
-# ----------------------------
-# 공고 북마크
-# ----------------------------
-class RecruitmentBookmark(models.Model):
+class RecruitmentBookmark(TimeStamped):
     recruitment = models.ForeignKey(Recruitment, on_delete=models.CASCADE, related_name="bookmarks")
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="recruitment_bookmarks")
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
-        constraints = [models.UniqueConstraint(fields=["user", "recruitment"], name="unique_user_bookmark")]
+        unique_together = ("user", "recruitment")  # 한 번만 북마크 가능
+
+    def __str__(self) -> str:
+        return f"{self.user.username} 북마크 {self.recruitment.title}"
