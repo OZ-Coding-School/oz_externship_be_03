@@ -46,5 +46,5 @@ class Notification(BaseModel):
         verbose_name = "알림"
         verbose_name_plural = "알림 목록"
 
-    def __str__(self):
-        return f"[{self.get_type_display()}] {self.content}"
+    def __str__(self) -> str:
+        return f"{self.content}"
