@@ -2,7 +2,7 @@ from datetime import date, timedelta
 
 from rest_framework import serializers
 
-from .models import GroupMember, StudyGroup, StudyLecture
+from apps.studies.models.groups import GroupMember, StudyGroup, StudyLecture
 
 
 # 스터디 그룹 생성 / 수정 (REQ-STDY-001, 003, 009)

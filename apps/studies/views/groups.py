@@ -5,7 +5,7 @@ from rest_framework.permissions import AllowAny, IsAdminUser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .serializers import StudyGroupCreateSerializer
+from ..serializers.groups import StudyGroupCreateSerializer
 
 
 # 스터디 그룹 생성
