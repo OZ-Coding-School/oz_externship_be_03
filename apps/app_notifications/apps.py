@@ -3,4 +3,4 @@ from django.apps import AppConfig
 
 class AppNotificationsConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
-    name = "app_notifications"
+    name = "apps.app_notifications"
