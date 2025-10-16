@@ -31,8 +31,9 @@ class StudyGroup(models.Model):
 
     class Meta:
         db_table = "study_groups"
+        app_label = "studies"  # mypy와 migration 모두 안전하게 하기 위해 추가
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.name
 
 
@@ -46,6 +47,7 @@ class StudyLecture(models.Model):
     class Meta:
         db_table = "study_lectures"
         unique_together = ("lecture_id", "study_group")
+        app_label = "studies"
 
 
 # 그룹 멤버
@@ -60,6 +62,7 @@ class GroupMember(models.Model):
     class Meta:
         db_table = "group_members"
         unique_together = ("study_group", "user_id")
+        app_label = "studies"
 
 
 # 그룹 스케줄
@@ -76,6 +79,7 @@ class GroupSchedule(models.Model):
 
     class Meta:
         db_table = "group_schedules"
+        app_label = "studies"
 
 
 # 스케줄 참여자
@@ -88,3 +92,4 @@ class ScheduleParticipant(models.Model):
     class Meta:
         db_table = "schedule_participants"
         unique_together = ("schedule", "member")
+        app_label = "studies"
