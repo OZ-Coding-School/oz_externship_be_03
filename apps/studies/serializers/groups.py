@@ -1,3 +1,5 @@
+# mypy: disable-error-code=unused-ignore
+
 from datetime import date, datetime
 from typing import Any, Optional, cast
 
