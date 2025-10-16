@@ -36,6 +36,7 @@ LOCAL_APPS = [
     "apps.core",
     "apps.users",
     "apps.lecture",
+    "apps.studies",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -199,8 +200,6 @@ SPECTACULAR_SETTINGS = {
         }
     ],
 }
-
-AUTH_USER_MODEL = "users.User"
 
 # SMTP Settings
 EMAIL_BACKEND = os.environ.get("EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend")
