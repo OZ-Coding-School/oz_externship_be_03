@@ -15,4 +15,4 @@ class LectureSearchLog(BaseModel):
         ordering = ["-created_at"]
 
     def __str__(self) -> str:
-        return f"{self.user.nickname} - {self.keyword}"
+        return f"{self.user.nickname} - {self.keyword}"  # type:ignore # TODO:user파트 머지 후 주석삭제
