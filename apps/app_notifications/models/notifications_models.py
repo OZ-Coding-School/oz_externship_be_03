@@ -44,8 +44,8 @@ class Notification(BaseModel):
     )
 
     class Meta:
-        verbose_name = "알림"
-        verbose_name_plural = "알림 목록"
+        verbose_name = "Notification"
+        verbose_name_plural = "Notifications"
 
     def __str__(self) -> str:
         return f"{self.content}"
