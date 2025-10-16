@@ -22,6 +22,7 @@ dependencies = [
     "pillow (>=11.3.0,<12.0.0)",
     "alt-profanity-check (==1.7.2)",
     "scikit-learn (>=1.6,<1.8)",
+    "celery (>=5.5.3,<6.0.0)",
 ]
 
 [tool.poetry.group.dev.dependencies]
