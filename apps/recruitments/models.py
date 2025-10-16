@@ -16,8 +16,8 @@ def default_close_at() -> datetime:
 
 
 class StudyGroup(BaseModel):
-    name = models.CharField(max_length=50, unique=True)
-    description = models.TextField(blank=True)  # 스터디 그룹 소개
+    name = models.CharField(max_length=20, unique=True)  # ERD 기준 20자
+    introduction = models.TextField(blank=True)  # 스터디 그룹 소개 (ERD의 introduction)
 
     def __str__(self) -> str:
         return self.name
@@ -58,7 +58,7 @@ class RecruitmentTag(BaseModel):
 
 class RecruitmentAttachment(BaseModel):
     recruitment = models.ForeignKey(Recruitment, on_delete=models.CASCADE, related_name="attachments")
-    file_url = models.CharField(max_length=255)  # ERD 기준 URL
+    file_url = models.CharField(max_length=255, unique=True)  # ERD 기준 URL, 유니크 추가
     file_name = models.CharField(max_length=50)  # 파일 이름
 
     def __str__(self) -> str:
@@ -67,7 +67,7 @@ class RecruitmentAttachment(BaseModel):
 
 class RecruitmentImage(BaseModel):
     recruitment = models.ForeignKey(Recruitment, on_delete=models.CASCADE, related_name="images")
-    image_url = models.CharField(max_length=255)  # ERD 기준 URL
+    img_url = models.CharField(max_length=255, unique=True)  # ERD 기준 URL, 유니크 추가
 
     def __str__(self) -> str:
         return f"{self.recruitment.title} 이미지"
