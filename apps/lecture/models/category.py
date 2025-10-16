@@ -40,4 +40,4 @@ class UserPreferCategory(BaseModel):
         unique_together = [["user", "category"]]
 
     def __str__(self) -> str:
-        return f"{self.user.nickname} - {self.category.name}"
+        return f"{self.user.nickname} - {self.category.name}"  # type:ignore # TODO:user파트 머지 후 주석삭제
