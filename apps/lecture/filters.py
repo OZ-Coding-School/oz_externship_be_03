@@ -1,14 +1,13 @@
 from typing import Any
 
 from django.db import models
-from django_filters import (
-    rest_framework as filters,  # type: ignore #mypy에서 django_filter 라이브러리 인식 불가능
-)
+from django_filters import rest_framework as filters  # type: ignore
 
 from apps.lecture.models import CrawledLecture
 
 
-class LectureFilter(filters.FilterSet):  # type: ignore #mypy에서 django_filter 라이브러리 인식 불가능
+class LectureFilter(filters.FilterSet):  # type: ignore
+    # mypy에서 django_filter 라이브러리 인식 불가능
     """강의 목록 필터링"""
 
     # 검색 기능
