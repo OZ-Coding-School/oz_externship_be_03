@@ -11,6 +11,7 @@ from apps.studies.models.groups import GroupMember, StudyGroup, StudyLecture
 
 # 스터디 그룹 생성 / 수정 (REQ-STDY-001, 003, 009)
 class StudyGroupCreateSerializer(serializers.ModelSerializer):  # type: ignore[type-arg]
+    name = serializers.CharField(required=True, allow_blank=False)
     lectures = serializers.ListField(
         child=serializers.IntegerField(min_value=1),
         required=False,
@@ -101,7 +102,7 @@ class StudyGroupListSerializer(serializers.ModelSerializer[StudyGroup]):
         ]
 
     def get_current_members(self, obj: StudyGroup) -> int:
-        members: "QuerySet[GroupMember]" = obj.members.all()  # type: ignore[attr-defined]
+        members: "QuerySet[GroupMember]" = obj.members.all()
         return int(members.count())
 
     def get_is_leader(self, obj: StudyGroup) -> bool:
@@ -109,7 +110,7 @@ class StudyGroupListSerializer(serializers.ModelSerializer[StudyGroup]):
         user = getattr(request, "user", None)
         if not user or not getattr(user, "id", None):
             return False
-        members: "QuerySet[GroupMember]" = obj.members.all()  # type: ignore[attr-defined]
+        members: "QuerySet[GroupMember]" = obj.members.all()
         return bool(members.filter(user_id=user.id, is_leader=True).exists())
 
     def get_lectures(self, obj: StudyGroup) -> list[dict[str, str]]:
@@ -171,7 +172,7 @@ class StudyGroupDetailSerializer(serializers.ModelSerializer[StudyGroup]):
         ]
 
     def get_current_members(self, obj: StudyGroup) -> int:
-        members: "QuerySet[GroupMember]" = obj.members.all()  # type: ignore[attr-defined]
+        members: "QuerySet[GroupMember]" = obj.members.all()
         return int(members.count())
 
 
@@ -196,7 +197,7 @@ class AdminStudyGroupListSerializer(serializers.ModelSerializer[StudyGroup]):
         ]
 
     def get_current_members(self, obj: StudyGroup) -> int:
-        members: "QuerySet[GroupMember]" = obj.members.all()  # type: ignore[attr-defined]
+        members: "QuerySet[GroupMember]" = obj.members.all()
         return int(members.count())
 
 
