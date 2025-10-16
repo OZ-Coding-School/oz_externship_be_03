@@ -32,7 +32,7 @@ class StudyGroup(models.Model):
     class Meta:
         db_table = "study_groups"
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.name
 
 
