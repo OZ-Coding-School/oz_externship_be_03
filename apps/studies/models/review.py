@@ -16,13 +16,13 @@ class Review(models.Model):
     )
     star_rating = models.PositiveSmallIntegerField()
     content = models.CharField(max_length=300)
-    is_public = models.BooleanField(default=False) #운영 및 신고 대응을 위해
+    is_public = models.BooleanField(default=False)  # 운영 및 신고 대응을 위해
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = "reviews"
-        #테이블 제약
+        # 테이블 제약
         constraints = [
             models.UniqueConstraint(
                 fields=["user", "study_group"],
