@@ -2,8 +2,6 @@ import uuid
 
 from django.db import models
 
-from apps.core.utils.base62 import Base62
-
 
 class BaseModel(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
