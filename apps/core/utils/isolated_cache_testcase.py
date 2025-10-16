@@ -1,9 +1,10 @@
+# mypy: ignore-errors
 import copy
 import uuid
 
 from django.conf import settings
 from django.test import override_settings
-from django_redis import get_redis_connection  # type: ignore
+from django_redis import get_redis_connection
 from rest_framework.test import APITestCase
 
 

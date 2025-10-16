@@ -1,8 +1,11 @@
 from datetime import date
+from typing import Any
 
 from drf_spectacular.utils import OpenApiExample, extend_schema
 from rest_framework.permissions import AllowAny, IsAdminUser
+from rest_framework.request import Request
 from rest_framework.response import Response
+from rest_framework.test import APIRequestFactory
 from rest_framework.views import APIView
 
 from ..serializers.groups import StudyGroupCreateSerializer
@@ -58,7 +61,7 @@ from ..serializers.groups import StudyGroupCreateSerializer
 class StudyGroupCreateView(APIView):
     permission_classes = [AllowAny]
 
-    def post(self, request):
+    def post(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         data = {
             "id": 101,
             "name": "AI 웹서비스 스터디",
@@ -103,7 +106,7 @@ class StudyGroupCreateView(APIView):
 class StudyGroupDateConstraintView(APIView):
     permission_classes = [AllowAny]
 
-    def get(self, request):
+    def get(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         today = date.today()
         data = {
             "today": today.isoformat(),
@@ -157,7 +160,7 @@ class StudyGroupDateConstraintView(APIView):
 class StudyGroupListView(APIView):
     permission_classes = [AllowAny]
 
-    def get(self, request):
+    def get(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         data = {
             "groups": [
                 {
@@ -238,7 +241,7 @@ class StudyGroupListView(APIView):
 class StudyGroupDetailView(APIView):
     permission_classes = [AllowAny]
 
-    def get(self, request, group_id: int):
+    def get(self, request: Request, group_id: int, *args: Any, **kwargs: Any) -> Response:
         data = {
             "id": group_id,
             "name": "AI 웹서비스 스터디",
@@ -322,7 +325,7 @@ class StudyGroupDetailView(APIView):
 class StudyGroupUpdateView(APIView):
     permission_classes = [AllowAny]
 
-    def put(self, request, group_id: int):
+    def put(self, request: Request, group_id: int, *args: Any, **kwargs: Any) -> Response:
         data = {
             "id": group_id,
             "name": "AI 프로젝트 심화 스터디",
@@ -372,7 +375,7 @@ class StudyGroupUpdateView(APIView):
 class StudyGroupDeleteView(APIView):
     permission_classes = [AllowAny]
 
-    def delete(self, request, group_id: int):
+    def delete(self, request: Request, group_id: int, *args: Any, **kwargs: Any) -> Response:
         return Response({"message": "스터디 그룹이 성공적으로 삭제되었습니다."})
 
 
@@ -419,7 +422,7 @@ class StudyGroupDeleteView(APIView):
 class StudyMemberKickView(APIView):
     permission_classes = [AllowAny]
 
-    def delete(self, request, group_id: int, member_id: int):
+    def delete(self, request: Request, group_id: int, member_id: int, *args: Any, **kwargs: Any) -> Response:
         data = {
             "message": "멤버가 스터디 그룹에서 추방되었습니다.",
             "kicked_member": {"id": member_id, "name": "안현기"},
@@ -470,7 +473,7 @@ class StudyMemberKickView(APIView):
 class StudyMemberLeaveView(APIView):
     permission_classes = [AllowAny]
 
-    def delete(self, request, group_id: int):
+    def delete(self, request: Request, group_id: int, *args: Any, **kwargs: Any) -> Response:
         data = {
             "message": "스터디 그룹에서 성공적으로 나갔습니다.",
             "left_member": {"id": 3, "name": "송상헌"},
@@ -523,7 +526,7 @@ class StudyMemberLeaveView(APIView):
 class StudyMemberDelegateView(APIView):
     permission_classes = [AllowAny]
 
-    def post(self, request, group_id: int, member_id: int):
+    def post(self, request: Request, group_id: int, member_id: int, *args: Any, **kwargs: Any) -> Response:
         data = {
             "message": "리더 권한이 성공적으로 위임되었습니다.",
             "previous_leader": {"id": 1, "name": "이형운"},
@@ -596,7 +599,7 @@ class StudyMemberDelegateView(APIView):
 class StudyLectureListView(APIView):
     permission_classes = [AllowAny]
 
-    def get(self, request, group_id: int):
+    def get(self, request: Request, group_id: int, *args: Any, **kwargs: Any) -> Response:
         query = request.query_params.get("q", "").strip()
         limit = int(request.query_params.get("limit", 5))
         offset = int(request.query_params.get("offset", 0))
@@ -631,13 +634,19 @@ class StudyLectureListView(APIView):
             },
         ]
 
-        # 🔍 검색 (부분 일치: 강의명 / 강사명)
-        if query:
+        # 검색 (부분 일치: 강의명 / 강사명)
+        query_param = request.query_params.get("query", "")
+        query_str: str = str(query_param).strip()
+
+        if query_str:
+            query_lower = query_str.lower()
             lectures = [
-                l for l in lectures if query.lower() in l["title"].lower() or query.lower() in l["instructor"].lower()
+                l
+                for l in lectures
+                if query_lower in str(l["title"]).lower() or query_lower in str(l["instructor"]).lower()
             ]
 
-        # 📄 페이지네이션 (limit-offset)
+        # 페이지네이션 (limit-offset)
         total = len(lectures)
         paginated = lectures[offset : offset + limit]
 
@@ -709,7 +718,7 @@ class StudyLectureListView(APIView):
 class GroupScheduleListView(APIView):
     permission_classes = [AllowAny]
 
-    def get(self, request, group_id: int):
+    def get(self, request: Request, group_id: int, *args: Any, **kwargs: Any) -> Response:
         data = {
             "study_group_id": group_id,
             "study_group_name": "AI 웹서비스 스터디",
@@ -799,7 +808,7 @@ class GroupScheduleListView(APIView):
 class GroupScheduleCreateView(APIView):
     permission_classes = [AllowAny]
 
-    def post(self, request, group_id: int):
+    def post(self, request: Request, group_id: int, *args: Any, **kwargs: Any) -> Response:
         data = {
             "message": "스터디 일정이 성공적으로 등록되었습니다.",
             "schedule": {
@@ -843,7 +852,7 @@ class GroupScheduleCreateView(APIView):
 class GroupScheduleJoinView(APIView):
     permission_classes = [AllowAny]
 
-    def post(self, request, schedule_id: int):
+    def post(self, request: Request, schedule_id: int, *args: Any, **kwargs: Any) -> Response:
         data = {
             "message": "스터디 일정에 참여가 완료되었습니다.",
             "schedule_id": schedule_id,
@@ -881,7 +890,7 @@ class GroupScheduleJoinView(APIView):
 class GroupScheduleLeaveView(APIView):
     permission_classes = [AllowAny]
 
-    def delete(self, request, schedule_id: int):
+    def delete(self, request: Request, schedule_id: int, *args: Any, **kwargs: Any) -> Response:
         data = {
             "message": "스터디 일정 참여가 취소되었습니다.",
             "schedule_id": schedule_id,
@@ -919,7 +928,7 @@ class GroupScheduleLeaveView(APIView):
 class StudyGroupStatusAutoUpdateView(APIView):
     permission_classes = [AllowAny]
 
-    def get(self, request):
+    def get(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         data = {
             "task": "update_study_status",
             "description": "매일 00:01 (KST 기준) 종료일이 오늘 이전인 스터디 그룹을 '종료됨' 상태로 일괄 변경합니다.",
@@ -989,7 +998,7 @@ class AdminStudyGroupListView(APIView):
     # 관리자만 접근 가능
     permission_classes = [IsAdminUser]
 
-    def get(self, request):
+    def get(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         data = {
             "count": 3,
             "results": [
@@ -1075,7 +1084,7 @@ class AdminStudyGroupDetailView(APIView):
     # 관리자만 접근 가능
     permission_classes = [IsAdminUser]
 
-    def get(self, request, studygroup_id: int):
+    def get(self, request: Request, studygroup_id: int, *args: Any, **kwargs: Any) -> Response:
         data = {
             "id": studygroup_id,
             "uuid": "c31d3e84-12aa-47e7-98b1-9f4a9c10b1cc",
