@@ -44,7 +44,7 @@ class StudyGroupEndpointsTests(APITestCase):
         ]
 
     def test_group_lectures_view(self):
-        # ✅ lectures URL은 group_id를 받지 않음
+        # lectures URL은 group_id를 받지 않음
         url = reverse("group-lectures", args=[1])
         res = self.client.get(url)
         assert res.status_code == status.HTTP_200_OK

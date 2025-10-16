@@ -15,9 +15,7 @@ from apps.studies.views.groups import (
 )
 
 
-# ──────────────────────────────
-# ① StudyGroupCreateSerializer 테스트
-# ──────────────────────────────
+# StudyGroupCreateSerializer 테스트
 class StudyGroupSerializerTests(SimpleTestCase):
     def setUp(self) -> None:
         self.today = timezone.now()

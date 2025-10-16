@@ -3,6 +3,8 @@ import uuid
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
+from ...core.models import BaseModel
+
 
 # 스터디 그룹 상태 Enum
 class StudyGroupStatus(models.TextChoices):
@@ -12,22 +14,24 @@ class StudyGroupStatus(models.TextChoices):
 
 
 # 스터디 그룹
-class StudyGroup(models.Model):
-    id = models.BigAutoField(primary_key=True)
+class StudyGroup(BaseModel):
     uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
-    name = models.CharField(max_length=20)
-    introduction = models.CharField(max_length=500, null=True, blank=True)
-    max_headcount = models.PositiveSmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(10)])
-    profile_img_url = models.URLField(null=True, blank=True)
-    start_at = models.DateTimeField()
-    end_at = models.DateTimeField()
+    name = models.CharField(max_length=20, null=False, default="")
+    introduction = models.CharField(max_length=500, null=True, blank=True, default=None)
+    max_headcount = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(10)],
+        null=False,
+        default=2,
+    )
+    profile_img_url = models.URLField(null=True, blank=True, default=None)
+    start_at = models.DateTimeField(null=False)
+    end_at = models.DateTimeField(null=False)
     status = models.CharField(
         max_length=10,
         choices=StudyGroupStatus.choices,
         default=StudyGroupStatus.PENDING,
+        null=False,
     )
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
 
     class Meta:
         db_table = "study_groups"
@@ -38,11 +42,9 @@ class StudyGroup(models.Model):
 
 
 # 스터디 강의 (중간 테이블)
-class StudyLecture(models.Model):
-    lecture_id = models.BigIntegerField()
-    study_group = models.ForeignKey("StudyGroup", on_delete=models.CASCADE, related_name="lectures")
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
+class StudyLecture(BaseModel):
+    lecture_id = models.BigIntegerField(null=False, default=0)
+    study_group = models.ForeignKey("StudyGroup", on_delete=models.CASCADE, related_name="lectures", null=False)
 
     class Meta:
         db_table = "study_lectures"
@@ -51,13 +53,10 @@ class StudyLecture(models.Model):
 
 
 # 그룹 멤버
-class GroupMember(models.Model):
-    id = models.BigAutoField(primary_key=True)
-    study_group = models.ForeignKey("StudyGroup", on_delete=models.CASCADE, related_name="members")
-    user_id = models.BigIntegerField()
-    is_leader = models.BooleanField(default=False)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
+class GroupMember(BaseModel):
+    study_group = models.ForeignKey("StudyGroup", on_delete=models.CASCADE, related_name="members", null=False)
+    user_id = models.BigIntegerField(null=False, default=0)
+    is_leader = models.BooleanField(default=False, null=False)
 
     class Meta:
         db_table = "group_members"
@@ -66,16 +65,13 @@ class GroupMember(models.Model):
 
 
 # 그룹 스케줄
-class GroupSchedule(models.Model):
-    id = models.BigAutoField(primary_key=True)
-    study_group = models.ForeignKey("StudyGroup", on_delete=models.CASCADE, related_name="schedules")
-    title = models.CharField(max_length=255)
-    objective = models.CharField(max_length=255)
-    session_date = models.DateField()
-    start_time = models.TimeField()
-    end_time = models.TimeField()
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
+class GroupSchedule(BaseModel):
+    study_group = models.ForeignKey("StudyGroup", on_delete=models.CASCADE, related_name="schedules", null=False)
+    title = models.CharField(max_length=255, null=False, default="")
+    objective = models.CharField(max_length=255, null=False, default="")
+    session_date = models.DateField(null=False)
+    start_time = models.TimeField(null=False)
+    end_time = models.TimeField(null=False)
 
     class Meta:
         db_table = "group_schedules"
@@ -83,11 +79,9 @@ class GroupSchedule(models.Model):
 
 
 # 스케줄 참여자
-class ScheduleParticipant(models.Model):
-    schedule = models.ForeignKey("GroupSchedule", on_delete=models.CASCADE, related_name="participants")
-    member = models.ForeignKey("GroupMember", on_delete=models.CASCADE, related_name="schedules")
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
+class ScheduleParticipant(BaseModel):
+    schedule = models.ForeignKey("GroupSchedule", on_delete=models.CASCADE, related_name="participants", null=False)
+    member = models.ForeignKey("GroupMember", on_delete=models.CASCADE, related_name="schedules", null=False)
 
     class Meta:
         db_table = "schedule_participants"
