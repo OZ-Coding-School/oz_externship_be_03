@@ -1,0 +1,16 @@
+{
+  "python.defaultInterpreterPath": "~/.cache/pypoetry/virtualenvs/oz_externship-*",
+  "python.formatting.provider": "black",
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.organizeImports": true
+  },
+  "python.linting.enabled": true,
+  "python.linting.pylintEnabled": true,
+  "python.analysis.autoImportCompletions": true,
+  "python.analysis.typeCheckingMode": "basic",
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/.mypy_cache": true
+  }
+}
