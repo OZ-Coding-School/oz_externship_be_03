@@ -2,6 +2,7 @@ from django.conf import settings
 from django.db import models
 
 from apps.core.models import BaseModel
+from apps.lecture.models.review import RatingEnum
 
 
 class Review(BaseModel):
@@ -15,9 +16,13 @@ class Review(BaseModel):
         on_delete=models.CASCADE,
         related_name="reviews",
     )
-    star_rating = models.PositiveSmallIntegerField()
+    star_rating = models.CharField(
+        max_length=20,
+        choices=RatingEnum.choices,
+        default=RatingEnum.FIVE,
+        null=False,
+    )
     content = models.CharField(max_length=300)
-    is_public = models.BooleanField(default=False)  # 운영 및 신고 대응을 위해
 
     class Meta:
         db_table = "reviews"
@@ -27,15 +32,10 @@ class Review(BaseModel):
                 fields=["user", "study_group"],
                 name="uq_reviews_user_group",
             ),
-            models.CheckConstraint(
-                check=models.Q(star_rating__gte=1, star_rating__lte=5),
-                name="ck_reviews+star_rating_1_5",
-            ),
         ]
         indexes = [
             models.Index(fields=["study_group", "-created_at"], name="ix_reviews_group_created_desc"),
             models.Index(fields=["user", "-created_at"], name="ix_reviews_user_created_desc"),
-            models.Index(fields=["is_public"], name="ix_reviews_public"),
         ]
 
     def __str__(self) -> str:

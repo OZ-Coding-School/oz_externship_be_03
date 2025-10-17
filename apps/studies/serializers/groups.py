@@ -23,7 +23,6 @@ class StudyGroupCreateSerializer(serializers.ModelSerializer):  # type: ignore[t
         model = StudyGroup
         fields = [
             "id",
-            "uuid",
             "name",
             "introduction",
             "profile_img_url",
@@ -33,7 +32,7 @@ class StudyGroupCreateSerializer(serializers.ModelSerializer):  # type: ignore[t
             "status",
             "lectures",
         ]
-        read_only_fields = ["uuid", "status"]
+        read_only_fields = ["status"]
 
     def to_internal_value(self, data: dict[str, Any]) -> Any:
         """Date 혹은 DateTime 문자열 모두 허용"""
@@ -158,7 +157,6 @@ class StudyGroupDetailSerializer(serializers.ModelSerializer[StudyGroup]):
         model = StudyGroup
         fields = [
             "id",
-            "uuid",
             "name",
             "introduction",
             "profile_img_url",
@@ -184,7 +182,6 @@ class AdminStudyGroupListSerializer(serializers.ModelSerializer[StudyGroup]):
         model = StudyGroup
         fields = [
             "id",
-            "uuid",
             "name",
             "profile_img_url",
             "max_headcount",
@@ -210,7 +207,6 @@ class AdminStudyGroupDetailSerializer(serializers.ModelSerializer[StudyGroup]):
         model = StudyGroup
         fields = [
             "id",
-            "uuid",
             "name",
             "introduction",
             "profile_img_url",

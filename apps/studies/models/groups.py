@@ -1,5 +1,4 @@
-import uuid
-
+from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
@@ -15,15 +14,14 @@ class StudyGroupStatus(models.TextChoices):
 
 # 스터디 그룹
 class StudyGroup(BaseModel):
-    uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
     name = models.CharField(max_length=20, null=False, default="")
-    introduction = models.CharField(max_length=500, null=True, blank=True, default=None)
+    introduction = models.CharField(max_length=500, null=True, blank=True)
     max_headcount = models.PositiveSmallIntegerField(
         validators=[MinValueValidator(1), MaxValueValidator(10)],
         null=False,
         default=2,
     )
-    profile_img_url = models.URLField(null=True, blank=True, default=None)
+    profile_img_url = models.CharField(max_length=255, null=True, blank=True)
     start_at = models.DateTimeField(null=False)
     end_at = models.DateTimeField(null=False)
     status = models.CharField(
@@ -55,7 +53,9 @@ class StudyLecture(BaseModel):
 # 그룹 멤버
 class GroupMember(BaseModel):
     study_group = models.ForeignKey("StudyGroup", on_delete=models.CASCADE, related_name="members", null=False)
-    user_id = models.BigIntegerField(null=False, default=0)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="group_members", null=False
+    )
     is_leader = models.BooleanField(default=False, null=False)
 
     class Meta:
