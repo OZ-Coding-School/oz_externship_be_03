@@ -25,9 +25,9 @@ class Withdrawal(BaseModel):
     # FK: users(id), NULL 허용 + on_delete=SET_NULL (스펙: delete : set null)
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        null=False,
-        db_index=True,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name="withdrawals",
     )
 
