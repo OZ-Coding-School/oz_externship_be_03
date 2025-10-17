@@ -1,5 +1,10 @@
-from django.urls import URLPattern, path
+from django.urls import path
+
+from apps.lecture.views import LectureListView, LectureReviewListView
 
 app_name = "lecture"
 
-urlpatterns: list[URLPattern] = []
+urlpatterns = [
+    path("", LectureListView.as_view(), name="lecture-list"),
+    path("<int:lecture_id>/reviews", LectureReviewListView.as_view(), name="lecture-review-list"),
+]
