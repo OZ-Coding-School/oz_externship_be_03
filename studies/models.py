@@ -1,5 +1,5 @@
-from django.db import models
 from django.conf import settings
+from django.db import models
 
 from apps.core.models import BaseModel  # 생성·수정 시간 자동 포함
 
