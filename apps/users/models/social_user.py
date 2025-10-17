@@ -28,7 +28,9 @@ class SocialUser(BaseModel):
             UniqueConstraint(
                 fields=["user", "provider"],
                 name="uq_user_provider_one",
-            )
+            ),
+            # 동일 provider에 중복 provider 방지
+            UniqueConstraint(fields=["provider", "provider_id"], name="uq_provider_uid"),
         ]
 
     def __str__(self) -> str:
