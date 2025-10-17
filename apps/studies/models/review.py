@@ -54,5 +54,6 @@ class Review(BaseModel):
         ]
 
     def __str__(self) -> str:
-        # mypy가 TYPE_CHECKING 선언을 보고 user_id/study_group_id를 인식합니다.
-        return f"Review <{self.pk}> user={self.user_id}, group={self.study_group_id}, rate={self.star_rating}"
+        uid = self.user_id  # type: ignore[attr-defined]
+        gid = self.study_group_id  # type: ignore[attr-defined]
+        return f"Review <{self.pk}> user={uid}, group={gid}, rate={self.star_rating}"
