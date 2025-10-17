@@ -10,8 +10,5 @@ htmlcov/
 media/
 static/
 staticfiles/
-# ---- Python lock & build ----
-uv.lock
 poetry.lock
-# ---- Mac / OS files ----
 .DS_Store
