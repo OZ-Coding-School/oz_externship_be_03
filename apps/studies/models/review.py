@@ -1,3 +1,5 @@
+from typing import cast
+
 from django.conf import settings
 from django.db import models
 
@@ -39,4 +41,7 @@ class Review(BaseModel):
         ]
 
     def __str__(self) -> str:
-        return f"Review <{self.id}> user={self.user_id}, group={self.study_group_id}, rate={self.star_rating}"
+        rid = self.pk
+        uid = self.user_id
+        gid = self.study_group_id
+        return f"Review <{rid}> user={uid}, group={gid}, rate={self.star_rating}"
