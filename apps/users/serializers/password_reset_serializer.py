@@ -1,4 +1,3 @@
-# apps/users/serializers/password_reset_serializer.py
 from typing import Any, Dict
 
 from django.contrib.auth import get_user_model
