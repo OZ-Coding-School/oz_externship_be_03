@@ -9,7 +9,7 @@ if TYPE_CHECKING:
 User = get_user_model()
 
 
-class EmailRecoverySerializer(serializers.ModelSerializer[Any]):
+class EmailLookupSerializer(serializers.ModelSerializer[Any]):
     """
     아이디(이메일) 찾기 Serializer
     - User 모델 기반
