@@ -14,7 +14,7 @@ app.config_from_object("django.conf:settings", namespace="CELERY")
 # tasks.py를 스캔
 app.autodiscover_tasks()
 
-
+# mypy: disable-error-code=misc
 @app.task(bind=True, ignore_result=True)
 def debug_task(self: Task) -> None:
     print(f"Request: {self.request!r}")
