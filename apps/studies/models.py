@@ -29,14 +29,14 @@ class StudyGroup(BaseModel):
         return self.name
 
 
+# 스터디 노트
 class StudyNote(BaseModel):
-    # 어떤 스터디 그룹의 노트인지 연결
     study_group = models.ForeignKey(
         StudyGroup,
         on_delete=models.CASCADE,  # 그룹 삭제되면 노트도 같이 삭제
         related_name="notes",
     )
-    # 누가 작성했는지 연결 (User 모델)
+    # 누가 작성했는지 연결
     author = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,  # 작성자 삭제되면 노트도 같이 삭제
@@ -55,9 +55,7 @@ class StudyNote(BaseModel):
         return f"[{self.study_group.name}] {self.title} by {self.author}"
 
 
-# 노트 이미지 (노트에 들어가는 이미지)
 class StudyNoteImage(BaseModel):
-    # 어떤 노트에 속한 이미지인지 연결
     study_note = models.ForeignKey(
         StudyNote,
         on_delete=models.CASCADE,  # 노트가 삭제되면 이미지도 같이 삭제
@@ -73,9 +71,7 @@ class StudyNoteImage(BaseModel):
         return f"Image for Note {self.study_note.id}"
 
 
-# 노트 첨부파일 (노트에 들어가는 파일)
 class StudyNoteAttachment(BaseModel):
-    # 어떤 노트에 속한 첨부파일인지 연결
     study_note = models.ForeignKey(
         StudyNote,
         on_delete=models.CASCADE,  # 노트 삭제되면 파일도 같이 삭제
