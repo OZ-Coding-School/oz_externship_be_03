@@ -3,7 +3,7 @@ from celery import shared_task
 
 # Todo 코드 작성후 공통 작업들은 상속 구조로 클래스 지정
 @shared_task
-def create_recruitment_applicant_task(recruitment_id: int, receiver_id: int) -> dict:
+def create_recruitment_applicant_task(recruitment_id: int, receiver_id: int) -> dict[str, object]:
     """
     공고 지원시 공고 작성자에게 보낼 알림 생성 task
     :param recruitment_id: 공고 ID
@@ -23,7 +23,7 @@ def create_recruitment_applicant_task(recruitment_id: int, receiver_id: int) -> 
 
 
 @shared_task
-def create_recruitment_application_approval_task(recruitment_id: int, applicant_id: int, status: str) -> str:
+def create_recruitment_application_approval_task(recruitment_id: int, applicant_id: int, status: str) -> dict[str,object]:
     """
     공고 지원시 공고 지원자에게 보낼 승인 알림 생성 task
     :param recruitment_id: 공고 ID
@@ -31,8 +31,15 @@ def create_recruitment_application_approval_task(recruitment_id: int, applicant_
     :param status: approval
     :return: notification.create()
     """
-    ...
+    mock_recruitment_title = "오즈코딩스쿨 장고 스터디 모집"
 
+    mock_notification_data = {
+        "user_id": applicant_id,
+        "content": f"{mock_recruitment_title} 구인 공고에 대한 지원내역이 승인되었습니다.",
+        "type": "APPLICATION_APPROVAL",
+        "back_url_link": "/api/v1/applications?status=&cursor=",
+    }
+    return mock_notification_data
 
 @shared_task
 def create_recruitment_application_rejection_task(recruitment_id: int, applicant_id: int, status: str) -> str:
@@ -43,7 +50,15 @@ def create_recruitment_application_rejection_task(recruitment_id: int, applicant
     :param status: rejection
     :return: notification.create()
     """
-    ...
+    mock_recruitment_title = "오즈코딩스쿨 장고 스터디 모집"
+
+    mock_notification_data = {
+        "user_id": applicant_id,
+        "content": f"{mock_recruitment_title} 구인 공고에 대한 지원내역이 거절되었습니다.",
+        "type": "APPLICATION_REJECTION",
+        "back_url_link": "/api/v1/applications?status=&cursor=",
+    }
+    return mock_notification_data
 
 
 @shared_task
@@ -51,6 +66,7 @@ def create_studygroup_join_task(group_members_id: int) -> str:
     """
     지원 승인시 그룹원들에게 새로운 유저가 참여했다는 알림 생성 task
     :param group_members_id : 스터디 그룹원 ID
+    :param
     :return: notification.create()
     """
     ...
