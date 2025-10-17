@@ -25,7 +25,7 @@ class EmailLookupSerializer(serializers.ModelSerializer[Any]):
     def get_email(self, obj: UserModel) -> str:
         """
         이메일 마스킹 처리
-        예: kim@gmail.com → k**m@gmail.com
+        예: kimkim@gmail.com → k****m@gmail.com
         """
         email = obj.email
         name, domain = email.split("@", 1)
