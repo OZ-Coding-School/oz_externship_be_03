@@ -10,5 +10,4 @@ __all__ = [
     "recruitment_tag",
     "search_log",
     "tag",
-
 ]
