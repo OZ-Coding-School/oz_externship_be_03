@@ -6,13 +6,13 @@ from django.contrib.auth.base_user import AbstractBaseUser
 from django.core.validators import RegexValidator
 from django.db import models
 
-from apps.core.models import BaseModel
+from apps.core.models import UUIDBaseModel
 from apps.users.enums import Gender
 from apps.users.models.managers import UserManager
 from apps.users.validators import validate_korean_phone
 
 
-class User(AbstractBaseUser, BaseModel):
+class User(AbstractBaseUser, UUIDBaseModel):
     """
     User 모델
     - 로그인 키: email
@@ -22,8 +22,6 @@ class User(AbstractBaseUser, BaseModel):
 
     # 회원가입 필수 항목
     REQUIRED_FIELDS = ["nickname", "name", "phone_number", "birthday", "gender"]
-
-    uuid = models.UUIDField(default=_uuid.uuid4, unique=True, null=False)
 
     email = models.EmailField(unique=True, null=False)
 
