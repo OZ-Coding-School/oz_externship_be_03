@@ -27,4 +27,4 @@ class ChatMessage(BaseModel):
 
     def __str__(self) -> str:
         sender_name = getattr(self.sender, "nickname", "알 수 없는 사용자")
-        return f"{self.study_group} | {sender_name}: {self.content[:20]}"
+        return f"{sender_name}: {self.content[:20]}"

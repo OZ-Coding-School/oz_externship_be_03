@@ -31,4 +31,4 @@ class LastReadMessage(BaseModel):
         verbose_name_plural = "마지막으로 읽은 메시지 목록"
 
     def __str__(self) -> str:
-        return f"{self.user} last read {self.message.id} in {self.study_group}"
+        return f"{self.user} last read {self.message.id}"
