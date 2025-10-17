@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 
 from apps.core.models import BaseModel
@@ -5,7 +6,7 @@ from apps.core.models import BaseModel
 
 class ChatMessage(BaseModel):
     sender = models.ForeignKey(
-        "users.User",
+        settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
         null=True,
         related_name="sent_chat_messages",

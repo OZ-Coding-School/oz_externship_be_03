@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 
 from apps.core.models import BaseModel
@@ -11,7 +12,7 @@ class LastReadMessage(BaseModel):
         verbose_name="스터디 그룹",
     )
     user = models.ForeignKey(
-        "users.User",
+        settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="last_read_messages",
         verbose_name="유저",
