@@ -54,6 +54,6 @@ class Review(BaseModel):
         ]
 
     def __str__(self) -> str:
-        uid = self.user_id  # type: ignore[attr-defined]
-        gid = self.study_group_id  # type: ignore[attr-defined]
+        uid = self.user_id
+        gid = self.study_group_id
         return f"Review <{self.pk}> user={uid}, group={gid}, rate={self.star_rating}"
