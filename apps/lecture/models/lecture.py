@@ -2,18 +2,16 @@ from django.db import models
 
 from apps.core.models import UUIDBaseModel
 
+
 class CrawledLecture(UUIDBaseModel):
     class DifficultyEnum(models.TextChoices):
         EASY = "EASY", "초급"
         NORMAL = "NORMAL", "중급"
         HARD = "HARD", "어려움"
 
-
     class PlatformEnum(models.TextChoices):
         UDEMY = "UDEMY", "Udemy"
         INFLEARN = "INFLEARN", "Inflearn"
-
-
 
     title = models.CharField(max_length=255, null=False)
     instructor = models.CharField(max_length=20, null=False)
