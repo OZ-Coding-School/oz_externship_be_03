@@ -9,7 +9,7 @@ from rest_framework.validators import UniqueValidator
 User = get_user_model()
 
 
-class MeInfoSerializer(serializers.ModelSerializer[Any]):
+class UserProfileSerializer(serializers.ModelSerializer[Any]):
     """
     내 정보 조회 Serializer
     - 로그인된 사용자 정보 반환
@@ -31,7 +31,7 @@ class MeInfoSerializer(serializers.ModelSerializer[Any]):
         read_only_fields = fields
 
 
-class MeInfoUpdateSerializer(serializers.ModelSerializer[Any]):
+class UserProfileUpdateSerializer(serializers.ModelSerializer[Any]):
     verify_token = serializers.CharField(write_only=True, required=False)
     nickname = serializers.CharField(required=False)
     phone_number = serializers.CharField(
@@ -52,7 +52,7 @@ class MeInfoUpdateSerializer(serializers.ModelSerializer[Any]):
         return attrs
 
 
-class MeInfoPasswordUpdateSerializer(serializers.ModelSerializer[Any]):
+class UserProfilePasswordUpdateSerializer(serializers.ModelSerializer[Any]):
     """
     내 정보 수정 - 비밀번호 변경
     - 입력 필드 구조 검증 & 새 비밀번호/확인 비밀번호 일치 여부만 확인

@@ -7,7 +7,7 @@ from rest_framework import serializers
 User = get_user_model()
 
 
-class PasswordRecoverySerializer(serializers.ModelSerializer[Any]):
+class PasswordResetSerializer(serializers.ModelSerializer[Any]):
     """
     비밀번호 재설정 시리얼라이저
     - 입력값 일치 검증만 수행
