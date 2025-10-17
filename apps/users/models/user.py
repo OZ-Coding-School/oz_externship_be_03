@@ -16,7 +16,6 @@ class User(AbstractBaseUser, BaseModel):
     """
 
     USERNAME_FIELD = "email"
-    last_login = None
 
     # 회원가입 필수 항목
     REQUIRED_FIELDS = ["nickname", "name", "phone_number", "birthday", "gender"]
