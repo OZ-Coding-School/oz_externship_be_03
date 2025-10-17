@@ -53,7 +53,7 @@ class RecruitmentTag(BaseModel):
     tag = models.ForeignKey(Tag, on_delete=models.CASCADE, related_name="recruitments")
 
     class Meta:
-        unique_together = ("recruitment", "tag")
+        constraints = [models.UniqueConstraint(fields=["recruitment", "tag"], name="unique_recruitment_tag")]
 
 
 class RecruitmentAttachment(BaseModel):
@@ -75,14 +75,10 @@ class RecruitmentImage(BaseModel):
 
 class RecruitmentBookmark(BaseModel):
     recruitment = models.ForeignKey(Recruitment, on_delete=models.CASCADE, related_name="bookmarks")
-    user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name="recruitment_bookmarks",
-    )
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="recruitment_bookmarks")
 
     class Meta:
-        unique_together = ("user", "recruitment")
+        constraints = [models.UniqueConstraint(fields=["user", "recruitment"], name="unique_user_bookmark")]
 
     def __str__(self) -> str:
         return f"{self.user.username} 북마크 {self.recruitment.title}"
