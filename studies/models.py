@@ -18,17 +18,9 @@ class StudyGroup(BaseModel):
 
 class StudyNote(BaseModel):
     # 어느 그룹 노트인지 연결, 그룹 삭제되면 같이 삭제
-    group = models.ForeignKey(
-        StudyGroup,
-        on_delete=models.CASCADE,
-        related_name="notes"
-    )
+    group = models.ForeignKey(StudyGroup, on_delete=models.CASCADE, related_name="notes")
     # 작성자, 유저 삭제되면 해당 노트도 삭제됨
-    author = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name="study_notes"
-    )
+    author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="study_notes")
     # 노트 제목 (리스트나 검색용)
     title = models.CharField(max_length=50)
     # 노트 본문 (길이 제한 없음)
