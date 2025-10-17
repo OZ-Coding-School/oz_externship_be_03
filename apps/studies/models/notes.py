@@ -2,6 +2,7 @@ from django.conf import settings
 from django.db import models
 
 from apps.core.models import BaseModel  # 생성/수정 시간 자동 기록 (created_at, updated_at)
+
 # from apps.studies.models.groups import StudyGroup  # 그룹이랑 연결하면 주석 삭제할게여
 
 
