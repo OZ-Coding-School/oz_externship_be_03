@@ -11,7 +11,7 @@ class StudyGroup(BaseModel):
     name = models.CharField(max_length=20)  # 그룹 이름
     introduction = models.CharField(max_length=100)  # 그룹 소개 (설명)
     max_headcount = models.SmallIntegerField()  # 최대 인원 수
-    profile_img_url = models.CharField(max_length=255, blank=True, null=True)  #그룹 대표 이미지 (없어도 됨)
+    profile_img_url = models.CharField(max_length=255, blank=True, null=True)  # 그룹 대표 이미지 (없어도 됨)
 
     # 스터디 상태 (예정 / 진행중 / 종료)
     class Status(models.TextChoices):
@@ -19,31 +19,32 @@ class StudyGroup(BaseModel):
         ACTIVE = "ACTIVE", "진행중"
         CLOSED = "CLOSED", "종료"
 
-    status = models.CharField(max_length=30, choices=Status.choices)  #현재 상태 저장
+    status = models.CharField(max_length=30, choices=Status.choices)  # 현재 상태 저장
 
     class Meta:
-        db_table = "study_groups"  #ERD 이름 그대로 테이블 이름 지정
+        db_table = "study_groups"  # ERD 이름 그대로 테이블 이름 지정
 
     def __str__(self):
-        #관리자 페이지나 print()에서 이름만 보이게
+        # 관리자 페이지나 print()에서 이름만 보이게
         return self.name
 
+
 class StudyNote(BaseModel):
-    #어떤 스터디 그룹의 노트인지 연결
+    # 어떤 스터디 그룹의 노트인지 연결
     study_group = models.ForeignKey(
         StudyGroup,
-        on_delete=models.CASCADE,  #그룹 삭제되면 노트도 같이 삭제
+        on_delete=models.CASCADE,  # 그룹 삭제되면 노트도 같이 삭제
         related_name="notes",
     )
-    #누가 작성했는지 연결 (User 모델)
+    # 누가 작성했는지 연결 (User 모델)
     author = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,  #작성자 삭제되면 노트도 같이 삭제
+        on_delete=models.CASCADE,  # 작성자 삭제되면 노트도 같이 삭제
         related_name="study_notes",
     )
-    title = models.CharField(max_length=255)  #노트 제목
-    content = models.TextField()  #노트 내용
-    ai_summary = models.TextField()  #AI요약 필수로 넣게
+    title = models.CharField(max_length=255)  # 노트 제목
+    content = models.TextField()  # 노트 내용
+    ai_summary = models.TextField()  # AI요약 필수로 넣게
 
     class Meta:
         db_table = "study_notes"  # 테이블 이름 맞춰줌
@@ -72,20 +73,20 @@ class StudyNoteImage(BaseModel):
         return f"Image for Note {self.study_note.id}"
 
 
-#노트 첨부파일 (노트에 들어가는 파일)
+# 노트 첨부파일 (노트에 들어가는 파일)
 class StudyNoteAttachment(BaseModel):
-    #어떤 노트에 속한 첨부파일인지 연결
+    # 어떤 노트에 속한 첨부파일인지 연결
     study_note = models.ForeignKey(
         StudyNote,
         on_delete=models.CASCADE,  # 노트 삭제되면 파일도 같이 삭제
         related_name="attachments",
     )
-    file_url = models.CharField(max_length=255)   # 파일이 저장된 주소
+    file_url = models.CharField(max_length=255)  # 파일이 저장된 주소
     file_name = models.CharField(max_length=255)  # 파일명 (확장자 포함)
 
     class Meta:
-        db_table = "study_note_attachments" #ERD에 있는 그대로 써야 돼서 이렇게 지정
+        db_table = "study_note_attachments"  # ERD에 있는 그대로 써야 돼서 이렇게 지정
         ordering = ["-created_at"]
 
-    def __str__(self): #어드민 페이지에서 볼기 편하게
+    def __str__(self):  # 어드민 페이지에서 볼기 편하게
         return f"Attachment for Note {self.study_note.id}"
