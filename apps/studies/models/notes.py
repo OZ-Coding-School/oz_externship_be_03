@@ -1,8 +1,8 @@
 from django.conf import settings
 from django.db import models
-#from apps.studies.models.groups import StudyGroup #그룹연결하면 주석 삭제할겁니다
 
 from apps.core.models import BaseModel  # 생성/수정 시간 자동 기록 (created_at, updated_at)
+from apps.studies.models.groups import StudyGroup
 
 
 class StudyNote(BaseModel):
