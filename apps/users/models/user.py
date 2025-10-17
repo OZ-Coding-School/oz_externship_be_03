@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-import uuid as _uuid
-
 from django.contrib.auth.base_user import AbstractBaseUser
-from django.core.validators import RegexValidator
 from django.db import models
 
 from apps.core.models import UUIDBaseModel
