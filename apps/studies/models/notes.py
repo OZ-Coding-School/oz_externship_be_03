@@ -32,7 +32,7 @@ class StudyNote(BaseModel):
         db_table = "study_notes"  # DB 테이블 이름 지정 (ERD랑 맞춤)
         ordering = ["-created_at"]  # 최신순으로 정렬해서 조회됨
 
-    def __str__(self):
+    def __str__(self) -> str:
         # 그룹 연결되면 아래 주석 해제해서 그룹 이름도 같이 보이게 만들면 됨
         # return f"[{self.study_group.name}] {self.title} by {self.author}"
         return f"{self.title} by {self.author}"  # 지금은 제목+작성자만 표시
@@ -51,10 +51,11 @@ class StudyNoteImage(BaseModel):
         db_table = "study_note_images"
         ordering = ["-created_at"]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"Image for Note {self.study_note.id}"
 
 
+# 노트에 첨부된 파일 (예: PDF, 문서 등)
 class StudyNoteAttachment(BaseModel):
     study_note = models.ForeignKey(
         StudyNote,
@@ -68,6 +69,6 @@ class StudyNoteAttachment(BaseModel):
         db_table = "study_note_attachments"  # ERD 기준으로 테이블명 통일
         ordering = ["-created_at"]
 
-    def __str__(self):
+    def __str__(self) -> str:
         # 어드민 페이지에서 보기 편하게 표시
         return f"Attachment for Note {self.study_note.id}"
