@@ -7,6 +7,9 @@ from django.core.validators import RegexValidator
 from django.db import models
 
 from apps.core.models import BaseModel
+from apps.users.enums import Gender
+from apps.users.models.managers import UserManager
+from apps.users.validators import validate_korean_phone
 
 
 class User(AbstractBaseUser, BaseModel):
@@ -28,17 +31,9 @@ class User(AbstractBaseUser, BaseModel):
 
     nickname = models.CharField(max_length=10, unique=True, null=False)
 
-    phone_validator = RegexValidator(
-        regex=r"^010\d{8}$",
-        message="예) 01012345678",
-    )
-    phone_number = models.CharField(max_length=20, unique=True, validators=[phone_validator], null=False)
+    phone_number = models.CharField(max_length=20, unique=True, validators=[validate_korean_phone], null=False)
 
-    GENDER = (
-        ("M", "남"),
-        ("F", "여"),
-    )
-    gender = models.CharField(max_length=6, choices=GENDER, null=False)
+    gender = models.CharField(max_length=6, choices=Gender, null=False)
 
     birthday = models.DateField(null=False)
 
@@ -51,6 +46,8 @@ class User(AbstractBaseUser, BaseModel):
     is_superuser = models.BooleanField(default=False, null=False)
 
     # created_at, updated_at 상속
+
+    objects = UserManager()
 
     class Meta:
         db_table = "users"
