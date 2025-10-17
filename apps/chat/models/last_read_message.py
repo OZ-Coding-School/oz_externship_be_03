@@ -1,9 +1,9 @@
 from django.db import models
 
-from apps.core.models import TimeStampModel
+from apps.core.models import BaseModel
 
 
-class LastReadMessage(TimeStampModel):
+class LastReadMessage(BaseModel):
     study_group = models.ForeignKey(
         "studies.StudyGroup",
         on_delete=models.CASCADE,

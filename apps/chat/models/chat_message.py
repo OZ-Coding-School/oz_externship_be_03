@@ -1,9 +1,9 @@
 from django.db import models
 
-from apps.core.models import TimeStampModel
+from apps.core.models import BaseModel
 
 
-class ChatMessage(TimeStampModel):
+class ChatMessage(BaseModel):
     sender = models.ForeignKey(
         "users.User",
         on_delete=models.SET_NULL,
