@@ -17,8 +17,7 @@ class ChatMessage(TimeStampModel):
         related_name="chat_messages",
         verbose_name="스터디 그룹",
     )
-    content = models.TextField(verbose_name="메시지 내용")
-    file_url = models.URLField(max_length=255, null=True, blank=True, verbose_name="첨부 파일 URL")
+    content = models.CharField(max_length=255, verbose_name="메시지 내용")  # ERD의 varchar 타입과 일관성을 맞추기 위해 CharField로 수정
 
     class Meta:
         db_table = "chat_messages"
