@@ -1,9 +1,10 @@
 from django.conf import settings
 from django.db import models
 
+from apps.core.models import BaseModel
 
-class Review(models.Model):
-    id = models.BigAutoField(primary_key=True)
+
+class Review(BaseModel):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -17,8 +18,6 @@ class Review(models.Model):
     star_rating = models.PositiveSmallIntegerField()
     content = models.CharField(max_length=300)
     is_public = models.BooleanField(default=False)  # 운영 및 신고 대응을 위해
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = "reviews"
