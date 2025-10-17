@@ -14,7 +14,7 @@ class LectureBookmark(BaseModel):
 
     class Meta:
         db_table = "lecture_bookmarks"
-        unique_together = [["user", "lecture"]]
+        unique_together = (("user", "lecture"),)
 
     def __str__(self) -> str:
         return f"{self.user.nickname} - {self.lecture.title}"  # type:ignore # TODO:user파트 머지 후 주석삭제
