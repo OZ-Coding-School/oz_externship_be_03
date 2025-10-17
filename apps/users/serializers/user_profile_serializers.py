@@ -6,6 +6,8 @@ from django.contrib.auth import get_user_model
 from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 
+from apps.users.validators import validate_korean_phone, validate_nickname
+
 User = get_user_model()
 
 
@@ -33,10 +35,14 @@ class UserProfileSerializer(serializers.ModelSerializer[Any]):
 
 class UserProfileUpdateSerializer(serializers.ModelSerializer[Any]):
     verify_token = serializers.CharField(write_only=True, required=False)
-    nickname = serializers.CharField(required=False)
+    nickname = serializers.CharField(
+        required=False,
+        validators=[validate_nickname],
+    )
     phone_number = serializers.CharField(
         required=False,
         validators=[
+            validate_korean_phone,
             UniqueValidator(queryset=User.objects.all(), message="이미 사용 중인 휴대폰 번호입니다."),
         ],
     )
