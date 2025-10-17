@@ -40,7 +40,7 @@ class Notification(BaseModel):
         max_length=300,
         blank=True,
         null=True,
-        verbose_name="이동URL",
+        verbose_name="이동 URL",
     )
 
     class Meta:
