@@ -1,10 +1,9 @@
 from celery import shared_task
-from drf_spectacular.utils import extend_schema
 
 
 # Todo 코드 작성후 공통 작업들은 상속 구조로 클래스 지정
 @shared_task
-def create_recruitment_applicant_task(recruitment_id: int, applicant_id: int, receiver_id: int) -> str:
+def create_recruitment_applicant_task(recruitment_id: int, receiver_id: int) -> dict:
     '''
     공고 지원시 공고 작성자에게 보낼 알림 생성 task
     :param recruitment_id: 공고 ID
@@ -12,7 +11,15 @@ def create_recruitment_applicant_task(recruitment_id: int, applicant_id: int, re
     :param receiver_id: 알림 받을 자 ID
     :return: notification.create()
     '''
-    ...
+    mock_recruitment_title = "오즈코딩스쿨 장고 스터디 모집"
+
+    mock_notification_data = {
+        'user_id' : receiver_id,
+        'content' : f"공고 #{mock_recruitment_title}에 새로운 지원자가 지원했습니다.",
+        'type' : "APPLICATION_CREATED",
+        'back_url_link': f"/admin/recruitments",
+    }
+    return mock_notification_data
 
 @shared_task
 def create_recruitment_application_approval_task(recruitment_id: int, applicant_id: int, status: str)-> str:
