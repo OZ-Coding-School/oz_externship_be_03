@@ -1,10 +1,23 @@
-from typing import cast
+from typing import TYPE_CHECKING
 
 from django.conf import settings
 from django.db import models
 
 from apps.core.models import BaseModel
 from apps.lecture.models.review import RatingEnum
+
+# ── mypy 전용: 런타임 영향 X, 정적 타입체커에만 보이는 선언 ──
+if TYPE_CHECKING:
+    from django.contrib.auth.models import AbstractUser as User
+
+    from apps.studies.models.groups import StudyGroup
+
+    # PK가 int인 경우:
+    id: int
+    user: "User"
+    user_id: int
+    study_group: "StudyGroup"
+    study_group_id: int
 
 
 class Review(BaseModel):
@@ -41,7 +54,5 @@ class Review(BaseModel):
         ]
 
     def __str__(self) -> str:
-        rid = self.pk
-        uid = self.user_id
-        gid = self.study_group_id
-        return f"Review <{rid}> user={uid}, group={gid}, rate={self.star_rating}"
+        # mypy가 TYPE_CHECKING 선언을 보고 user_id/study_group_id를 인식합니다.
+        return f"Review <{self.pk}> user={self.user_id}, group={self.study_group_id}, rate={self.star_rating}"
