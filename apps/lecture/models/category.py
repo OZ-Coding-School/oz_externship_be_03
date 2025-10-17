@@ -39,4 +39,4 @@ class UserPreferCategory(BaseModel):
         db_table = "user_prefer_categories"
 
     def __str__(self) -> str:
-        return f"{self.user.nickname} - {self.category.name}"  # type:ignore # TODO:user파트 머지 후 주석삭제
+        return f"{self.user.nickname} - {self.category.name}"
