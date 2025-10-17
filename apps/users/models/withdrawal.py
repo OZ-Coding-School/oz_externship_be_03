@@ -1,8 +1,6 @@
 # 임시 모델
 from __future__ import annotations
 
-from typing import cast
-
 from django.conf import settings
 from django.db import models
 
