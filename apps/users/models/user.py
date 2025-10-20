@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-import uuid as _uuid
-
 from django.contrib.auth.base_user import AbstractBaseUser
-from django.core.validators import RegexValidator
 from django.db import models
 
-from apps.core.models import BaseModel
+from apps.core.models import UUIDBaseModel
+from apps.users.enums import Gender
+from apps.users.models.managers import UserManager
+from apps.users.validators import validate_korean_phone
 
 
-class User(AbstractBaseUser, BaseModel):
+class User(AbstractBaseUser, UUIDBaseModel):
     """
     User 모델
     - 로그인 키: email
@@ -20,25 +20,15 @@ class User(AbstractBaseUser, BaseModel):
     # 회원가입 필수 항목
     REQUIRED_FIELDS = ["nickname", "name", "phone_number", "birthday", "gender"]
 
-    uuid = models.UUIDField(default=_uuid.uuid4, unique=True, null=False)
-
     email = models.EmailField(unique=True, null=False)
 
     name = models.CharField(max_length=30, null=False)
 
     nickname = models.CharField(max_length=10, unique=True, null=False)
 
-    phone_validator = RegexValidator(
-        regex=r"^010\d{8}$",
-        message="예) 01012345678",
-    )
-    phone_number = models.CharField(max_length=20, unique=True, validators=[phone_validator], null=False)
+    phone_number = models.CharField(max_length=20, unique=True, validators=[validate_korean_phone], null=False)
 
-    GENDER = (
-        ("M", "남"),
-        ("F", "여"),
-    )
-    gender = models.CharField(max_length=6, choices=GENDER, null=False)
+    gender = models.CharField(max_length=6, choices=Gender, null=False)
 
     birthday = models.DateField(null=False)
 
@@ -51,6 +41,8 @@ class User(AbstractBaseUser, BaseModel):
     is_superuser = models.BooleanField(default=False, null=False)
 
     # created_at, updated_at 상속
+
+    objects = UserManager()
 
     class Meta:
         db_table = "users"
