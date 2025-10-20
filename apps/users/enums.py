@@ -22,3 +22,9 @@ class Reason(TextChoices):
     TECHNICAL_ISSUES = "TECHNICAL_ISSUES", "기술적 문제(버그 등)"
     LACK_OF_CONTENT = "LACK_OF_CONTENT", "원하는 콘텐츠나 기능의 부족"
     OTHER = "OTHER", "기타"
+
+
+class VerificationPurpose(TextChoices):
+    SIGNUP = "signup", "회원가입"
+    ACCOUNT_RECOVERY = "account_recovery", "정보찾기"  # 아이디/비번 찾기
+    PROFILE_UPDATE = "profile_update", "정보수정"  # 이메일/전화 변경
