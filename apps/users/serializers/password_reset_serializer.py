@@ -7,7 +7,7 @@ from rest_framework import serializers
 User = get_user_model()
 
 
-class PasswordResetSerializer(serializers.ModelSerializer[Any]):
+class PasswordResetSerializer(serializers.Serializer[Dict[str, Any]]):
     """
     비밀번호 재설정 시리얼라이저
     - 입력값 일치 검증만 수행
@@ -18,10 +18,6 @@ class PasswordResetSerializer(serializers.ModelSerializer[Any]):
     new_password_confirm = serializers.CharField(write_only=True)
 
     _user: AbstractBaseUser | None = None
-
-    class Meta:
-        model = User
-        fields = ["new_password", "new_password_confirm"]
 
     def validate(self, attrs: Dict[str, Any]) -> Dict[str, Any]:
         pw = attrs.get("new_password")
@@ -36,14 +32,3 @@ class PasswordResetSerializer(serializers.ModelSerializer[Any]):
 
         self._user = user
         return attrs
-
-    def save(self, **kwargs: Any) -> AbstractBaseUser:
-        if self._user is None:
-            raise serializers.ValidationError({"error": "내부 오류: 검증 단계가 선행되지 않았습니다."})
-
-        user = self._user
-        new_password = self.validated_data["new_password"]
-
-        user.set_password(new_password)
-        user.save(update_fields=["password"])
-        return user

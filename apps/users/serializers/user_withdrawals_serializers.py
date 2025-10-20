@@ -10,7 +10,7 @@ from apps.users.models.withdrawal import Withdrawal
 User = get_user_model()
 
 
-class UserWithdrawalsSerializer(serializers.ModelSerializer[Any]):
+class UserWithdrawalsSerializer(serializers.ModelSerializer[Withdrawal]):
     """
     회원 탈퇴 요청 Serializer
     - Withdrawal 모델 기반
@@ -27,7 +27,7 @@ class UserWithdrawalsSerializer(serializers.ModelSerializer[Any]):
         }
 
 
-class UserWithdrawalsRecoverySerializer(serializers.ModelSerializer[Any]):
+class UserWithdrawalsRecoverySerializer(serializers.Serializer[Dict[str, Any]]):
     """
     탈퇴 계정 복구 Serializer\
     - 토큰 형식 검증만 수행, 비즈니스 로직(토큰 검증/소모, 계정 활성화, withdrawals 삭제)은 서비스에서 처리
@@ -35,9 +35,3 @@ class UserWithdrawalsRecoverySerializer(serializers.ModelSerializer[Any]):
 
     verify_token = serializers.CharField(write_only=True, required=True)
 
-    class Meta:
-        model = User
-        fields = ("verify_token",)  # 모델 필드는 사용하지 않고, 입력 검증 전용 필드만 노출
-        extra_kwargs: Dict[str, Dict[str, Any]] = {
-            "verify_token": {"help_text": "인증코드 확인 API가 발급한 일회성 검증 토큰"}
-        }

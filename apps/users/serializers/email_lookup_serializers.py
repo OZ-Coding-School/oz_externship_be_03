@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Dict
 
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
@@ -9,7 +9,7 @@ if TYPE_CHECKING:
 User = get_user_model()
 
 
-class EmailLookupSerializer(serializers.ModelSerializer[Any]):
+class EmailLookupSerializer(serializers.ModelSerializer[UserModel]):
     """
     아이디(이메일) 찾기 Serializer
     - User 모델 기반

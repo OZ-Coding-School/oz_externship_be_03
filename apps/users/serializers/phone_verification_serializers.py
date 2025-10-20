@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import Any, Dict, Literal
 
-from django.core.validators import RegexValidator
 from rest_framework import serializers
 
 from apps.users.validators import validate_korean_phone
