@@ -3,10 +3,11 @@ from rest_framework import status
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.pagination import PageNumberPagination
+from apps.lecture.filters import LectureFilter
 
 from apps.lecture.models import CrawledLecture, CrawledLectureReview, LectureSearchLog
 from apps.lecture.serializers import (
-    LectureDetailSerializer,
     LectureListSerializer,
     LectureReviewSerializer,
 )
@@ -14,59 +15,36 @@ from apps.lecture.serializers import (
 
 class LectureListView(APIView):
     """
-    강의 목록 조회
-    - 검색: ?search=키워드
+    강의 목록 조회 API
+
+    - 검색: ?search=키워드&search_type=(all, title, instructor)
     - 카테고리 필터: ?category=카테고리명
-    - 정렬: ?ordering=-create_at (최신순,기본값)
+    - 플랫폼 필터: ?platform=(udemy, inflearn)
+    - 정렬: ?ordering=(-create_at, -price, price, rating, -rating)
     """
 
     def get(self, request: Request) -> Response:
         queryset = CrawledLecture.objects.all()
 
-        # 검색 기능
+        # 서치 타입 validation
+        search_type = request.query_params.get("search_type", "all")
+        valid_search_types = ["all", "title", "instructor"]
+        if search_type not in valid_search_types:
+            return Response({"detail": "invalid_search_type"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 필터
+        filterset =  LectureFilter(request.query_params, queryset=queryset, request=request)
+        queryset = filterset.qs
+
+        # 검색 로그 저장
         search_keyword = request.query_params.get("search")
-        if search_keyword:
-            queryset = queryset.filter(Q(title__icontains=search_keyword) | Q(description__icontains=search_keyword))
+        if search_keyword and request.user.is_authenticated:
+            LectureSearchLog.objects.create(user=request.user, keyword=search_keyword)
 
-            # 저장
-            if request.user.is_authenticated:
-                LectureSearchLog.objects.create(user=request.user, keyword=search_keyword)
-
-        # 필터링
-        category_name = request.query_params.get("category")
-        if category_name:
-            queryset = queryset.filter(lecture_categories__category__name=category_name).distinct()
-
-        # 정렬
-        ordering = request.query_params.get("ordering", "-create_at")
-
-        ordering_map = {
-            "-created_at": "-created_at",  # 최신순 (기본)
-            "created_at": "created_at",  # 오래된 순
-            "price": "original_price",  # 가격 낮은 순
-            "-price": "-original_price",  # 가격 높은 순
-            "rating": "average_rating",  # 평점 낮은 순
-            "-rating": "-average_rating",  # 평점 높은 순
-        }
-
-        order_field = ordering_map.get(ordering, "-created_at")
-        queryset = queryset.order_by(order_field)
-
-        serializer = LectureListSerializer(queryset, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-
-class LectureDetailView(APIView):
-    """강의 상세 조회"""
-
-    def get(self, request: Request, pk: int) -> Response:
-        try:
-            lecture = CrawledLecture.objects.get(pk=pk)
-        except CrawledLecture.DoesNotExist:
-            return Response({"detail": "lecture_not_found"}, status=status.HTTP_404_NOT_FOUND)
-
-        serializer = LectureDetailSerializer(lecture)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        paginator = PageNumberPagination()
+        page = paginator.paginate_queryset(queryset, request)
+        serializer = LectureListSerializer(page, many=True)
+        return paginator.get_paginated_response(serializer.data)
 
 
 class LectureReviewListView(APIView):
