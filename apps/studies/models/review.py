@@ -19,8 +19,6 @@ if TYPE_CHECKING:
 
 
 class Review(BaseModel):
-    pk = models.CompositePrimaryKey("user_id", "study_group_id")
-
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -41,12 +39,16 @@ class Review(BaseModel):
 
     class Meta:
         db_table = "reviews"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "study_group"],
+                name="uq_reviews_user_group",
+            ),
+        ]
         indexes = [
             models.Index(fields=["study_group", "-created_at"], name="ix_reviews_group_created_desc"),
             models.Index(fields=["user", "-created_at"], name="ix_reviews_user_created_desc"),
         ]
 
     def __str__(self) -> str:
-        uid = self.user.id
-        gid = self.study_group.id
-        return f"Review user={uid}, group={gid}, rate={self.star_rating}"
+        return f"Review user={self.user.id}, group={self.study_group.id}, rate={self.star_rating}"
