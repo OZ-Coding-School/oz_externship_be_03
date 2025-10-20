@@ -18,9 +18,7 @@ class LectureFilter(filters.FilterSet):  # type: ignore
 
     # 플랫폼 필터링
     platform = filters.ChoiceFilter(
-        choices=[("UDEMY", "Udemy"), ("INFLEARN", "Inflearn")],
-        method="filter_platform",
-        label="플랫폼"
+        choices=[("UDEMY", "Udemy"), ("INFLEARN", "Inflearn")], method="filter_platform", label="플랫폼"
     )
 
     # 정렬 기능
@@ -53,10 +51,7 @@ class LectureFilter(filters.FilterSet):  # type: ignore
         elif search_type == "instructor":
             return queryset.filter(instructor__icontains=value)
         else:
-            return queryset.filter(
-                Q(title__icontains=value) |
-                Q(instructor__icontains=value)
-            ).distinct()
+            return queryset.filter(Q(title__icontains=value) | Q(instructor__icontains=value)).distinct()
 
     def filter_platform(self, queryset: Any, name: str, value: str) -> Any:
         """플랫폼 필터"""
