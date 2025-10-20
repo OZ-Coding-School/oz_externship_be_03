@@ -62,7 +62,7 @@ def create_recruitment_application_rejection_task(recruitment_id: int, applicant
 
 
 @shared_task
-def create_studygroup_join_task(group_members_id: int, new_member_nickname:str) -> dict[str.object]:
+def create_studygroup_join_task(group_members_id: int, new_member_nickname:str) -> dict[str,object]:
     """
     지원 승인시 그룹원들에게 새로운 유저가 참여했다는 알림 생성 task
     :param group_members_id : 스터디 그룹원 ID
