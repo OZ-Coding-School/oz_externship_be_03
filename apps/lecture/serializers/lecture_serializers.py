@@ -39,4 +39,3 @@ class LectureListSerializer(serializers.ModelSerializer[CrawledLecture]):
         """강의에 속한 카테고리 목록 반환"""
         categories = Category.objects.filter(lecture_categories__lecture=obj).distinct()
         return cast(list[dict[str, Any]], CategorySerializer(categories, many=True).data)
-

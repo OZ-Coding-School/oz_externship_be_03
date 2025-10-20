@@ -1,6 +1,5 @@
-from django.urls import path
+from django.urls import URLPattern, path
 
 app_name = "lecture"
 
-urlpatterns = [
-]
+urlpatterns: list[URLPattern] = []
