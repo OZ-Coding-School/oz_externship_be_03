@@ -7,7 +7,7 @@ from typing import Any, Literal, Optional
 from django.core.cache import cache
 from twilio.rest import Client  # type: ignore
 
-Purpose = Literal["signup", "find_email", "change_phone", "reset_password"]
+Purpose = Literal["signup", "find_email", "change_phone"]
 
 TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID", "")
 TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN", "")
@@ -23,7 +23,7 @@ MAX_FAIL_ATTEMPTS = 5
 
 
 def _purpose_whitelist(purpose: str) -> bool:
-    return purpose in {"signup", "find_email", "change_phone", "reset_password"}
+    return purpose in {"signup", "find_email", "change_phone"}
 
 
 def _normalize_kr_phone(raw: str) -> str:
