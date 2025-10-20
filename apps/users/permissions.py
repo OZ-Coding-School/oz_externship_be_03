@@ -41,7 +41,7 @@ class EmailVerifiedPermission(BasePermission):
 
     특정 purpose(목적)에 대해 '이메일 인증'이 완료된 사용자만 접근 가능.
     ex) permission_classes = [IsAuthenticated, EmailVerifiedPermission]
-        purpose = "reset_password"
+        purpose = "change_phone"
     """
 
     message = "이메일 인증이 완료되지 않았습니다."
