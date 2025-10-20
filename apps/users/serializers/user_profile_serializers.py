@@ -58,7 +58,7 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer[Any]):
         return attrs
 
 
-class UserProfilePasswordUpdateSerializer(serializers.ModelSerializer[Any]):
+class UserProfilePasswordUpdateSerializer(serializers.Serializer[Dict[str, Any]]):
     """
     내 정보 수정 - 비밀번호 변경
     - 입력 필드 구조 검증 & 새 비밀번호/확인 비밀번호 일치 여부만 확인
@@ -69,10 +69,6 @@ class UserProfilePasswordUpdateSerializer(serializers.ModelSerializer[Any]):
     current_password = serializers.CharField(write_only=True)
     new_password = serializers.CharField(write_only=True)
     new_password_confirm = serializers.CharField(write_only=True)
-
-    class Meta:
-        model = User
-        fields = ("current_password", "new_password", "new_password_confirm")
 
     def validate(self, attrs: Dict[str, Any]) -> Dict[str, Any]:
         # 새 비밀번호와 확인 비밀번호 일치만 체크 (나머지는 서비스에서)
