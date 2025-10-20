@@ -22,12 +22,14 @@ class EmailLookupSerializer(serializers.ModelSerializer[UserModel]):
         model = User
         fields = ["email"]
 
-    def get_email(self, obj: UserModel) -> str:
+    def to_representation(self, obj: UserModel) -> dict[str, Any]:
         """
-        이메일 마스킹 처리
+        응답 직렬화 시점에 이메일 마스킹 처리
         예: kimkim@gmail.com → k****m@gmail.com
         """
-        email = obj.email
+        data = super().to_representation(obj)
+        email = data.get("email", "")
+
         name, domain = email.split("@", 1)
         if len(name) <= 1:
             masked_name = name
@@ -36,4 +38,5 @@ class EmailLookupSerializer(serializers.ModelSerializer[UserModel]):
         else:
             masked_name = name[0] + ("*" * (len(name) - 2)) + name[-1]
 
-        return f"{masked_name}@{domain}"
+        data["email"] = f"{masked_name}@{domain}"
+        return data
