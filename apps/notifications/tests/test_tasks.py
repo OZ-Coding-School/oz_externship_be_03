@@ -1,6 +1,6 @@
 from unittest.mock import patch
 from django.test import TestCase
-from apps.app_notifications import tasks
+from apps.notifications import tasks
 
 # 비즈니스 함수로 delay메서드 호출 방식 test
 def recruitment_create():
