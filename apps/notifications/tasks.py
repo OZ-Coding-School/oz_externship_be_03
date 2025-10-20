@@ -22,7 +22,7 @@ def create_recruitment_applicant_task(recruitment_id: int, receiver_id: int) -> 
     return mock_notification_data
 
 
-@shared_task # type: ignore[misc]
+@shared_task  # type: ignore[misc]
 def create_recruitment_application_approval_task(
     recruitment_id: int, applicant_id: int, status: str
 ) -> dict[str, object]:
@@ -44,7 +44,7 @@ def create_recruitment_application_approval_task(
     return mock_notification_data
 
 
-@shared_task # type: ignore[misc]
+@shared_task  # type: ignore[misc]
 def create_recruitment_application_rejection_task(
     recruitment_id: int, applicant_id: int, status: str
 ) -> dict[str, object]:
@@ -66,7 +66,7 @@ def create_recruitment_application_rejection_task(
     return mock_notification_data
 
 
-@shared_task # type: ignore[misc]
+@shared_task  # type: ignore[misc]
 def create_studygroup_join_task(group_members_id: int, new_member_nickname: str) -> dict[str, object]:
     """
     지원 승인시 그룹원들에게 새로운 유저가 참여했다는 알림 생성 task
@@ -85,7 +85,7 @@ def create_studygroup_join_task(group_members_id: int, new_member_nickname: str)
     return mock_notifications_data
 
 
-@shared_task # type: ignore[misc]
+@shared_task  # type: ignore[misc]
 def create_studygroup_reviewrequest_task(study_group_id: int, group_members_id: int) -> dict[str, object]:
     """
     그룹원들에게 후기 작성 요청하는 알림 생성 task
@@ -103,7 +103,7 @@ def create_studygroup_reviewrequest_task(study_group_id: int, group_members_id: 
     return mock_notifications_data
 
 
-@shared_task # type: ignore[misc]
+@shared_task  # type: ignore[misc]
 def create_schedule_upcoming_task(group_schedules_id: int, group_members_id: int) -> dict[str, object]:
     """
     스케줄 참가 인원들에게 보낼 스케줄 예정 알림 생성 task
@@ -123,7 +123,7 @@ def create_schedule_upcoming_task(group_schedules_id: int, group_members_id: int
     return mock_notifications_data
 
 
-@shared_task # type: ignore[misc]
+@shared_task  # type: ignore[misc]
 def create_schedule_today_task(
     study_group_id: int, group_schedules_id: int, group_members_id: int
 ) -> dict[str, object]:
@@ -149,7 +149,7 @@ def create_schedule_today_task(
     return mock_notifications_data
 
 
-@shared_task # type: ignore[misc]
+@shared_task  # type: ignore[misc]
 def create_study_record_task(group_members_id: int, study_notes_id: int, author_nickname: str) -> dict[str, object]:
     """
     그룹원이 스터디 그룹의 상세페이지에서 스터디 기록 작성시
