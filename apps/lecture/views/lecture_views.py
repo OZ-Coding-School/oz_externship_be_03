@@ -23,20 +23,16 @@ class LectureListView(APIView):
     """
     강의 목록 조회 API
 
-    - 검색: ?search=키워드&search_type=(all, title, instructor)
+    - 검색: ?search=키워드
     - 카테고리 필터: ?category=카테고리명
     - 플랫폼 필터: ?platform=(udemy, inflearn)
     - 정렬: ?ordering=(-create_at, -price, price, rating, -rating)
     """
 
     def get(self, request: Request) -> Response:
-        queryset = CrawledLecture.objects.all()
-
-        # 서치 타입 validation
-        search_type = request.query_params.get("search_type", "all")
-        valid_search_types = ["all", "title", "instructor"]
-        if search_type not in valid_search_types:
-            return Response({"detail": "invalid_search_type"}, status=status.HTTP_400_BAD_REQUEST)
+        queryset = CrawledLecture.objects.prefetch_related(
+            'lecture_categories__category'
+        ).all()
 
         # 필터
         filterset =  LectureFilter(request.query_params, queryset=queryset, request=request)
