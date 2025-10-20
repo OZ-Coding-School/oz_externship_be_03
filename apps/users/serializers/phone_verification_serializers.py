@@ -31,4 +31,3 @@ class PhoneVerificationConfirmCodeSerializer(serializers.Serializer[Dict[str, An
     phone_number = serializers.CharField(write_only=True, validators=[validate_korean_phone])
     purpose = serializers.ChoiceField(choices=PURPOSE_CHOICES, write_only=True)
     code = serializers.CharField(write_only=True, min_length=6, max_length=6)
-

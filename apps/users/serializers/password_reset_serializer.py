@@ -16,4 +16,3 @@ class PasswordResetSerializer(serializers.Serializer[Dict[str, Any]]):
     new_password_confirm = serializers.CharField(write_only=True)
 
     _user: AbstractBaseUser | None = None
-

@@ -61,4 +61,3 @@ class UserProfilePasswordUpdateSerializer(serializers.Serializer[Dict[str, Any]]
     current_password = serializers.CharField(write_only=True)
     new_password = serializers.CharField(write_only=True)
     new_password_confirm = serializers.CharField(write_only=True)
-

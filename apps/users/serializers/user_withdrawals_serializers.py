@@ -34,4 +34,3 @@ class UserWithdrawalsRecoverySerializer(serializers.Serializer[Dict[str, Any]]):
     """
 
     verify_token = serializers.CharField(write_only=True, required=True)
-
