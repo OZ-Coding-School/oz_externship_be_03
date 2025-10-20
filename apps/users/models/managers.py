@@ -11,23 +11,24 @@ if TYPE_CHECKING:
 
 
 class UserManager(BaseUserManager["User"]):
-    def active(self) -> models.QuerySet["User"]:
+    def get_active_user(self) -> models.QuerySet["User"]:
         """
         활성화 유저 확인
         """
-        return self.get_queryset().filter(is_active=True)
+        qs: models.QuerySet["User"] = self.get_queryset()
+        return qs.filter(is_active=True)
 
     def exists_email(self, email: str) -> bool:
         """
         이메일 중복 확인
         """
-        return self.active().filter(email=email).exists()
+        return self.get_active_user().filter(email=email).exists()
 
     def exists_nickname(self, nickname: str) -> bool:
         """
         닉네임 중복 확인
         """
-        return self.active().filter(nickname=nickname).exists()
+        return self.get_active_user().filter(nickname=nickname).exists()
 
 
 class SocialUserManager(models.Manager["SocialUser"]):
