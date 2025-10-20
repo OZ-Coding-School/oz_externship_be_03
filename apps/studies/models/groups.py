@@ -1,3 +1,5 @@
+from typing import TYPE_CHECKING
+
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
@@ -14,7 +16,6 @@ class StudyGroupStatus(models.TextChoices):
 
 
 class StudyGroup(BaseModel):
-    uuid = models.UUIDField(unique=True, editable=False, null=False)
     name = models.CharField(max_length=20, null=False, default="")
     introduction = models.CharField(max_length=500, null=True, blank=True)
     max_headcount = models.PositiveSmallIntegerField(
@@ -60,23 +61,39 @@ class StudyLecture(BaseModel):
 
 
 class GroupMember(BaseModel):
-    pk = models.CompositePrimaryKey("study_group_id", "user_id")
+    if TYPE_CHECKING:
+        from django.db.models import AutoField
+
+        id: "AutoField['GroupMember', int]"
 
     study_group = models.ForeignKey(
         "StudyGroup",
         on_delete=models.CASCADE,
         related_name="members",
+        null=False,
+        blank=False,
     )
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="group_members",
+        null=False,
+        blank=False,
     )
-    is_leader = models.BooleanField(default=False)
+    is_leader = models.BooleanField(default=False, null=False)
 
     class Meta:
         db_table = "group_members"
         app_label = "studies"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["study_group", "user"],
+                name="uq_group_member",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.user.id} in group {self.study_group.id}"
 
 
 class GroupSchedule(BaseModel):
@@ -107,28 +124,30 @@ class GroupSchedule(BaseModel):
 
 
 class ScheduleParticipant(BaseModel):
-    # 복합 PK 유지
-    pk = models.CompositePrimaryKey("schedule_id", "member_study_group_id", "member_user_id")
-
     schedule = models.ForeignKey(
         "GroupSchedule",
         on_delete=models.CASCADE,
         related_name="participants",
+        null=False,
+        blank=False,
     )
-
-    # 복합 FK의 로컬 컬럼
-    member_study_group_id = models.BigIntegerField()
-    member_user_id = models.BigIntegerField()
-
-    # ForeignObject: 복합 FK 직접 매핑
-    member = models.ForeignObject(
+    member = models.ForeignKey(
         "GroupMember",
-        from_fields=("member_study_group_id", "member_user_id"),
-        to_fields=("study_group_id", "user_id"),
         on_delete=models.CASCADE,
         related_name="schedules",
+        null=False,
+        blank=False,
     )
 
     class Meta:
         db_table = "schedule_participants"
         app_label = "studies"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["schedule", "member"],
+                name="uq_schedule_participant",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"ScheduleParticipant schedule={self.schedule.id}, member={self.member.id}"
