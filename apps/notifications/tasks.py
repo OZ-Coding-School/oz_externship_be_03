@@ -2,7 +2,7 @@ from celery import shared_task
 
 
 # Todo 코드 작성후 공통 작업들은 상속 구조로 클래스 지정
-@shared_task # type
+@shared_task  # type
 def create_recruitment_applicant_task(recruitment_id: int, receiver_id: int) -> dict[str, object]:
     """
     공고 지원시 공고 작성자에게 보낼 알림 생성 task
@@ -45,7 +45,9 @@ def create_recruitment_application_approval_task(
 
 
 @shared_task
-def create_recruitment_application_rejection_task(recruitment_id: int, applicant_id: int, status: str) -> dict[str, object]:
+def create_recruitment_application_rejection_task(
+    recruitment_id: int, applicant_id: int, status: str
+) -> dict[str, object]:
     """
     공고 지원시 공고 지원자에게 보낼 거절 알림 생성 task
     :param recruitment_id: 공고 ID
@@ -145,6 +147,7 @@ def create_schedule_today_task(
     }
 
     return mock_notifications_data
+
 
 @shared_task
 def create_study_record_task(group_members_id: int, study_notes_id: int, author_nickname: str) -> dict[str, object]:
