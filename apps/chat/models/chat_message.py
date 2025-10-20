@@ -18,7 +18,9 @@ class ChatMessage(BaseModel):
         related_name="chat_messages",
         verbose_name="스터디 그룹",
     )
-    content = models.CharField(max_length=255, verbose_name="메시지 내용")  # ERD의 varchar 타입과 일관성을 맞추기 위해 CharField로 수정
+    content = models.CharField(
+        max_length=255, verbose_name="메시지 내용"
+    )  # ERD의 varchar 타입과 일관성을 맞추기 위해 CharField로 수정
 
     class Meta:
         db_table = "chat_messages"
