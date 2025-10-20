@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from drf_spectacular.utils import extend_schema, OpenApiExample
+from drf_spectacular.utils import OpenApiExample, extend_schema
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework.request import Request
@@ -8,10 +8,13 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.users.serializers.phone_verification_serializers import (
+    ConfirmCodeResponseSerializer,
     ConfirmCodeSerializer,
-    SendCodeSerializer, SendCodeResponseSerializer, ConfirmCodeResponseSerializer,
+    SendCodeResponseSerializer,
+    SendCodeSerializer,
 )
 from apps.users.services.phone_verification import confirm_code, send_code
+
 
 @extend_schema(
     tags=["Users"],

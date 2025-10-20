@@ -1,7 +1,8 @@
 from django.urls import path
+
 from apps.users.views.phone_verification_views import (
-    PhoneSendCodeView,
     PhoneConfirmCodeView,
+    PhoneSendCodeView,
 )
 
 app_name = "phone_verifications"
