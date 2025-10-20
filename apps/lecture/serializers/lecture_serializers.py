@@ -14,7 +14,7 @@ class CategorySerializer(serializers.ModelSerializer[Category]):
 
 
 class LectureListSerializer(serializers.ModelSerializer[CrawledLecture]):
-    """강의 목록 조회용 Serializer"""
+    """강의 목록 조회용 Serializer (일반사용자)"""
 
     categories = serializers.SerializerMethodField()
 
