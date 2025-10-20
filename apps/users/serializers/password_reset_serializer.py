@@ -10,8 +10,6 @@ User = get_user_model()
 class PasswordResetSerializer(serializers.Serializer[Dict[str, Any]]):
     """
     비밀번호 재설정 시리얼라이저
-    - 입력값 일치 검증만 수행
-    - 실제 정책 검증 및 토큰 검증은 service에서 수행
     """
 
     new_password = serializers.CharField(write_only=True)
@@ -19,16 +17,3 @@ class PasswordResetSerializer(serializers.Serializer[Dict[str, Any]]):
 
     _user: AbstractBaseUser | None = None
 
-    def validate(self, attrs: Dict[str, Any]) -> Dict[str, Any]:
-        pw = attrs.get("new_password")
-        pw2 = attrs.get("new_password_confirm")
-
-        if pw != pw2:
-            raise serializers.ValidationError({"error": "비밀번호 확인이 일치하지 않습니다."})
-
-        user = self.context.get("user")
-        if user is None:
-            raise serializers.ValidationError({"error": "내부 오류: user context 누락"})
-
-        self._user = user
-        return attrs
