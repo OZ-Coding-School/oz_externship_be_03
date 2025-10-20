@@ -20,7 +20,7 @@ class Withdrawal(BaseModel):
     - updated_at: DATETIME NULL (수정 시각, 없을 수도 있음)
     """
 
-    # FK: users(id), NULL 허용 + on_delete=SET_NULL (스펙: delete : set null)
+    # FK: users(id), NULL 허용 + on_delete=SET_NULL
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
