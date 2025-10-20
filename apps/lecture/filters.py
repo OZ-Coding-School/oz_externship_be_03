@@ -44,7 +44,6 @@ class LectureFilter(filters.FilterSet):  # type: ignore
         if not value:
             return queryset
 
-
         return queryset.filter(Q(title__icontains=value) | Q(instructor__icontains=value)).distinct()
 
     def filter_platform(self, queryset: Any, name: str, value: str) -> Any:
