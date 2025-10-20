@@ -1,5 +1,3 @@
-from typing import TYPE_CHECKING
-
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
@@ -61,11 +59,6 @@ class StudyLecture(BaseModel):
 
 
 class GroupMember(BaseModel):
-    if TYPE_CHECKING:
-        from django.db.models import AutoField
-
-        id: "AutoField['GroupMember', int]"
-
     study_group = models.ForeignKey(
         "StudyGroup",
         on_delete=models.CASCADE,
@@ -123,7 +116,9 @@ class GroupSchedule(BaseModel):
             raise ValidationError("스터디 종료 시간은 시작 시간보다 늦어야 합니다.")
 
 
-class ScheduleParticipant(BaseModel):
+class ScheduleParticipant(models.Model):
+    pk = models.CompositePrimaryKey("schedule_id", "member_id")
+
     schedule = models.ForeignKey(
         "GroupSchedule",
         on_delete=models.CASCADE,
@@ -142,12 +137,3 @@ class ScheduleParticipant(BaseModel):
     class Meta:
         db_table = "schedule_participants"
         app_label = "studies"
-        constraints = [
-            models.UniqueConstraint(
-                fields=["schedule", "member"],
-                name="uq_schedule_participant",
-            ),
-        ]
-
-    def __str__(self) -> str:
-        return f"ScheduleParticipant schedule={self.schedule.id}, member={self.member.id}"
