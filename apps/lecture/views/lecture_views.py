@@ -12,7 +12,13 @@ from apps.lecture.serializers import (
     LectureReviewSerializer,
 )
 
-
+@extend_schema(
+    tags=["Lecture"],
+    summary="강의 목록 조회 API",
+    description="""
+    강의 플랫폼의 강의 목록을 검색, 필터링, 정렬하여 조회합니다. 무한스크롤을 위한 페이지네이션을 지원합니다.
+    """
+)
 class LectureListView(APIView):
     """
     강의 목록 조회 API
