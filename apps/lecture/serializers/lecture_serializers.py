@@ -1,6 +1,7 @@
 from typing import Any, cast
 
 from rest_framework import serializers
+from rest_framework.utils.serializer_helpers import ReturnDict
 
 from apps.lecture.models import Category, CrawledLecture
 
@@ -35,7 +36,14 @@ class LectureListSerializer(serializers.ModelSerializer[CrawledLecture]):
             "url_link",
         ]
 
-    def get_categories(self, obj: CrawledLecture) -> list[dict[str, Any]]:
+    def get_categories(self, obj: CrawledLecture) -> ReturnDict[Any, Any]:
         """강의에 속한 카테고리 목록 반환"""
-        categories = Category.objects.filter(lecture_categories__lecture=obj).distinct()
-        return cast(list[dict[str, Any]], CategorySerializer(categories, many=True).data)
+        lecture_categories = obj.lecture_categories.all()
+
+        categories = []
+        for lecture_category in lecture_categories:
+            category = lecture_category.category
+            categories.append(category)
+
+        serializer = CategorySerializer(categories, many=True)
+        return serializer.data

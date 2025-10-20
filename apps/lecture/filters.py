@@ -44,14 +44,8 @@ class LectureFilter(filters.FilterSet):  # type: ignore
         if not value:
             return queryset
 
-        search_type = self.request.query_params.get("search_type", "all")
 
-        if search_type == "title":
-            return queryset.filter(title__icontains=value)
-        elif search_type == "instructor":
-            return queryset.filter(instructor__icontains=value)
-        else:
-            return queryset.filter(Q(title__icontains=value) | Q(instructor__icontains=value)).distinct()
+        return queryset.filter(Q(title__icontains=value) | Q(instructor__icontains=value)).distinct()
 
     def filter_platform(self, queryset: Any, name: str, value: str) -> Any:
         """플랫폼 필터"""
