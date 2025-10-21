@@ -1,5 +1,7 @@
-from .lecture_urls import urlpatterns
+from apps.lecture.urls.bookmark_urls import urlpatterns as bookmark_urls
+from apps.lecture.urls.lecture_urls import urlpatterns as lecture_urls
 
-__all__ = [
-    "urlpatterns",
+urlpatterns = [
+    *lecture_urls,
+    *bookmark_urls,
 ]
