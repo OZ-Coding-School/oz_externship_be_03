@@ -7,7 +7,7 @@ from django.db import transaction
 if TYPE_CHECKING:
     from apps.users.models.user import User
 
-    # from apps.studies.models.study_group import StudyGroup
+    from apps.studies.models.study_group import StudyGroup
 
 from .models import ChatMessage
 
@@ -18,7 +18,7 @@ class ChatMessageService:
     def create_chat_message(
         *,
         sender: "User",
-        # study_group: "StudyGroup",
+        study_group: "StudyGroup",
         content: str,
     ) -> ChatMessage:
         """
@@ -26,7 +26,7 @@ class ChatMessageService:
         """
         chat_message = ChatMessage.objects.create(
             sender=sender,
-            # study_group=study_group,
+            study_group=study_group,
             content=content,
         )
         # TODO: 메시지 생성 후 관련 로직 추가 (예: 웹소켓으로 브로드캐스트)
