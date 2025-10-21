@@ -1,16 +1,23 @@
 from celery import shared_task
 
+from apps.notifications.models import Notification
+
 
 # Todo 코드 작성후 공통 작업들은 상속 구조로 클래스 지정
 @shared_task  # type: ignore[misc]
-def create_recruitment_applicant_task(recruitment_id: int, receiver_id: int) -> dict[str, object]:
+def create_recruitment_applicant_task(recruitment_title: int, receiver_id: int) -> dict[str, object]:
     """
     공고 지원시 공고 작성자에게 보낼 알림 생성 task
-    :param recruitment_id: 공고 ID
-    :param applicant_id: 지원자 ID
-    :param receiver_id: 알림 받을 자 ID
+    :param recruitment_title: 공고 제목 (recruitment.title)
+    :param receiver_id: 알림 받을 자 ID (recruitment.author_id)
     :return: notification.create()
     """
+    notification = Notification.objects.create(
+        user_id=receiver_id,
+        content=f"공고 #{recruitment_title}에 새로운 지원자가 지원했습니다.",
+        type="APPLICATION_CREATED",
+        back_url_link="FRONTEND_DOMAIN"
+    )
     mock_recruitment_title = "오즈코딩스쿨 장고 스터디 모집"
 
     mock_notification_data = {
