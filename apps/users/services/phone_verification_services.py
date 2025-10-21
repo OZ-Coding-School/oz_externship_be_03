@@ -4,6 +4,7 @@ import os
 import re
 from typing import Any, Literal, Optional
 
+from django.conf import settings
 from django.core.cache import cache
 from twilio.rest import Client  # type: ignore
 
@@ -11,9 +12,9 @@ from apps.users.validators import validate_korean_phone
 
 Purpose = Literal["signup", "find_email", "change_phone"]
 
-TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID", "")
-TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN", "")
-TWILIO_VERIFY_SERVICE_SID = os.getenv("TWILIO_VERIFY_SERVICE_SID", "")
+TWILIO_ACCOUNT_SID = settings.TWILIO_ACCOUNT_SID
+TWILIO_AUTH_TOKEN = settings.TWILIO_AUTH_TOKEN
+TWILIO_VERIFY_SERVICE_SID = settings.TWILIO_VERIFY_SERVICE_SID
 
 
 _twilio: Any = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
