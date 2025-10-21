@@ -7,6 +7,7 @@ from .tag import Tag
 
 
 class RecruitmentTag(BaseModel):
+    pk = models.CompositePrimaryKey("recruitment_id", "tag_id")
     recruitment = models.ForeignKey(Recruitment, on_delete=models.CASCADE, related_name="tags")  # 공고
     tag = models.ForeignKey(Tag, on_delete=models.CASCADE, related_name="recruitments")  # 태그
 
