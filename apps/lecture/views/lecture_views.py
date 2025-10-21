@@ -17,53 +17,16 @@ from apps.lecture.serializers import (
 
 
 class LectureListView(APIView):
-    """SpecAPI용 강의목록 조회 API (Mock)"""
+    """강의 플랫폼(Udemy, Inflearn)의 강의 목록을 검색, 필터링, 정렬하여 조회하는 API입니다."""
 
     serializer_class = LectureListSerializer
     permission_classes = [AllowAny]
 
     @extend_schema(
+        operation_id="v1_lecture_list",
         tags=["Lecture"],
         summary="강의 목록 조회 API",
-        description="""
-        강의 플랫폼(Udemy, Inflearn)의 강의 목록을 검색, 필터링, 정렬하여 조회하는 API입니다.
-
-        주요 기능:
-        - 강의명, 강사명 통합 검색
-        - 카테고리별 필터링
-        - 플랫폼별 필터링
-        - 다양한 정렬 옵션 (최신순, 가격순, 평점순)
-        - 페이지네이션을 통한 무한스크롤 지원
-
-        로그인한 사용자의 경우 사용자 맞춤 추천 강의 목록이 함께 제공됩니다.
-        """,
-        parameters=[
-            OpenApiParameter(name="page", type=OpenApiTypes.INT, description="페이지 번호"),
-            OpenApiParameter(
-                name="page_size",
-                type=OpenApiTypes.INT,
-                description="한 페이지 항목 수 (기본값:10)",
-            ),
-            OpenApiParameter(
-                name="search",
-                type=OpenApiTypes.STR,
-                description="검색어 (강의명, 강사명 통합검색)",
-            ),
-            OpenApiParameter(name="category", type=OpenApiTypes.STR, description="카테고리명"),
-            OpenApiParameter(
-                name="ordering",
-                type=OpenApiTypes.STR,
-                enum=["-created_at", "-price", "price", "rating", "-rating"],
-                description="정렬기준 (기본값: -created_at)",
-            ),
-            OpenApiParameter(
-                name="platform",
-                type=OpenApiTypes.STR,
-                enum=["udemy", "inflearn"],
-                description="플랫폼 필터 (udemy, inflearn)",
-            ),
-        ],
-        responses=None,
+        responses={200: LectureListSerializer(many=True)},
     )
     def get(self, request: Request) -> Response:
         mock_data = {
@@ -115,23 +78,16 @@ class LectureListView(APIView):
 
 
 class LectureReviewListView(APIView):
-    """SpecApi영 리뷰 조회 API (Mock)"""
+    """특정 강의의 최근 리뷰를 최대 4개까지 조회합니다."""
 
     serializer_class = LectureReviewSerializer
     permission_classes = [AllowAny]
 
     @extend_schema(
+        operation_id="v1_lecture_review_list",
         tags=["Lecture"],
         summary="강의 리뷰 조회 API",
-        description="""
-        특정 강의의 최근 리뷰를 최대 4개까지 조회합니다.
-        """,
-        parameters=[
-            OpenApiParameter(
-                name="uuid", type=OpenApiTypes.UUID, location=OpenApiParameter.PATH, description="강의 UUID"
-            )
-        ],
-        responses=None,
+        responses={200: LectureReviewSerializer(many=True)},
     )
     def get(self, request: Request, uuid: str) -> Response:
         mock_data = {
