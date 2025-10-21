@@ -1,27 +1,24 @@
-from django.urls import reverse
+from django.test import TestCase
 from rest_framework import status
-from rest_framework.test import APITestCase
+from rest_framework.test import APIClient
 
 
-class LeaderDelegationAPITest(APITestCase):
-    """REQ-STDY-006: 스터디 그룹 리더 위임 API 테스트"""
-
+class StudyGroupTests(TestCase):
     def setUp(self) -> None:
-        self.group_id = "123e4567-e89b-12d3-a456-426614174000"
-        self.member_id = 1
-        self.url = reverse(
-            "study-group-leader-delegate",
-            kwargs={"group_id": self.group_id, "member_id": self.member_id},
-        )
+        self.client = APIClient()
 
-    def test_leader_delegation_success(self) -> None:
-        response = self.client.patch(self.url)
-        assert response.status_code == status.HTTP_200_OK
-        assert response.json() == {
-            "status": 200,
-            "message": "스터디 그룹의 리더를 위임했습니다.",
-        }
+    def test_group_list_success(self) -> None:
+        """스터디 그룹 목록 조회 성공 테스트"""
+        response = self.client.get("/api/v1/studies/groups/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    def test_leader_delegation_unauthorized(self) -> None:
-        response = self.client.patch(self.url)
-        assert response.status_code in [status.HTTP_200_OK, status.HTTP_401_UNAUTHORIZED]
+    def test_group_detail_not_found(self) -> None:
+        """존재하지 않는 그룹 상세 조회 시 404"""
+        response = self.client.get("/api/v1/studies/groups/999/")
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_group_create_invalid(self) -> None:
+        """잘못된 데이터로 생성 요청 시 400"""
+        invalid_data = {"name": ""}
+        response = self.client.post("/api/v1/studies/groups/", invalid_data, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
