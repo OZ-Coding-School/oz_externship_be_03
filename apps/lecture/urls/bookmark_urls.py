@@ -1,11 +1,11 @@
 from django.urls import path
 
 from apps.lecture.views.bookmark_views import (
-    LectureBookmarkButtonAPIView,
-    LectureBookmarkListAPIView,
+    LectureBookmarkDeleteView,
+    LectureBookmarkListCreateView,
 )
 
 urlpatterns = [
-    path("/<int:lecture_id>/bookmarks", LectureBookmarkButtonAPIView.as_view(), name="bookmark-button"),
-    path("/me/bookmarks", LectureBookmarkListAPIView.as_view(), name="bookmark-list"),
+    path("bookmarks", LectureBookmarkListCreateView.as_view(), name="bookmark-list-create"),
+    path("bookmarks/<int:lecture_id>", LectureBookmarkDeleteView.as_view(), name="bookmark-delete"),
 ]
