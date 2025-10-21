@@ -10,6 +10,7 @@ from drf_spectacular.views import (
 urlpatterns: list[URLPattern | URLResolver] = [
     path("api/v1/", include("apps.chat.urls.chat_urls")),
     path("api/lectures/", include("apps.lecture.urls")),
+    path("api/v1/", include(("apps.users.urls", "users"), namespace="users")),
 ]
 
 if settings.DEBUG:
@@ -21,6 +22,4 @@ if settings.DEBUG:
             path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
             path("api/schema/swagger-ui/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
             path("api/schema/redoc/", SpectacularRedocView.as_view(url_name="schema"), name="redoc"),
-            # Users app
-            path("api/v1/", include(("apps.users.urls", "users"), namespace="users")),
         ]
