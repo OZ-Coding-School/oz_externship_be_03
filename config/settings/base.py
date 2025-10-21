@@ -36,8 +36,6 @@ LOCAL_APPS = [
     "apps.core",
     "apps.users",
     "apps.lecture",
-    "apps.studies",
-    "apps.chat",
     "apps.notifications",
     "apps.recruitments",
     "apps.studies",
