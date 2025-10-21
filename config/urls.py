@@ -7,9 +7,11 @@ from drf_spectacular.views import (
     SpectacularSwaggerView,
 )
 
+from apps.users.urls import urlpatterns as users_urlpatterns
+
 urlpatterns: list[URLPattern | URLResolver] = [
     path("api/lectures/", include("apps.lecture.urls")),
-    path("api/v1/", include(("apps.users.urls", "users"), namespace="users")),
+    *users_urlpatterns,
 ]
 
 if settings.DEBUG:
