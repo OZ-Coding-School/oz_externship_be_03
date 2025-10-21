@@ -7,6 +7,8 @@ from typing import Any, Literal, Optional
 from django.core.cache import cache
 from twilio.rest import Client  # type: ignore
 
+from apps.users.validators import validate_korean_phone
+
 Purpose = Literal["signup", "find_email", "change_phone"]
 
 TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID", "")
@@ -29,28 +31,14 @@ def _purpose_whitelist(purpose: str) -> bool:
 def _normalize_kr_phone(raw: str) -> str:
     """
     내부 전용 정규화:
-    - 입력: 010-1234-5678, +82 10 1234 5678, 821012345678, 01012345678 등
+    - 입력: 반드시 '010XXXXXXXX' 형식이어야 함 (하이픈/공백/국가코드 불가)
     - 출력: +8210XXXXXXXX (E.164)
     - 대한민국(82) 번호만 허용. 010으로 시작하는 휴대폰만 허용.
     """
-    if not raw:
-        raise ValueError("휴대폰 번호를 입력해 주세요.")
-    digits = re.sub(r"\D", "", raw)
 
-    # 82 프리픽스/0 리드 제거
-    if digits.startswith("82"):
-        local = digits[2:]  # e.g. 10XXXXXXXX
-    elif digits.startswith("0"):
-        local = digits[1:]  # e.g. 10XXXXXXXX
-    else:
-        # +8210..., 8210..., 010... 외 형태는 거절
-        raise ValueError("대한민국 휴대폰 번호 형식만 지원합니다. 예) 01012345678")
+    validate_korean_phone(raw)  # 유효성 검증
 
-    # 010 휴대폰 패턴만 허용: 10 + 8자리 = 총 10자리
-    if not re.fullmatch(r"10\d{8}", local):
-        raise ValueError("휴대폰 번호 형식이 올바르지 않습니다. 예) 01012345678")
-
-    return f"+82{local}"
+    return f"+82{raw[1:]}"
 
 
 def _ensure_twilio_verify_ready() -> None:
