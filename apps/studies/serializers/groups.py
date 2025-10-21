@@ -1,10 +1,11 @@
 from typing import Any, cast
 
+from django.db.models import QuerySet
 from django.utils import timezone
 from rest_framework import serializers
 from rest_framework.request import Request
 
-from apps.studies.models.groups import StudyGroup
+from apps.studies.models.groups import GroupMember, StudyGroup
 
 
 # 스터디 그룹 생성 / 수정 (REQ-STDY-001, 009)
