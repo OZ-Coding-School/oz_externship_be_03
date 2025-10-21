@@ -5,6 +5,7 @@ from .recruitments import Recruitment
 
 
 class Bookmark(models.Model):
+    pk = models.CompositePrimaryKey("user_id", "recruitment_id")
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="bookmarks")
     recruitment = models.ForeignKey(Recruitment, on_delete=models.CASCADE, related_name="bookmarks")
     created_at = models.DateTimeField(auto_now_add=True)
