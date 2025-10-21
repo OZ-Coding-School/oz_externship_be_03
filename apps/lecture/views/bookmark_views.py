@@ -9,8 +9,8 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.lecture.models import CrawledLecture, LectureBookmark
 from apps.core.utils.pagination_mixin import PaginationHandlerMixin
+from apps.lecture.models import CrawledLecture, LectureBookmark
 from apps.lecture.serializers.bookmark_serializers import (
     LectureBookmarkListSerializer,
 )
