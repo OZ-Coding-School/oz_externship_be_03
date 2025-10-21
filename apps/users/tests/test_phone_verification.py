@@ -2,13 +2,13 @@ from __future__ import annotations
 
 from datetime import date
 from typing import Any, ClassVar, Dict, Optional
+from unittest.mock import patch
 
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.test import APIClient, APITestCase
-from unittest.mock import patch
 
 from apps.users.models import User
 
@@ -78,12 +78,11 @@ class BasePhoneVerificationAPITest(APITestCase):
         }
 
 
-
 class PhoneVerificationAPITests(BasePhoneVerificationAPITest):
 
     @patch("apps.users.views.phone_verification_views.send_code")
     def test_send_code_success(self, mock_send_code: Any) -> None:
-        """ 인증코드 전송 성공"""
+        """인증코드 전송 성공"""
         resp = self.post_json(self.SEND_URL, self.build_send_payload())
         self.assertEqual(resp.status_code, status.HTTP_204_NO_CONTENT)
         mock_send_code.assert_called_once_with(
@@ -92,7 +91,7 @@ class PhoneVerificationAPITests(BasePhoneVerificationAPITest):
         )
 
     def test_send_code_invalid_phone(self) -> None:
-        """ 잘못된 번호 형식 -> 400"""
+        """잘못된 번호 형식 -> 400"""
         resp = self.post_json(
             self.SEND_URL,
             self.build_send_payload(phone=self.invalid_phone),
@@ -101,14 +100,14 @@ class PhoneVerificationAPITests(BasePhoneVerificationAPITest):
         self.assertIn("phone_number", resp.data)
 
     def test_send_code_missing_purpose(self) -> None:
-        """ 필드 누락 -> 400"""
+        """필드 누락 -> 400"""
         payload = {"phone_number": self.valid_phone}  # purpose 누락
         resp = self.post_json(self.SEND_URL, payload)
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("purpose", resp.data)
 
     def test_send_code_change_phone_requires_auth(self) -> None:
-        """ change_phone 목적은 인증 필요 -> 401"""
+        """change_phone 목적은 인증 필요 -> 401"""
         resp = self.post_json(
             self.SEND_URL,
             self.build_send_payload(purpose=self.purpose_change_phone),
@@ -118,7 +117,7 @@ class PhoneVerificationAPITests(BasePhoneVerificationAPITest):
 
     @patch("apps.users.views.phone_verification_views.send_code")
     def test_send_code_change_phone_authenticated_ok(self, mock_send_code: Any) -> None:
-        """ change_phone 목적은 로그인 시 204"""
+        """change_phone 목적은 로그인 시 204"""
         self.auth_as(self.user)
         resp = self.post_json(
             self.SEND_URL,
@@ -130,10 +129,9 @@ class PhoneVerificationAPITests(BasePhoneVerificationAPITest):
             phone_number=self.valid_phone,
         )
 
-
     @patch("apps.users.views.phone_verification_views.confirm_code")
     def test_confirm_code_success(self, mock_confirm_code: Any) -> None:
-        """ 인증코드 확인 성공"""
+        """인증코드 확인 성공"""
         resp = self.post_json(self.CONFIRM_URL, self.build_confirm_payload())
         self.assertEqual(resp.status_code, status.HTTP_204_NO_CONTENT)
         mock_confirm_code.assert_called_once_with(
@@ -144,7 +142,7 @@ class PhoneVerificationAPITests(BasePhoneVerificationAPITest):
         )
 
     def test_confirm_code_invalid_code_format(self) -> None:
-        """ 코드 형식 오류(숫자 6자 아님) -> 400"""
+        """코드 형식 오류(숫자 6자 아님) -> 400"""
         resp = self.post_json(
             self.CONFIRM_URL,
             self.build_confirm_payload(code=self.invalid_code),
@@ -154,7 +152,7 @@ class PhoneVerificationAPITests(BasePhoneVerificationAPITest):
 
     @patch("apps.users.views.phone_verification_views.confirm_code")
     def test_confirm_code_authenticated_injects_user_id(self, mock_confirm_code: Any) -> None:
-        """ 로그인 상태라면 confirm_code 호출 시 user_id 전달됨"""
+        """로그인 상태라면 confirm_code 호출 시 user_id 전달됨"""
         self.auth_as(self.user)
         resp = self.post_json(self.CONFIRM_URL, self.build_confirm_payload())
         self.assertEqual(resp.status_code, status.HTTP_204_NO_CONTENT)
