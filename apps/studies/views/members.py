@@ -1,38 +1,27 @@
-from typing import Any
-
-from django.views import View
 from drf_spectacular.utils import extend_schema
 from rest_framework import parsers, status
-from rest_framework.permissions import BasePermission, IsAuthenticated
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.studies.models.groups import StudyGroup
-from apps.studies.serializers.members import LeaderDelegationSerializer
+from apps.studies.permissions import IsGroupLeader
+from apps.studies.serializers.members import DelegateLeaderSerializer
 from apps.studies.services.members import MemberService
 
 
-# 리더 여부 권한 확인
-class IsGroupLeader(BasePermission):
-    message = "리더만 접근 가능한 기능입니다."
-
-    def has_permission(self, request: Request, view: View) -> bool:
-        group = getattr(view, "mock_group", None)
-        return bool(request.user and group)
-
-
 # REQ-STDY-006: 리더 위임 API
-class LeaderDelegationAPIView(APIView):
-    serializer_class = LeaderDelegationSerializer
+class DelegateLeaderAPIView(APIView):
+    serializer_class = DelegateLeaderSerializer
     permission_classes = [IsAuthenticated, IsGroupLeader]
     parser_classes = [parsers.JSONParser]
 
     @extend_schema(
-        tags=["Study Member"],
+        tags=["StudyGroup"],
         summary="스터디 그룹 리더 위임 API",
         description="리더가 특정 멤버에게 리더 권한을 위임합니다.",
-        request=LeaderDelegationSerializer,
+        request=DelegateLeaderSerializer,
         responses={
             200: {"example": {"status": 200, "message": "스터디 그룹의 리더를 위임했습니다."}},
             403: {
@@ -44,7 +33,7 @@ class LeaderDelegationAPIView(APIView):
             },
         },
     )
-    def patch(self, request: Request, group_id: int) -> Response:
+    def post(self, request: Request, group_id: int) -> Response:
         # 실제 DB 대신 mock 객체 사용
         mock_group = StudyGroup(id=group_id, name="Mock Study Group")
 
