@@ -13,7 +13,7 @@ from apps.users.serializers.phone_verification_serializers import (
     SendCodeResponseSerializer,
     SendCodeSerializer,
 )
-from apps.users.services.phone_verification import confirm_code, send_code
+from apps.users.services.phone_verification_services import confirm_code, send_code
 
 
 @extend_schema(
