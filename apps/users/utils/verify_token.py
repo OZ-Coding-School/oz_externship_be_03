@@ -46,7 +46,7 @@ def verify_and_consume(
         "purpose": decoded.get("purpose"),
         "jti": str(decoded.get("jti")),
         "exp": decoded.get("exp"),
-    }  # type: ignore[assignment]
+    }
 
     if claims["purpose"] != expected_purpose:
         return Response({"error": "검증 토큰이 유효하지 않거나 만료되었습니다."}, status=status.HTTP_401_UNAUTHORIZED)
