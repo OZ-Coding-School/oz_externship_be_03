@@ -7,7 +7,7 @@ from django.db import transaction
 if TYPE_CHECKING:
     from apps.users.models.user import User
 
-    from apps.studies.models.study_group import StudyGroup
+    from apps.studies.models.groups import StudyGroup
 
 from .models import ChatMessage
 
