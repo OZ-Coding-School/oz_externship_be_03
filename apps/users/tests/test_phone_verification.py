@@ -1,164 +1,133 @@
-from __future__ import annotations
+from typing import Any
+from unittest.mock import Mock, patch
 
-from datetime import date
-from typing import Any, ClassVar, Dict, Optional
-from unittest.mock import patch
-
+from django.core.cache import cache
 from django.urls import reverse
 from rest_framework import status
-from rest_framework.request import Request
-from rest_framework.response import Response
-from rest_framework.test import APIClient, APITestCase
+from rest_framework.test import APITestCase
 
-from apps.users.models import User
+from apps.users.services.phone_verification_services import (
+    _global_lock_key,
+    _lock_key,
+    _normalize_kr_phone,
+    _pending_key,
+)
 
 
-class BasePhoneVerificationAPITest(APITestCase):
-    """
-    공통 데이터/헬퍼를 모아둔 베이스 클래스
-    """
-
-    # setUpTestData에서 채워질 클래스 속성
-    user: ClassVar[User]
-
-    @classmethod
-    def setUpTestData(cls) -> None:
-        cls.user = User.objects.create(
-            email="test@example.com",
-            name="테스터",
-            nickname="tester",
-            phone_number="01012345678",
-            gender="MALE",
-            birthday=date(1990, 1, 1),
-            is_active=True,
-        )
-
-    # 각 테스트 실행 직전 인스턴스 초기화
+class PhoneVerificationViewTests(APITestCase):
     def setUp(self) -> None:
-        self.client: APIClient = APIClient()
-        self.SEND_URL = reverse("users:phone_verifications:send_code")
-        self.CONFIRM_URL = reverse("users:phone_verifications:confirm_code")
-        # 공통 샘플 데이터
-        self.valid_phone: str = "01012345678"
-        self.invalid_phone: str = "010-abc"
-        self.valid_code: str = "123456"
-        self.invalid_code: str = "12ab"  # 숫자 6자 아님
-        self.purpose_signup: str = "signup"
-        self.purpose_change_phone: str = "change_phone"
-
-        # mypy용 안전 바인딩
-        self.current_user: User = type(self).user
-
-    def post_json(self, url: str, payload: Dict[str, Any]) -> Response:
-        return self.client.post(url, payload, format="json")
-
-    def auth_as(self, user: Optional[User] = None) -> None:
-        """
-        DRF 인증 강제 적용. user가 None이면 공용 사용자로 인증.
-        """
-        self.client.force_authenticate(user or self.current_user)
-
-    def build_send_payload(self, *, phone: Optional[str] = None, purpose: Optional[str] = None) -> Dict[str, Any]:
-        return {
-            "phone_number": phone or self.valid_phone,
-            "purpose": purpose or self.purpose_signup,
+        cache.clear()
+        self.send_code_url = reverse("phone_verifications:send_code")
+        self.confirm_code_url = reverse("phone_verifications:confirm_code")
+        self.valid_phone_data = {
+            "phone_number": "01012345678",
+            "purpose": "signup",
+        }
+        self.valid_confirm_data = {
+            "phone_number": "01012345678",
+            "purpose": "signup",
+            "request_id": "SID12345",
+            "code": "123456",
         }
 
-    def build_confirm_payload(
-        self,
-        *,
-        phone: Optional[str] = None,
-        purpose: Optional[str] = None,
-        code: Optional[str] = None,
-    ) -> Dict[str, Any]:
-        return {
-            "phone_number": phone or self.valid_phone,
-            "purpose": purpose or self.purpose_signup,
-            "code": code or self.valid_code,
-        }
+    def tearDown(self) -> None:
+        cache.clear()
 
+    # --- send-code ---
 
-class PhoneVerificationAPITests(BasePhoneVerificationAPITest):
+    @patch("apps.users.services.phone_verification_services._twilio")
+    def test_send_code_success(self, mock_twilio: Mock) -> None:
+        """휴대폰 인증코드 전송 성공"""
+        mock_twilio.verify.v2.services.return_value.verifications.create.return_value.sid = "SID12345"
 
-    @patch("apps.users.views.phone_verification_views.send_code")
-    def test_send_code_success(self, mock_send_code: Any) -> None:
-        """인증코드 전송 성공"""
-        resp = self.post_json(self.SEND_URL, self.build_send_payload())
-        self.assertEqual(resp.status_code, status.HTTP_204_NO_CONTENT)
-        mock_send_code.assert_called_once_with(
-            purpose=self.purpose_signup,
-            phone_number=self.valid_phone,
+        response = self.client.post(self.send_code_url, self.valid_phone_data, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+        self.assertEqual(data["detail"], "인증코드를 발송했습니다.")
+        self.assertIn("data", data)
+        self.assertEqual(data["data"]["request_id"], "SID12345")
+        self.assertIsInstance(data["data"]["expires_in"], int)
+        self.assertIsInstance(data["data"]["cooldown"], int)
+        self.assertIsInstance(data["data"]["max_attempts"], int)
+
+    @patch("apps.users.services.phone_verification_services._twilio")
+    def test_send_code_resend_cooldown(self, mock_twilio: Mock) -> None:
+        """재전송 쿨다운 중 요청 시 429"""
+        mock_twilio.verify.v2.services.return_value.verifications.create.return_value.sid = "SID12345"
+
+        self.client.post(self.send_code_url, self.valid_phone_data, format="json")
+        response = self.client.post(self.send_code_url, self.valid_phone_data, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+        self.assertIn("error", response.json())
+
+    def test_send_code_requires_auth_for_change_phone(self) -> None:
+        """change_phone 목적일 때 인증 필요"""
+        payload = {"phone_number": "01099998888", "purpose": "change_phone"}
+        response = self.client.post(self.send_code_url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    # --- confirm-code ---
+
+    @patch("apps.users.services.phone_verification_services.issue_verify_token", return_value="mocked-token")
+    @patch("apps.users.services.phone_verification_services._twilio")
+    def test_confirm_code_success(self, mock_twilio: Mock, mock_issue_token: Mock) -> None:
+        """휴대폰 인증코드 검증 성공"""
+        mock_twilio.verify.v2.services.return_value.verification_checks.create.return_value.status = "approved"
+
+        key = _pending_key(
+            subject=self.valid_confirm_data["phone_number"],
+            purpose=self.valid_confirm_data["purpose"],
+            sid=self.valid_confirm_data["request_id"],
         )
+        cache.set(key, "+821012345678", timeout=600)
 
-    def test_send_code_invalid_phone(self) -> None:
-        """잘못된 번호 형식 -> 400"""
-        resp = self.post_json(
-            self.SEND_URL,
-            self.build_send_payload(phone=self.invalid_phone),
-        )
-        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("phone_number", resp.data)
+        response = self.client.post(self.confirm_code_url, self.valid_confirm_data, format="json")
 
-    def test_send_code_missing_purpose(self) -> None:
-        """필드 누락 -> 400"""
-        payload = {"phone_number": self.valid_phone}  # purpose 누락
-        resp = self.post_json(self.SEND_URL, payload)
-        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("purpose", resp.data)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+        self.assertEqual(data["detail"], "인증이 완료되었습니다.")
+        self.assertEqual(data["data"]["verify_token"], "mocked-token")
+        self.assertIsInstance(data["data"]["expires_in"], int)
 
-    def test_send_code_change_phone_requires_auth(self) -> None:
-        """change_phone 목적은 인증 필요 -> 401"""
-        resp = self.post_json(
-            self.SEND_URL,
-            self.build_send_payload(purpose=self.purpose_change_phone),
-        )
-        self.assertEqual(resp.status_code, status.HTTP_401_UNAUTHORIZED)
-        self.assertEqual(resp.data.get("error"), "Authentication required")
+    @patch("apps.users.services.phone_verification_services._twilio")
+    def test_confirm_code_invalid_request_id(self, mock_twilio: Mock) -> None:
+        """잘못된 request_id로 요청 시 404"""
+        mock_twilio.verify.v2.services.return_value.verification_checks.create.return_value.status = "approved"
 
-    @patch("apps.users.views.phone_verification_views.send_code")
-    def test_send_code_change_phone_authenticated_ok(self, mock_send_code: Any) -> None:
-        """change_phone 목적은 로그인 시 204"""
-        self.auth_as(self.user)
-        resp = self.post_json(
-            self.SEND_URL,
-            self.build_send_payload(purpose=self.purpose_change_phone),
-        )
-        self.assertEqual(resp.status_code, status.HTTP_204_NO_CONTENT)
-        mock_send_code.assert_called_once_with(
-            purpose=self.purpose_change_phone,
-            phone_number=self.valid_phone,
-        )
+        response = self.client.post(self.confirm_code_url, self.valid_confirm_data, format="json")
 
-    @patch("apps.users.views.phone_verification_views.confirm_code")
-    def test_confirm_code_success(self, mock_confirm_code: Any) -> None:
-        """인증코드 확인 성공"""
-        resp = self.post_json(self.CONFIRM_URL, self.build_confirm_payload())
-        self.assertEqual(resp.status_code, status.HTTP_204_NO_CONTENT)
-        mock_confirm_code.assert_called_once_with(
-            purpose=self.purpose_signup,
-            phone_number=self.valid_phone,
-            code=self.valid_code,
-            user_id=None,
-        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertIn("error", response.json())
 
-    def test_confirm_code_invalid_code_format(self) -> None:
-        """코드 형식 오류(숫자 6자 아님) -> 400"""
-        resp = self.post_json(
-            self.CONFIRM_URL,
-            self.build_confirm_payload(code=self.invalid_code),
-        )
-        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("code", resp.data)
+    @patch("apps.users.services.phone_verification_services._twilio")
+    def test_confirm_code_invalid_code(self, mock_twilio: Mock) -> None:
+        """인증코드 불일치 시 400"""
+        mock_twilio.verify.v2.services.return_value.verification_checks.create.return_value.status = "pending"
 
-    @patch("apps.users.views.phone_verification_views.confirm_code")
-    def test_confirm_code_authenticated_injects_user_id(self, mock_confirm_code: Any) -> None:
-        """로그인 상태라면 confirm_code 호출 시 user_id 전달됨"""
-        self.auth_as(self.user)
-        resp = self.post_json(self.CONFIRM_URL, self.build_confirm_payload())
-        self.assertEqual(resp.status_code, status.HTTP_204_NO_CONTENT)
-        mock_confirm_code.assert_called_once_with(
-            purpose=self.purpose_signup,
-            phone_number=self.valid_phone,
-            code=self.valid_code,
-            user_id=self.user.id,
+        key = _pending_key(
+            subject=self.valid_confirm_data["phone_number"],
+            purpose=self.valid_confirm_data["purpose"],
+            sid=self.valid_confirm_data["request_id"],
         )
+        cache.set(key, "+821012345678", timeout=600)
+
+        response = self.client.post(self.confirm_code_url, self.valid_confirm_data, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("error", response.json())
+
+    @patch("apps.users.services.phone_verification_services._twilio")
+    def test_confirm_code_locked_returns_429(self, mock_twilio: Mock) -> None:
+        """락이 걸린 번호/목적에 대해 429"""
+        mock_twilio.verify.v2.services.return_value.verification_checks.create.return_value.status = "approved"
+
+        to = _normalize_kr_phone(self.valid_confirm_data["phone_number"])
+        cache.set(_global_lock_key(to), "1", timeout=60)
+        cache.set(_lock_key(to, self.valid_confirm_data["purpose"]), "1", timeout=60)
+
+        response = self.client.post(self.confirm_code_url, self.valid_confirm_data, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+        self.assertIn("error", response.json())
