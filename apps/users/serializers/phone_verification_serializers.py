@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import Any, Dict
 
 from rest_framework import serializers
-from rest_framework.fields import Field
 
 from apps.users.validators import validate_korean_phone
 
@@ -34,7 +33,7 @@ class SendCodeSerializer(serializers.Serializer[Dict[str, Any]]):
         ref_name = "PhoneVerificationSendCodeSerializer"
 
 
-class SendCodeMetaSerializer(serializers.Serializer[Dict[str, Any]]):
+class SendCodeResponseSerializer(serializers.Serializer[Dict[str, Any]]):
     """
     휴대폰 인증코드 전송 응답 - 메타데이터
     """
@@ -45,24 +44,7 @@ class SendCodeMetaSerializer(serializers.Serializer[Dict[str, Any]]):
     max_attempts = serializers.IntegerField(help_text="허용되는 최대 검증 시도 횟수")
 
     class Meta:
-        ref_name = "PhoneVerificationSendCodeMetaSerializer"
-
-
-class SendCodeResponseSerializer(serializers.Serializer[Dict[str, Any]]):
-    """
-    휴대폰 인증코드 전송 응답
-    """
-
-    detail = serializers.CharField(help_text="처리 결과 메시지")
-    # data = SendCodeMetaSerializer()
-
-    class Meta:
         ref_name = "PhoneVerificationSendCodeResponseSerializer"
-
-    def get_fields(self) -> dict[str, Field[Any, Any, Any, Any]]:
-        fields = super().get_fields()
-        fields["data"] = SendCodeMetaSerializer()  # Serializer.data 프로퍼티와의 충돌 회피를 위해 동적 추가
-        return fields
 
 
 class ConfirmCodeSerializer(serializers.Serializer[Dict[str, Any]]):
@@ -80,6 +62,10 @@ class ConfirmCodeSerializer(serializers.Serializer[Dict[str, Any]]):
         write_only=True,
         help_text="요청 목적 (signup | find_email | change_phone)",
     )
+    request_id = serializers.CharField(
+        write_only=True,
+        help_text="인증코드 전송 시 발급된 request_id (Twilio verification.sid)",
+    )
     code = serializers.RegexField(
         r"^\d{6}$",
         write_only=True,
@@ -90,7 +76,7 @@ class ConfirmCodeSerializer(serializers.Serializer[Dict[str, Any]]):
         ref_name = "PhoneVerificationConfirmCodeSerializer"
 
 
-class ConfirmCodeMetaSerializer(serializers.Serializer[Dict[str, Any]]):
+class ConfirmCodeResponseSerializer(serializers.Serializer[Dict[str, Any]]):
     """
     휴대폰 인증코드 확인 응답 - 메타데이터
     """
@@ -99,21 +85,4 @@ class ConfirmCodeMetaSerializer(serializers.Serializer[Dict[str, Any]]):
     expires_in = serializers.IntegerField(help_text="토큰 만료까지 남은 시간(초)")
 
     class Meta:
-        ref_name = "PhoneVerificationConfirmCodeMetaSerializer"
-
-
-class ConfirmCodeResponseSerializer(serializers.Serializer[Dict[str, Any]]):
-    """
-    휴대폰 인증코드 확인 응답
-    """
-
-    detail = serializers.CharField(help_text="처리 결과 메시지")
-    # data = ConfirmCodeMetaSerializer()
-
-    class Meta:
         ref_name = "PhoneVerificationConfirmCodeResponseSerializer"
-
-    def get_fields(self) -> dict[str, Field[Any, Any, Any, Any]]:
-        fields = super().get_fields()
-        fields["data"] = ConfirmCodeMetaSerializer()  # Serializer.data 프로퍼티와의 충돌 회피를 위해 동적 추가
-        return fields
