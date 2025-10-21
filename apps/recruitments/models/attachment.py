@@ -12,11 +12,3 @@ class RecruitmentAttachment(BaseModel):
 
     def __str__(self) -> str:
         return self.file_name
-
-
-class RecruitmentImage(BaseModel):
-    recruitment = models.ForeignKey(Recruitment, on_delete=models.CASCADE, related_name="images")  # 공고
-    img_url = models.CharField(max_length=255, unique=True)  # 이미지 URL
-
-    def __str__(self) -> str:
-        return f"{self.recruitment.title} 이미지"
