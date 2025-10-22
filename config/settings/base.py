@@ -36,9 +36,10 @@ LOCAL_APPS = [
     "apps.core",
     "apps.users",
     "apps.lecture",
+    "apps.notifications",
+    "apps.recruitments",
     "apps.studies",
     "apps.chat",
-    "apps.notifications",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -215,9 +216,9 @@ EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
 # Twilio SMS Verify Settings
-TWILIO_ACCOUNT_SID = os.environ.get("TWILIO_ACCOUNT_SID")
-TWILIO_AUTH_TOKEN = os.environ.get("TWILIO_AUTH_TOKEN")
-TWILIO_VERIFY_SERVICE_SID = os.environ.get("TWILIO_VERIFY_SERVICE_SID")
+TWILIO_ACCOUNT_SID = os.environ.get("TWILIO_ACCOUNT_SID", "TWILIO_ACCOUNT_SID")
+TWILIO_AUTH_TOKEN = os.environ.get("TWILIO_AUTH_TOKEN", "TWILIO_ACCOUNT_SID")
+TWILIO_VERIFY_SERVICE_SID = os.environ.get("TWILIO_VERIFY_SERVICE_SID", "TWILIO_ACCOUNT_SID")
 
 # Kakao OAuth Settings
 KAKAO_CLIENT_ID = os.getenv("KAKAO_CLIENT_ID")
@@ -233,3 +234,18 @@ AWS_S3_REGION = os.getenv("AWS_S3_REGION", "")
 AWS_S3_ACCESS_KEY_ID = os.getenv("AWS_S3_ACCESS_KEY_ID", "")
 AWS_S3_SECRET_ACCESS_KEY = os.getenv("AWS_S3_SECRET_ACCESS_KEY", "")
 AWS_S3_BUCKET_NAME = os.getenv("AWS_S3_BUCKET_NAME", "")
+
+# Verify Flow 정책
+ONE_TIME_TTL_SECONDS = 10 * 60  # 검증 토큰/대기 키 TTL (10분)
+RESEND_COOLDOWN_SECONDS = 60  # 재전송 쿨다운 (60초)
+ATTEMPT_LOCK_SECONDS = 10 * 60  # 실패 잠금 (10분)
+MAX_FAIL_ATTEMPTS = 5
+
+# Global Verify Flow 정책
+GLOBAL_MAX_FAILS = 10
+GLOBAL_LOCK_SECONDS = 3600
+
+# 검증 토큰(JWT)
+VERIFY_TOKEN_SECRET = os.getenv("VERIFY_TOKEN_SECRET", default=SECRET_KEY)
+VERIFY_TOKEN_ALGO = "HS256"
+VERIFY_TOKEN_EXPIRES_SECONDS = 10 * 60

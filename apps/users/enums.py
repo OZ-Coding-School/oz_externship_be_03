@@ -24,7 +24,13 @@ class Reason(TextChoices):
     OTHER = "OTHER", "기타"
 
 
-class VerificationPurpose(TextChoices):
+class EmailVerificationPurpose(TextChoices):
     SIGNUP = "signup", "회원가입"
-    ACCOUNT_RECOVERY = "account_recovery", "정보찾기"  # 아이디/비번 찾기
-    PROFILE_UPDATE = "profile_update", "정보수정"  # 이메일/전화 변경
+    RESET_PASSWORD = "reset_password", "비밀번호재설정"
+    RESTORE_USER = "restore_user", "탈퇴계정복구"
+
+
+class PhoneVerificationPurpose(TextChoices):
+    SIGNUP = "signup", "회원가입"
+    FIND_EMAIL = "find_email", "이메일찾기"
+    CHANGE_PHONE = "change_phone", "번호변경"
