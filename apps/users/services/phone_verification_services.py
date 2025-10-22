@@ -104,7 +104,7 @@ def send_code(*, purpose: PhoneVerificationPurpose, phone_number: str) -> Respon
         raise RuntimeError({"error": "인증코드 전송에 실패했습니다."})
 
     # 목적/주체 바인딩: 발송 대기 마커 (SID별로 분리)
-    cache.set(_pending_key(subject=phone_number, purpose=purpose, sid=sid), to, timeout=ONE_TIME_TTL_SECONDS)
+    cache.set(_pending_key(subject=to, purpose=purpose, sid=sid), to, timeout=ONE_TIME_TTL_SECONDS)
 
     return {
         "request_id": sid,
@@ -143,7 +143,7 @@ def confirm_code(
         )
 
     # 목적/주체/SID 매칭 확인
-    pending_key = _pending_key(subject=phone_number, purpose=purpose, sid=request_id)
+    pending_key = _pending_key(subject=to, purpose=purpose, sid=request_id)
     if cache.get(pending_key) != to:
         # 해당 목적에 대한 발송 요청 자체가 없거나, 주체/번호가 불일치
         return Response({"error": "해당 목적에 대한 인증 요청이 없습니다."}, status=status.HTTP_404_NOT_FOUND)
