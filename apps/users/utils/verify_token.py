@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import time
 import uuid
-from typing import Any, Literal, TypedDict
+from typing import Any
 
 import jwt
 from django.conf import settings
