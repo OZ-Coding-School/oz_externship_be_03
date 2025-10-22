@@ -19,6 +19,7 @@ class StudyNoteSpecView(APIView):
     - 실제 기능은 없음
     - Swagger(스펙) 문서화를 위해 요청/응답 예시만 보여줌
     """
+
     permission_classes = [AllowAny]
 
     @extend_schema(
@@ -105,6 +106,7 @@ class StudyNoteSpecView(APIView):
 # 학습 Mock API (테스트용)
 class StudyNoteListCreateAPIView(APIView):
     """학습 기록 전체조회(GET), 작성(POST) 테스트용"""
+
     permission_classes = [AllowAny]
     parser_classes = [parsers.JSONParser, parsers.MultiPartParser]
 

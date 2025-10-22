@@ -4,7 +4,7 @@ from .notes import *
 from .notes import urlpatterns
 
 urlpatterns = [
-    #개인브랜치용 Spec API config 없이 할료고 만들음
+    # 개인브랜치용 Spec API config 없이 할료고 만들음
     path("", include("apps.studies.urls.specs_notes")),
 ]
 
