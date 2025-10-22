@@ -21,19 +21,17 @@ async def get_user_notifications(user_id: int) -> List[Notification]:
         if not notification_id:
             break
         notification_ids.append(int(notification_id))
-    # 마지막 처리 시간 가져오기 (중복 방지용)
-    last_processed_key = f"last_notification_time: {user_id}"
-    last_processed_time = await sync_to_async(cache.get)(last_processed_key, timezone.now() - timedelta(minutes=1))
 
-    # DB에서 새로운 알림들만 필터링해서 가져오기
+    #Redis에 신호가 있을 때만 DB 조회
+    if not notification_ids:
+        return [] # DB조회 생략
+
+    #Redis ID로 DB에서 조회
     new_notifications = await sync_to_async(
-        lambda: list(
-            Notification.objects.filter(user_id=user_id, created_at__gt=last_processed_time).order_by("-created_at")
-        )
+        lambda: list(Notification.objects.filter(
+            id__in=notification_ids,
+            is_read=False
+        ).order_by('-created_at'))
     )()
-
-    # 마지막 처리 시간 업데이트
-    if new_notifications:
-        await sync_to_async(cache.set)(last_processed_key, timezone.now(), timeout=86400)
 
     return new_notifications

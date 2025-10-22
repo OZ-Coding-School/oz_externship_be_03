@@ -6,7 +6,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import HttpRequest, StreamingHttpResponse
 from django.views.decorators.csrf import csrf_exempt
 
-from apps.notifications.utils import get_user_notifications
+from apps.notifications.services.notification_service import get_user_notifications
 
 
 @csrf_exempt
