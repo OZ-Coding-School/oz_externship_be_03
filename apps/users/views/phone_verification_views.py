@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from drf_spectacular.utils import extend_schema, inline_serializer
+from typing import Any, Callable, Dict
+
+from drf_spectacular.utils import F, extend_schema, inline_serializer
 from rest_framework import serializers, status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.request import Request
@@ -9,8 +11,6 @@ from rest_framework.views import APIView
 
 from apps.users.enums import PhoneVerificationPurpose
 from apps.users.serializers.phone_verification_serializers import (
-    ChangePhoneConfirmCodeSerializer,
-    ChangePhoneSendCodeSerializer,
     ConfirmCodeResponseSerializer,
     ConfirmCodeSerializer,
     SendCodeResponseSerializer,
@@ -19,83 +19,91 @@ from apps.users.serializers.phone_verification_serializers import (
 from apps.users.services.phone_verification_services import confirm_code, send_code
 
 # -------------------------------
-# 공개용 (signup / find_email)
+# 공통 부분
 # -------------------------------
 
 
-@extend_schema(
-    tags=["Users"],
-    summary="휴대폰 인증코드 전송 - 회원가입, 이메일 찾기",
-    description="회원가입, 이메일 찾기 목적으로 Twilio Verify를 통해 휴대폰으로 인증코드를 전송합니다. 로그인이 필요하지 않습니다.",
-    request=SendCodeSerializer,
-    responses=inline_serializer(
-        name="PhoneVerificationSendCodeResponse",
-        fields={
-            "detail": serializers.CharField(),
-            "data": SendCodeResponseSerializer(),
-        },
-    ),
-)
-class PublicPhoneSendCodeView(APIView):
+def phone_send_schema(summary: str, description: str) -> Callable[[F], F]:
     """
-    purpose : signup / find_email
+    휴대폰 인증코드 전송용 공통 extend_schema 데코레이터 팩토리
+    """
+    return extend_schema(
+        tags=["Users"],
+        summary=summary,
+        description=description,
+        request=SendCodeSerializer,
+        responses=inline_serializer(
+            name="PhoneVerificationSendCodeResponse",
+            fields={
+                "detail": serializers.CharField(),
+                "data": SendCodeResponseSerializer(),
+            },
+        ),
+    )
+
+
+class BasePhoneSendCodeView(APIView):
+    """
+    휴대폰 인증코드 전송 공통 베이스
+    - 하위 클래스에서 PURPOSE / permission_classes 만 지정
     """
 
-    permission_classes = [AllowAny]
+    PURPOSE: PhoneVerificationPurpose
 
     def post(self, request: Request) -> Response:
-        serializer = SendCodeSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        purpose = serializer.validated_data["purpose"]
-        phone_number = serializer.validated_data["phone_number"]
-
-        if purpose not in {PhoneVerificationPurpose.SIGNUP, PhoneVerificationPurpose.FIND_EMAIL}:
-            return Response({"error": "요청한 목적이 올바르지 않습니다."}, status=status.HTTP_400_BAD_REQUEST)
+        req_serializer = SendCodeSerializer(data=request.data)
+        req_serializer.is_valid(raise_exception=True)
+        phone_number = req_serializer.validated_data["phone_number"]
 
         result = send_code(
-            purpose=purpose,
+            purpose=self.PURPOSE,
             phone_number=phone_number,
         )
-        # 서비스가 에러일 때 Response 그대로 반환
         if isinstance(result, Response):
             return result
 
         resp_serializer = SendCodeResponseSerializer(result)
-
         return Response(
             {"detail": "인증코드를 발송했습니다.", "data": resp_serializer.data},
             status=status.HTTP_200_OK,
         )
 
 
-@extend_schema(
-    tags=["Users"],
-    summary="휴대폰 인증코드 확인 - 회원가입, 이메일 찾기",
-    description="회원가입, 이메일 찾기 목적으로 Twilio Verify를 통해 휴대폰으로 인증코드를 확인합니다. 로그인이 필요하지 않습니다.",
-    request=ConfirmCodeSerializer,
-    responses=inline_serializer(
-        name="PhoneVerificationSendCodeResponse",
-        fields={
-            "detail": serializers.CharField(),
-            "data": ConfirmCodeResponseSerializer(),
-        },
-    ),
-)
-class PublicPhoneConfirmCodeView(APIView):
-    permission_classes = [AllowAny]
+def phone_confirm_schema(summary: str, description: str) -> Callable[[F], F]:
+    """
+    휴대폰 인증코드 확인용 공통 extend_schema 데코레이터 팩토리
+    """
+    return extend_schema(
+        tags=["Users"],
+        summary=summary,
+        description=description,
+        request=ConfirmCodeSerializer,
+        responses=inline_serializer(
+            name="PhoneVerificationConfirmCodeResponse",
+            fields={
+                "detail": serializers.CharField(),
+                "data": ConfirmCodeResponseSerializer(),
+            },
+        ),
+    )
+
+
+class BasePhoneConfirmCodeView(APIView):
+    """
+    휴대폰 인증코드 확인 공통 베이스
+    - 하위 클래스에서 PURPOSE / permission_classes 만 지정
+    """
+
+    PURPOSE: PhoneVerificationPurpose
 
     def post(self, request: Request) -> Response:
         req_serializer = ConfirmCodeSerializer(data=request.data)
         req_serializer.is_valid(raise_exception=True)
-        purpose = req_serializer.validated_data["purpose"]
         phone_number = req_serializer.validated_data["phone_number"]
         code = req_serializer.validated_data["code"]
         request_id = req_serializer.validated_data["request_id"]
 
-        if purpose not in {PhoneVerificationPurpose.SIGNUP, PhoneVerificationPurpose.FIND_EMAIL}:
-            return Response({"error": "요청한 목적이 올바르지 않습니다."}, status=status.HTTP_400_BAD_REQUEST)
-
-        result = confirm_code(purpose=purpose, phone_number=phone_number, code=code, request_id=request_id)
+        result = confirm_code(purpose=self.PURPOSE, phone_number=phone_number, code=code, request_id=request_id)
         # 서비스가 에러일 때 Response 그대로 반환
         if isinstance(result, Response):
             return result
@@ -109,84 +117,69 @@ class PublicPhoneConfirmCodeView(APIView):
 
 
 # -------------------------------
-# 인증용 (change_phone) — 서버가 purpose 고정
+# 회원가입 목적 휴대폰 인증 코드
 # -------------------------------
 
 
-@extend_schema(
-    tags=["Users"],
+@phone_send_schema(
+    summary="휴대폰 인증코드 전송 - 회원가입",
+    description="회원가입 목적으로 Twilio Verify를 통해 휴대폰으로 인증코드를 전송합니다. 로그인이 필요하지 않습니다.",
+)
+class SignupSendCodeView(BasePhoneSendCodeView):
+    PURPOSE = PhoneVerificationPurpose.SIGNUP
+    permission_classes = [AllowAny]
+
+
+@phone_confirm_schema(
+    summary="휴대폰 인증코드 확인 - 회원가입",
+    description="회원가입 목적으로 Twilio Verify를 통해 휴대폰으로 인증코드를 확인합니다. 로그인이 필요하지 않습니다.",
+)
+class SignupConfirmCodeView(BasePhoneConfirmCodeView):
+    permission_classes = [AllowAny]
+    PURPOSE = PhoneVerificationPurpose.SIGNUP
+
+
+# -------------------------------
+# 이메일 찾기 목적 휴대폰 인증 코드
+# -------------------------------
+
+
+@phone_send_schema(
+    summary="휴대폰 인증코드 전송 - 이메일 찾기",
+    description="이메일 찾기 목적으로 Twilio Verify를 통해 휴대폰으로 인증코드를 전송합니다. 로그인이 필요하지 않습니다.",
+)
+class FindEmailSendCodeView(BasePhoneSendCodeView):
+    PURPOSE = PhoneVerificationPurpose.FIND_EMAIL
+    permission_classes = [AllowAny]
+
+
+@phone_confirm_schema(
+    summary="휴대폰 인증코드 확인 - 이메일 찾기",
+    description="이메일 찾기 목적으로 Twilio Verify를 통해 휴대폰으로 인증코드를 확인합니다. 로그인이 필요하지 않습니다..",
+)
+class FindEmailConfirmCodeView(BasePhoneConfirmCodeView):
+    permission_classes = [AllowAny]
+    PURPOSE = PhoneVerificationPurpose.FIND_EMAIL
+
+
+# -------------------------------
+# 휴대폰 번호 변경 목적 휴대폰 인증 코드
+# -------------------------------
+
+
+@phone_send_schema(
     summary="휴대폰 인증코드 전송 - 휴대폰 번호 변경",
     description="휴대폰 번호 변경 목적으로 Twilio Verify를 통해 휴대폰으로 인증코드를 전송합니다. 로그인이 필요합니다.",
-    request=ChangePhoneSendCodeSerializer,
-    responses=inline_serializer(
-        name="PhoneVerificationSendCodeResponse",
-        fields={
-            "detail": serializers.CharField(),
-            "data": SendCodeResponseSerializer(),
-        },
-    ),
 )
-class ChangePhoneSendCodeView(APIView):
-    """
-    purpose : change_phone
-    """
-
+class ChangePhoneSendCodeView(BasePhoneSendCodeView):
+    PURPOSE = PhoneVerificationPurpose.CHANGE_PHONE
     permission_classes = [IsAuthenticated]
 
-    def post(self, request: Request) -> Response:
-        serializer = ChangePhoneSendCodeSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        phone_number = serializer.validated_data["phone_number"]
-        purpose = serializer.validated_data["purpose"]
 
-        result = send_code(
-            purpose=purpose,
-            phone_number=phone_number,
-        )
-        # 서비스가 에러일 때 Response 그대로 반환
-        if isinstance(result, Response):
-            return result
-
-        resp_serializer = SendCodeResponseSerializer(result)
-
-        return Response(
-            {"detail": "인증코드를 발송했습니다.", "data": resp_serializer.data},
-            status=status.HTTP_200_OK,
-        )
-
-
-@extend_schema(
-    tags=["Users"],
+@phone_confirm_schema(
     summary="휴대폰 인증코드 확인 - 휴대폰 번호 변경",
     description="휴대폰 번호 변경 목적으로 Twilio Verify를 통해 휴대폰으로 인증코드를 확인합니다. 로그인이 필요합니다.",
-    request=ChangePhoneConfirmCodeSerializer,
-    responses=inline_serializer(
-        name="PhoneVerificationSendCodeResponse",
-        fields={
-            "detail": serializers.CharField(),
-            "data": ConfirmCodeResponseSerializer(),
-        },
-    ),
 )
-class ChangePhoneConfirmCodeView(APIView):
+class ChangePhoneConfirmCodeView(BasePhoneConfirmCodeView):
     permission_classes = [IsAuthenticated]
-
-    def post(self, request: Request) -> Response:
-        req_serializer = ChangePhoneConfirmCodeSerializer(data=request.data)
-        req_serializer.is_valid(raise_exception=True)
-        phone_number = req_serializer.validated_data["phone_number"]
-        code = req_serializer.validated_data["code"]
-        request_id = req_serializer.validated_data["request_id"]
-        purpose = req_serializer.validated_data["purpose"]
-
-        result = confirm_code(purpose=purpose, phone_number=phone_number, code=code, request_id=request_id)
-        # 서비스가 에러일 때 Response 그대로 반환
-        if isinstance(result, Response):
-            return result
-
-        resp_serializer = ConfirmCodeResponseSerializer(result)
-
-        return Response(
-            {"detail": "인증이 완료되었습니다.", "data": resp_serializer.data},
-            status=status.HTTP_200_OK,
-        )
+    PURPOSE = PhoneVerificationPurpose.CHANGE_PHONE
