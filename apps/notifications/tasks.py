@@ -1,8 +1,8 @@
 from celery import shared_task
+from django.conf import settings
 from django_redis import get_redis_connection
 
 from apps.notifications.models import Notification
-from django.conf import settings
 
 
 # Todo 코드 작성후 공통 작업들은 상속 구조로 클래스 지정
@@ -15,14 +15,14 @@ def create_recruitment_applicant_task(recruitment_title: int, receiver_id: int) 
         user_id=receiver_id,
         content=f"공고 #{recruitment_title}에 새로운 지원자가 지원했습니다.",
         type="APPLICATION_CREATED",
-        back_url_link=f"{settings.FRONTEND_DOMAIN}/studies/applications"
+        back_url_link=f"{settings.FRONTEND_DOMAIN}/studies/applications",
     )
 
-    #Redis에 실시간 알림 데이터 저장
+    # Redis에 실시간 알림 데이터 저장
     redis_client = get_redis_connection("default")
     redis_client.lpush(f"notifications:{receiver_id}", notification.id)
 
-    return {"notification_id": notification.id} # 디버깅용
+    return {"notification_id": notification.id}  # 디버깅용
 
 
 @shared_task  # type: ignore[misc]
