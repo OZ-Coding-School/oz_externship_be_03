@@ -1,12 +1,12 @@
 from typing import Any
 
 from django.db.models import Q
-from django_filters import rest_framework as filters  # type: ignore
+from django_filters import rest_framework as filters
 
 from apps.lecture.models import CrawledLecture
 
 
-class LectureFilter(filters.FilterSet):  # type: ignore
+class LectureFilter(filters.FilterSet):
     # mypy에서 django_filter 라이브러리 인식 불가능
     """강의 목록 필터링"""
 
