@@ -95,7 +95,7 @@ class MemberKickAPIView(APIView):
         mock_group = StudyGroup(id=group_id, name="Mock Study Group")
 
         # 요청 검증 (본문 없음)
-        serializer = self.serializer_class(data={request.data})
+        serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         # 비즈니스 로직 실행 (Mock)

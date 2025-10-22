@@ -6,11 +6,6 @@ class KickMemberSerializer(serializers.Serializer[None]):
 
     reason = serializers.CharField(required=False, max_length=200, help_text="추방 사유")
 
-    def validate_target_user_id(self, value: int) -> int:
-        if value <= 0:
-            raise serializers.ValidationError("유효한 사용자 ID를 입력해야 합니다.")
-        return value
-
 
 class DelegateLeaderSerializer(serializers.Serializer):  # type: ignore[type-arg]
     """REQ-STDY-008: 리더 위임 요청 시 사용되는 입력값 검증"""

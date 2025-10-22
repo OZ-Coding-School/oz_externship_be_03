@@ -11,7 +11,7 @@ urlpatterns = [
     ),
     # REQ-STDY-006: 스터디 그룹 멤버 추방 API
     path(
-        "groups/<uuid:group_id>/members/<int:member_id>/",
+        "groups/<uuid:group_id>/members/<int:member_id>",
         MemberKickAPIView.as_view(),
         name="study-member-kick",
     ),
