@@ -52,10 +52,7 @@ class LectureListSerializer(serializers.ModelSerializer[CrawledLecture]):
 
     def get_is_bookmarked(self, obj: CrawledLecture) -> bool:
         """현재 사용자의 북마크 여부"""
-        request = self.context.get('request')
+        request = self.context.get("request")
         if request and request.user.is_authenticated:
-            return LectureBookmark.objects.filter(
-                user=request.user,
-                lecture=obj
-            ).exists()
+            return LectureBookmark.objects.filter(user=request.user, lecture=obj).exists()
         return False
