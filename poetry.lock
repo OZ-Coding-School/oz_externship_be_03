@@ -2232,6 +2232,18 @@ dev = ["build", "hatch"]
 doc = ["sphinx"]
 
 [[package]]
+name = "tblib"
+version = "3.2.0"
+description = "Traceback serialization library."
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+files = [
+    {file = "tblib-3.2.0-py3-none-any.whl", hash = "sha256:32c4d3c36ac59c59e8c442d94e7b274b3ce80263ca3201686476ee7616f3579a"},
+    {file = "tblib-3.2.0.tar.gz", hash = "sha256:62ae1b8808cfd7c1c15b871d4022abb46188c49d21ace87a02a88707dc7aa1b1"},
+]
+
+[[package]]
 name = "threadpoolctl"
 version = "3.6.0"
 description = "threadpoolctl"
@@ -2734,4 +2746,4 @@ propcache = ">=0.2.1"
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12"
-content-hash = "b618434398e0016ffeea1fc9c73d51016a9d9e006f6a96c4a201948b88e2e82c"
+content-hash = "dbcbc5833337bdca91bda189df565ff48a62e86480e4af9c00408cb014f55c40"
