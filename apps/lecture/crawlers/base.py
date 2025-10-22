@@ -18,7 +18,11 @@ class BaseCrawler(ABC):
         self.session = requests.Session()
         self.headers = {
             "User-Agent": "Chrome/120.0.6099.71 (Windows NT 10.0; Win64; x64)",
-        }
+    self.headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                      "AppleWebKit/537.36 (KHTML, like Gecko) "
+                      "Chrome/128.0.0.0 Safari/537.36"
+    }
         if auth_cookie:
             self.headers["Cookie"] = auth_cookie
 
