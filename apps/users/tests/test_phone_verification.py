@@ -5,6 +5,7 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from apps.core.utils.isolated_cache_testcase import IsolatedRedisTestClient
 from apps.users.services.phone_verification_services import (
     _global_lock_key,
     _lock_key,
@@ -13,9 +14,9 @@ from apps.users.services.phone_verification_services import (
 )
 
 
-class PhoneVerificationViewTests(APITestCase):
+class PhoneVerificationViewTests(IsolatedRedisTestClient):
     def setUp(self) -> None:
-        cache.clear()
+        super().setUp()
         self.send_code_url = reverse("users:send_code")
         self.confirm_code_url = reverse("users:confirm_code")
         self.valid_phone_data = {
@@ -28,11 +29,6 @@ class PhoneVerificationViewTests(APITestCase):
             "request_id": "SID12345",
             "code": "123456",
         }
-
-    def tearDown(self) -> None:
-        cache.clear()
-
-    # --- send-code ---
 
     @patch("apps.users.services.phone_verification_services._twilio")
     def test_send_code_success(self, mock_twilio: Mock) -> None:
