@@ -1,4 +1,4 @@
-from django.db.models import Q
+from django.db.models import Prefetch, Q
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import status
@@ -9,7 +9,12 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.lecture.filters import LectureFilter
-from apps.lecture.models import CrawledLecture, CrawledLectureReview, LectureSearchLog
+from apps.lecture.models import (
+    CrawledLecture,
+    CrawledLectureReview,
+    LectureBookmark,
+    LectureSearchLog,
+)
 from apps.lecture.serializers import (
     LectureListSerializer,
     LectureReviewSerializer,
@@ -58,24 +63,30 @@ class LectureListView(APIView):
 
         return Response(mock_data, status=status.HTTP_200_OK)
 
-        # TODO: 완성되면 spec용 api 제거후 주석 해제
-        # queryset = CrawledLecture.objects.prefetch_related(
-        #     'lecture_categories__category'
-        # ).all()
-        #
-        # # 필터
-        # filterset =  LectureFilter(request.query_params, queryset=queryset, request=request)
-        # queryset = filterset.qs
-        #
-        # # 검색 로그 저장
-        # search_keyword = request.query_params.get("search")
-        # if search_keyword and request.user.is_authenticated:
-        #     LectureSearchLog.objects.create(user=request.user, keyword=search_keyword)
-        #
-        # paginator = PageNumberPagination()
-        # page = paginator.paginate_queryset(queryset, request)
-        # serializer = LectureListSerializer(page, many=True, context={'request': request})
-        # return paginator.get_paginated_response(serializer.data)
+    # TODO: 완성되면 spec용 api 제거후 주석 해제
+    # def get(self, request: Request) -> Response:
+    #     queryset = CrawledLecture.objects.prefetch_related("lecture_categories__category").all()
+    #
+    #     if request.user.is_authenticated:
+    #         queryset = queryset.prefetch_related(
+    #             Prefetch(
+    #                 "bookmarks", queryset=LectureBookmark.objects.filter(user=request.user), to_attr="user_bookmarks"
+    #             )
+    #         )
+    #
+    #     # 필터
+    #     filterset = LectureFilter(request.query_params, queryset=queryset, request=request)
+    #     queryset = filterset.qs
+    #
+    #     # 검색 로그 저장
+    #     search_keyword = request.query_params.get("search")
+    #     if search_keyword and request.user.is_authenticated:
+    #         LectureSearchLog.objects.create(user=request.user, keyword=search_keyword)
+    #
+    #     paginator = PageNumberPagination()
+    #     page = paginator.paginate_queryset(queryset, request)
+    #     serializer = LectureListSerializer(page, many=True, context={"request": request})
+    #     return paginator.get_paginated_response(serializer.data)
 
 
 class LectureReviewListView(APIView):
