@@ -34,3 +34,14 @@ class PhoneVerificationPurpose(TextChoices):
     SIGNUP = "signup", "회원가입"
     FIND_EMAIL = "find_email", "이메일찾기"
     CHANGE_PHONE = "change_phone", "번호변경"
+
+class Role(TextChoices):
+    ADMIN = "admin", "관리자"
+    STAFF = "staff", "스태프"
+    USER = "user", "일반회원"
+
+
+class UserStatus(TextChoices):
+    TRUE = "TRUE", "활성 회원"
+    FALSE = "FALSE", "비활성 회원"
+    WITHDRAWAL_PENDING = "WITHDRAWAL_PENDING", "탈퇴 유예중"

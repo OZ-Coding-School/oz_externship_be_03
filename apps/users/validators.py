@@ -76,3 +76,20 @@ def validate_nickname(nickname: str) -> None:
 
     if _contains_korean_badword(nickname) or _english_profane(nickname):
         raise ValidationError("부적절한 단어가 포함되어 사용할 수 없습니다.")
+
+
+# ------------------------------------------------------------
+# 이름 검증기
+#  1) 길이 2~30자
+#  2) 허용문자: 한글/영문만 (숫자/특수문자/공백 불가)
+# ------------------------------------------------------------
+_NAME_RE = re.compile(r"^[A-Za-z가-힣]{2,30}$")
+
+
+def validate_name(name: str) -> None:
+    """이름 유효성 검사"""
+    if " " in name or name.strip() != name:
+        raise ValidationError("이름에 공백은 사용할 수 없습니다.")
+
+    if not _NAME_RE.fullmatch(name):
+        raise ValidationError("이름은 2~30자이며 한글/영문만 가능합니다.")
