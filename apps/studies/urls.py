@@ -1,7 +1,10 @@
 from django.urls import path
 
+from apps.studies.views.reviews import ReviewCreateView
 from apps.studies.views.members import DelegateLeaderAPIView
 from apps.studies.views.reviews import ReviewCreateView
+
+app_name = "studies"
 
 app_name = "studies"
 
