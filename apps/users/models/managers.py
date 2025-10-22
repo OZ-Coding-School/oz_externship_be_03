@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from django.contrib.auth.base_user import BaseUserManager
 from django.db import models
@@ -29,6 +29,13 @@ class UserManager(BaseUserManager["User"]):
         닉네임 중복 확인
         """
         return self.get_active_user().filter(nickname=nickname).exists()
+
+    def create_user(self, email: str, password: Optional[str] = None, **extra_fields: object) -> "User":
+        """유저 생성: 이메일 정규화 적용 + 비밀번호 설정(None이면 unusable)"""
+        user = self.model(email=self.normalize_email(email), **extra_fields)
+        user.set_password(password)
+        user.save(using=self._db)
+        return user
 
 
 class SocialUserManager(models.Manager["SocialUser"]):
