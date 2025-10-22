@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any, Dict
+from typing import TYPE_CHECKING, Any
 
 from django.contrib.auth import get_user_model
 from rest_framework import serializers

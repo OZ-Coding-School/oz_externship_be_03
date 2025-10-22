@@ -35,6 +35,7 @@ class PhoneVerificationPurpose(TextChoices):
     FIND_EMAIL = "find_email", "이메일찾기"
     CHANGE_PHONE = "change_phone", "번호변경"
 
+
 class Role(TextChoices):
     ADMIN = "admin", "관리자"
     STAFF = "staff", "스태프"
