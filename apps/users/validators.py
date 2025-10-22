@@ -1,4 +1,6 @@
 import re
+from datetime import date
+from typing import Any
 
 from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
@@ -55,7 +57,6 @@ def _english_profane(nickname: str) -> bool:
 
 def validate_nickname(nickname: str) -> None:
     try:
-        from profanity_check import predict_prob
 
         _ALT_AVAILABLE = True
     except Exception:
@@ -93,3 +94,20 @@ def validate_name(name: str) -> None:
 
     if not _NAME_RE.fullmatch(name):
         raise ValidationError("이름은 2~30자이며 한글/영문만 가능합니다.")
+
+
+# ------------------------------------------------------------
+# 생년월일 검증기
+# ------------------------------------------------------------
+def validate_birthday(birthday: Any) -> None:
+    """
+    생년월일 필수 + 형식 검증 + 미래일 금지
+    """
+    if birthday in (None, "", "null"):
+        raise ValidationError("생년월일은 필수입니다.")
+
+    if not isinstance(birthday, date):
+        raise ValidationError("생년월일 형식이 올바르지 않습니다. 예) 1990-06-06")
+
+    if birthday > date.today():
+        raise ValidationError("생년월일은 미래일 수 없습니다.")
