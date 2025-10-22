@@ -3,7 +3,7 @@ import json
 from typing import AsyncGenerator
 
 from django.contrib.auth.decorators import login_required
-from django.http import StreamingHttpResponse, HttpRequest
+from django.http import HttpRequest, StreamingHttpResponse
 from django.views.decorators.csrf import csrf_exempt
 
 from apps.notifications.utils import get_user_notifications
@@ -12,12 +12,12 @@ from apps.notifications.utils import get_user_notifications
 @csrf_exempt
 @login_required
 async def notification_stream(request: HttpRequest) -> StreamingHttpResponse:
-    async def event_stream() -> AsyncGenerator[str,None]:
+    async def event_stream() -> AsyncGenerator[str, None]:
         # 연결 완료 신호
         yield f"data:{json.dumps({'type':'connected'})}\n\n"
 
         while True:
-            #user.id가 None일 가능성 체크
+            # user.id가 None일 가능성 체크
             if request.user.id is None:
                 yield f"data:{json.dumps({'type':'error','message':'User not authenticated'})}\n\n"
                 break

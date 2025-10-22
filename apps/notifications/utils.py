@@ -4,7 +4,7 @@ from typing import List
 from asgiref.sync import sync_to_async
 from django.core.cache import cache
 from django.utils import timezone
-from django_redis import get_redis_connection # type: ignore
+from django_redis import get_redis_connection  # type: ignore
 
 from apps.notifications.models import Notification
 
