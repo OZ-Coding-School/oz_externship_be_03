@@ -1,13 +1,16 @@
-from rest_framework.response import Response
-from rest_framework.test import APITestCase, APIRequestFactory
-from rest_framework import status, serializers
-from rest_framework.exceptions import ValidationError
-from django.urls import reverse
 from unittest.mock import patch
+
 from django.contrib.auth import get_user_model
+from django.urls import reverse
+from rest_framework import serializers, status
+from rest_framework.exceptions import ValidationError
+from rest_framework.response import Response
+from rest_framework.test import APIRequestFactory, APITestCase
 
 from apps.lecture.models import CrawledLecture, LectureBookmark
-from apps.lecture.serializers.bookmark_serializers import LectureBookmarkCreateSerializer
+from apps.lecture.serializers.bookmark_serializers import (
+    LectureBookmarkCreateSerializer,
+)
 
 User = get_user_model()
 
@@ -128,9 +131,7 @@ class LectureBookmarkIntegrationTest(APITestCase):
     def test_post_handles_validation_error(self) -> None:
         # serializer.save() 호출 중 ValidationError 가 발생하는 상황에서
         # 400 응답이 제대로 처리되는지 확인.
-        with patch(
-            "apps.lecture.serializers.bookmark_serializers.LectureBookmarkCreateSerializer.save"
-        ) as mock_save:
+        with patch("apps.lecture.serializers.bookmark_serializers.LectureBookmarkCreateSerializer.save") as mock_save:
             mock_save.side_effect = serializers.ValidationError({"detail": "강제 ValidationError"})
             response = self.client.post(self.bookmark_list_create_url, {"lecture_id": self.lecture.id}, format="json")
             self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
@@ -139,9 +140,7 @@ class LectureBookmarkIntegrationTest(APITestCase):
     def test_post_handles_generic_exception(self) -> None:
         # serializer.save() 호출 중 일반 Exception 발생 상황에서
         # 400 응답 처리 검증.
-        with patch(
-            "apps.lecture.serializers.bookmark_serializers.LectureBookmarkCreateSerializer.save"
-        ) as mock_save:
+        with patch("apps.lecture.serializers.bookmark_serializers.LectureBookmarkCreateSerializer.save") as mock_save:
             mock_save.side_effect = Exception("강제 Exception")
             response = self.client.post(self.bookmark_list_create_url, {"lecture_id": self.lecture.id}, format="json")
             self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
