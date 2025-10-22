@@ -1,7 +1,7 @@
 import logging
 from typing import Any, Dict, List
 
-from .base import BaseCrawler
+from .base_crawler import BaseCrawler
 
 logger = logging.getLogger(__name__)
 

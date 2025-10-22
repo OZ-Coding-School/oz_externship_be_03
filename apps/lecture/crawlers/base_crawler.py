@@ -59,4 +59,3 @@ class BaseCrawler(ABC):
     @abstractmethod
     def crawl(self, *args: Any, **kwargs: Any) -> Any:
         pass
-
