@@ -6,7 +6,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import HttpRequest, StreamingHttpResponse
 from django.views.decorators.csrf import csrf_exempt
 
-from apps.notifications.services.notification_service import get_user_notifications
+from apps.notifications.models import Notification
 
 
 @csrf_exempt
@@ -21,12 +21,16 @@ async def notification_stream(request: HttpRequest) -> StreamingHttpResponse:
             if request.user.id is None:
                 yield f"data:{json.dumps({'type':'error','message':'User not authenticated'})}\n\n"
                 break
-            # Redis에서 실시간 알림 확인
-            notifications = await get_user_notifications(request.user.id)
+            # DB 쿼리
+            notifications = Notification.objects.filter(
+                user_id=request.user.id,
+                is_read=False
+            )
 
             # 새 알림이 있으면 전송
             if notifications:
                 notifications_data = []
+                notification_ids = []
                 for notification in notifications:
                     data = {
                         "id": notification.id,
@@ -37,6 +41,10 @@ async def notification_stream(request: HttpRequest) -> StreamingHttpResponse:
                         "is_read": notification.is_read,
                     }
                     notifications_data.append(data)
+
+                    Notification.objects.filter(
+                        id__in=notification_ids
+                    ).update(is_read=True)
 
                 # 클라이언트에 전송
                 yield f"data: {json.dumps({'type': 'notifications', 'data': notifications_data})}\n\n"
