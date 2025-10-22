@@ -1,7 +1,9 @@
-from django.urls import include, path
+from django.urls import include, path, URLPattern, URLResolver
+from apps.users.urls.phone_verification_urls import urlpatterns as phone_verification_urls
 
 app_name = "users"
 
-urlpatterns = [
-    path("", include(("apps.users.urls.phone_verification_urls", "phone_verifications"))),
+urlpatterns: list[URLPattern | URLResolver] = [
+    *phone_verification_urls,
 ]
+
