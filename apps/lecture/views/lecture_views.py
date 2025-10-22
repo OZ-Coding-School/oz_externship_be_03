@@ -50,6 +50,7 @@ class LectureListView(APIView):
                     "platform": "inflearn",
                     "average_rating": 4.85,
                     "url_link": "https://www.inflearn.com/course/%EC%8B%A4%EC%A0%84-django-%EC%9E%85%EB%AC%B8",
+                    "is_bookmarked": i % 2 == 0,
                 }
                 for i in range(1, 11)
             ],
@@ -73,7 +74,7 @@ class LectureListView(APIView):
         #
         # paginator = PageNumberPagination()
         # page = paginator.paginate_queryset(queryset, request)
-        # serializer = LectureListSerializer(page, many=True)
+        # serializer = LectureListSerializer(page, many=True, context={'request': request})
         # return paginator.get_paginated_response(serializer.data)
 
 
