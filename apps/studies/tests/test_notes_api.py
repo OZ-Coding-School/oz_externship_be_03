@@ -1,9 +1,11 @@
-from django.test import TestCase
-from rest_framework.test import APIClient
-from django.urls import reverse
 from unittest.mock import MagicMock
-from apps.users.models import User
+
+from django.test import TestCase
+from django.urls import reverse
+from rest_framework.test import APIClient
+
 from apps.studies.models import StudyGroup, StudyNote
+from apps.users.models import User
 
 
 class TestStudyNoteAPI(TestCase):

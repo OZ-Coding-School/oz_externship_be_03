@@ -1,12 +1,15 @@
 # apps/studies/views/specs/notes.py
 
-from drf_spectacular.utils import extend_schema, OpenApiResponse
-from rest_framework import status, parsers
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework.permissions import AllowAny  # 스펙 확인 편의를 위해 허용(실서비스시 IsAuthenticated 권장)
 from datetime import timedelta
+
 from django.utils import timezone
+from drf_spectacular.utils import OpenApiResponse, extend_schema
+from rest_framework import parsers, status
+from rest_framework.permissions import (
+    AllowAny,  # 스펙 확인 편의를 위해 허용(실서비스시 IsAuthenticated 권장)
+)
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
 
 # 학습 스펙용 Swagger 문서 전용 클래스

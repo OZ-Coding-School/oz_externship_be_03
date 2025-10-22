@@ -1,4 +1,5 @@
 from django.urls import path
+
 from apps.studies.views.specs.notes import (
     StudyNoteListCreateAPIView,
     StudyNoteRetrieveUpdateDestroyAPIView,
