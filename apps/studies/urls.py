@@ -13,6 +13,5 @@ urlpatterns = [
         "groups/<uuid:group_id>/delegate-leader",
         DelegateLeaderAPIView.as_view(),
         name="delegate-leader",
-    )
+    ),
 ]
-
