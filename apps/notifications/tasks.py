@@ -1,6 +1,6 @@
 from celery import shared_task
 from django.conf import settings
-from django_redis import get_redis_connection
+from django_redis import get_redis_connection # type: ignore
 
 from apps.notifications.models import Notification
 

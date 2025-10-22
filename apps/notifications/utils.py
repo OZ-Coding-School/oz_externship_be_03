@@ -1,14 +1,15 @@
 from datetime import timedelta
+from typing import List
 
 from asgiref.sync import sync_to_async
 from django.core.cache import cache
 from django.utils import timezone
-from django_redis import get_redis_connection
+from django_redis import get_redis_connection # type: ignore
 
 from apps.notifications.models import Notification
 
 
-async def get_user_notifications(user_id: int):
+async def get_user_notifications(user_id: int) -> List[Notification]:
     """Redis에서 새 알림 확인 -> DB에서 상세 정보 가져오기(비동기)"""
     # Redis에서 새 알림 ID 목록 가져오기
     redis_client = get_redis_connection("default")
