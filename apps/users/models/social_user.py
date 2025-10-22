@@ -2,9 +2,9 @@ from django.db import models
 from django.db.models import UniqueConstraint
 
 from apps.users.enums import Provider
+from apps.users.managers.managers import SocialUserManager
 
 from ...core.models import BaseModel
-from .managers import SocialUserManager
 
 
 class SocialUser(BaseModel):
@@ -18,7 +18,7 @@ class SocialUser(BaseModel):
 
     provider_id = models.CharField(max_length=255, help_text="소셜로그인 제공 업체에서 주는 고유 id", null=False)
 
-    objects = SocialUserManager()
+    objects: SocialUserManager = SocialUserManager()
 
     class Meta:
         db_table = "social_users"

@@ -5,7 +5,7 @@ from django.db import models
 
 from apps.core.models import UUIDBaseModel
 from apps.users.enums import Gender
-from apps.users.models.managers import UserManager
+from apps.users.managers.managers import UserManager
 from apps.users.validators import validate_korean_phone
 
 
@@ -42,7 +42,7 @@ class User(AbstractBaseUser, UUIDBaseModel):
 
     # created_at, updated_at 상속
 
-    objects = UserManager()
+    objects: UserManager = UserManager()
 
     class Meta:
         db_table = "users"
