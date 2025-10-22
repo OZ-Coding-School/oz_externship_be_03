@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
-from django.conf import settings
 from django.core.cache import cache
 from rest_framework import status
 from rest_framework.response import Response

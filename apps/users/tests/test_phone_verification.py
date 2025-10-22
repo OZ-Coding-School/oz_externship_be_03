@@ -1,4 +1,3 @@
-from typing import Any
 from unittest.mock import Mock, patch
 
 from django.core.cache import cache
@@ -17,8 +16,8 @@ from apps.users.services.phone_verification_services import (
 class PhoneVerificationViewTests(APITestCase):
     def setUp(self) -> None:
         cache.clear()
-        self.send_code_url = reverse("phone_verifications:send_code")
-        self.confirm_code_url = reverse("phone_verifications:confirm_code")
+        self.send_code_url = reverse("users:send_code")
+        self.confirm_code_url = reverse("users:confirm_code")
         self.valid_phone_data = {
             "phone_number": "01012345678",
             "purpose": "signup",
