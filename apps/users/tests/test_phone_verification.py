@@ -61,8 +61,9 @@ class BasePhoneVerificationTests(IsolatedRedisTestClient):
 
     # ---------- 헬퍼 ----------
     def seed_pending(self) -> None:
+        to = _normalize_kr_phone(self.valid_confirm_data["phone_number"])
         key = _pending_key(
-            subject=self.valid_confirm_data["phone_number"],
+            subject=to,
             purpose=self.PURPOSE,
             sid=self.valid_confirm_data["request_id"],
         )
