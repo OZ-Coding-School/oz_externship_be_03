@@ -594,6 +594,24 @@ files = [
 Django = ">=4.2"
 
 [[package]]
+name = "django-filter-stubs"
+version = "0.1.3"
+description = "PEP-484 stubs for django-filter"
+optional = false
+python-versions = "*"
+groups = ["dev"]
+files = [
+    {file = "django-filter-stubs-0.1.3.tar.gz", hash = "sha256:8b03ef8c304024672c3ebc99b72b59fb6f9d6c1a2b3b16a5100bf11a1577bc8b"},
+    {file = "django_filter_stubs-0.1.3-py3-none-any.whl", hash = "sha256:b683e8ddb92a1e1456a53dc299963ae4a5768f8d3cc3318dbef06c4b7d943336"},
+]
+
+[package.dependencies]
+django-stubs = ">=1.3.0"
+djangorestframework-stubs = ">=0.4.0"
+mypy = ">=0.750"
+typing-extensions = ">=3.7.4"
+
+[[package]]
 name = "django-redis"
 version = "5.4.0"
 description = "Full featured redis cache backend for Django."
@@ -2746,4 +2764,4 @@ propcache = ">=0.2.1"
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12"
-content-hash = "dbcbc5833337bdca91bda189df565ff48a62e86480e4af9c00408cb014f55c40"
+content-hash = "a6a1c576f4dc79aff745323e7c16e32c541e9ddb369ee6889f00ec4a7039e44f"
