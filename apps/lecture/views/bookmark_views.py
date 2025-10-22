@@ -40,6 +40,7 @@ class LectureBookmarkListCreateView(APIView):
         request=LectureBookmarkCreateSerializer,
     )
     def get(self, request: Request) -> Response:
+        MOCK_COUNT = 15
         mock_lectures: List[CrawledLecture] = [
             CrawledLecture(
                 id=i,
@@ -56,11 +57,12 @@ class LectureBookmarkListCreateView(APIView):
                 url_link="https://mock.com/course/mock",
                 description="북마크된 강의의 간략 설명",
             )
-            for i in range(1, 51)
+            for i in range(1, MOCK_COUNT + 1)  # 1부터 15까지
         ]
 
         mock_bookmarks: List[LectureBookmark] = [
-            LectureBookmark(id=i, lecture=mock_lectures[i - 1], user_id=request.user.id or 1) for i in range(1, 51)
+            LectureBookmark(id=i, lecture=mock_lectures[i - 1], user_id=request.user.id or 1)
+            for i in range(1, MOCK_COUNT + 1)
         ]
 
         paginator = self.pagination_class()
@@ -73,16 +75,28 @@ class LectureBookmarkListCreateView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def post(self, request: Request) -> Response:
-        serializer = LectureBookmarkCreateSerializer(data=request.data, context={"request": request})
+        # 1. context={"request": request} 제거 (필수 아님, 일반적인 request 정보는 남겨도 무방)
+        serializer = LectureBookmarkCreateSerializer(data=request.data)
+
+        # 유효성 검사
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            bookmark = serializer.save()
+            # 2. serializer.save() 호출 시 user를 명시적으로 전달
+            # 이 request.user가 시리얼라이저의 validated_data['user']가 됨.
+            bookmark = serializer.save(user=request.user)
+
         except serializers.ValidationError as e:
-            return Response({"detail": e.detail}, status=status.HTTP_400_BAD_REQUEST)
+            # 시리얼라이저 내부의 get_or_create 중복 검사에서 발생
+            return Response(e.detail, status=status.HTTP_400_BAD_REQUEST)
+
         except Exception as e:
-            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            # 예상치 못한 다른 DB/시스템 오류 처리
+            return Response(
+                {"detail": "북마크 생성 중 알 수 없는 오류가 발생했습니다."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
         return Response({"detail": "북마크가 추가되었습니다."}, status=status.HTTP_201_CREATED)
 

@@ -1,6 +1,5 @@
 from typing import Any, Dict
 
-from django.db import IntegrityError, transaction
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 
@@ -36,21 +35,17 @@ class LectureBookmarkCreateSerializer(serializers.ModelSerializer[LectureBookmar
         model = LectureBookmark
         fields = ["lecture_id"]
 
-    def validate(self, attrs: Dict[str, Any]) -> Dict[str, Any]:
-        user = self.context["request"].user
-        lecture = attrs.get("lecture")
-        # 사전 중복 체크로 명확한 오류 메시지 제공
-        if LectureBookmark.objects.filter(user=user, lecture=lecture).exists():
-            raise ValidationError({"detail": "이미 북마크한 강의입니다."})
-        return attrs
-
-    @transaction.atomic
     def create(self, validated_data: Dict[str, Any]) -> LectureBookmark:
-        user = self.context["request"].user
-        lecture = validated_data["lecture"]
+        # 1. DRF 표준: 뷰에서 serializer.save(user=request.user)로 전달된
+        # 'user' 객체를 validated_data에서 안전하게 추출.
+        user = validated_data.pop("user")
+        lecture = validated_data.pop("lecture")
 
-        try:
-            bookmark = LectureBookmark.objects.create(user=user, lecture=lecture)
-        except IntegrityError:
+        # 2. get_or_create를 사용하여 중복 체크, 생성을 단일 쿼리(원자적)로 처리.
+        bookmark, created = LectureBookmark.objects.get_or_create(user=user, lecture=lecture)
+
+        if not created:
+            # 이미 존재할 경우 명확한 ValidationError 반환.
             raise ValidationError({"detail": "이미 북마크한 강의입니다."})
+
         return bookmark
