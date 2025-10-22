@@ -1,5 +1,6 @@
 from django.urls import path
 
+from apps.users.views.email_verification_views import EmailConfirmCodeView, EmailSendCodeView
 from apps.users.views.phone_verification_views import (
     ChangePhoneConfirmCodeView,
     ChangePhoneSendCodeView,
@@ -26,4 +27,6 @@ urlpatterns = [
         ChangePhoneConfirmCodeView.as_view(),
         name="change_phone_confirm_code",
     ),
+    path("email-verifications/send-code", EmailSendCodeView.as_view(), name="email_send_code"),
+    path("email-verifications/confirm-code", EmailConfirmCodeView.as_view(), name="email_confirm_code"),
 ]

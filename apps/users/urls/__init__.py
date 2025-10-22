@@ -6,7 +6,7 @@ from apps.users.urls.user_urls import urlpatterns as users_urls
 app_name = "users"
 
 urlpatterns: list[URLPattern | URLResolver] = [
-    *auth_urls,
     *users_urls,
     *user_withdrawal_urls,
+    *auth_urls,
 ]
