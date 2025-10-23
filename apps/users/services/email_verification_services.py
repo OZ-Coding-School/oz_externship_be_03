@@ -15,6 +15,7 @@ from apps.users.enums import EmailVerificationPurpose
 from apps.users.utils.verify_token import issue_verify_token
 from config.settings.base import (
     ATTEMPT_LOCK_SECONDS,
+    EMAIL_HOST_USER,
     GLOBAL_LOCK_SECONDS,
     GLOBAL_MAX_FAILS,
     MAX_FAIL_ATTEMPTS,
@@ -119,14 +120,14 @@ def email_send_code(*, purpose: EmailVerificationPurpose | str, email: str) -> R
     cache.set(_pending_key(to, purpose, request_id), code, timeout=ONE_TIME_TTL_SECONDS)
 
     # 이메일 발송
-    subject = "[Dr.True] 이메일 인증코드 안내"
+    subject = "이메일 인증코드 안내"
     message = (
         f"요청 목적: {_purpose_str(purpose)}\n"
         f"인증코드: {code}\n"
         f"유효시간: {ONE_TIME_TTL_SECONDS}초\n"
         f"이 코드는 타인과 공유하지 마세요."
     )
-    from_email = getattr(settings, "DEFAULT_FROM_EMAIL", None)
+    from_email = EMAIL_HOST_USER
     try:
         send_mail(subject, message, from_email, [to], fail_silently=False)
     except Exception as e:
