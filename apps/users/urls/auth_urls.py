@@ -1,5 +1,6 @@
 from django.urls import path
 
+from apps.users.views.auth_views import TokenObtainView, TokenRefreshView
 from apps.users.views.email_verification_views import (
     ChangeEmailConfirmCodeView,
     ChangeEmailSendCodeView,
@@ -18,6 +19,8 @@ from apps.users.views.phone_verification_views import (
     SignupConfirmCodeView,
     SignupSendCodeView,
 )
+
+app_name = "auth"
 
 urlpatterns = [
     path("phone-verifications/signup/send-code", SignupSendCodeView.as_view(), name="phone_signup_send_code"),
@@ -72,4 +75,6 @@ urlpatterns = [
         ChangeEmailConfirmCodeView.as_view(),
         name="email_change_email_confirm_code",
     ),
+    path("auth/login", TokenObtainView.as_view(), name="login"),
+    path("auth/refresh", TokenRefreshView.as_view(), name="token_refresh"),
 ]
