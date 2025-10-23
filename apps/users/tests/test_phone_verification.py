@@ -177,6 +177,7 @@ class SignupPhoneVerificationSmokeTests(BasePhoneVerificationTests):
     def test_confirm_code_locked_for_signup(self) -> None:
         self.confirm_code_locked()
 
+
 # =========================
 # 이메일 찾기용 인증 테스트
 # =========================
@@ -202,6 +203,7 @@ class FindEmailPhoneVerificationSmokeTests(BasePhoneVerificationTests):
 
     def test_confirm_code_locked_for_find_email(self) -> None:
         self.confirm_code_locked()
+
 
 # =========================
 # 비밀번호 변경용 인증 테스트
