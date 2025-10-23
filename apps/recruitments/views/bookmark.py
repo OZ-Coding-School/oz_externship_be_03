@@ -1,5 +1,4 @@
 from typing import Any
-
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema
 from rest_framework import parsers, status
@@ -19,9 +18,25 @@ class BookmarkListCreateAPIView(APIView):
 
     @extend_schema(tags=["Bookmarks"], summary="북마크 생성 API")
     def post(self, request: Request, *args: Any, **kwargs: Any) -> Response:
+        if request.data.get("recruitment_id") == 1:
+            return Response(
+                {"detail": "이미 존재하는 북마크입니다."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
-        return Response(status=status.HTTP_201_CREATED)
+
+        bookmark = Bookmark(
+            user_id=request.data.get("user_id", 1),
+            recruitment_id=request.data.get("recruitment_id", 999),
+            created_at=timezone.now(),
+        )
+
+        return Response(
+            {"detail": "북마크가 추가되었습니다.", "bookmark_id": bookmark.recruitment_id},
+            status=status.HTTP_201_CREATED,
+        )
 
     @extend_schema(
         operation_id="v1_bookmarks_list",
@@ -30,9 +45,12 @@ class BookmarkListCreateAPIView(APIView):
         responses={200: BookmarkSerializer(many=True)},
     )
     def get(self, request: Request, *args: Any, **kwargs: Any) -> Response:
-        mock_data = [Bookmark(user_id=i, recruitment_id=i, created_at=timezone.now()) for i in range(1, 6)]
+        mock_data = [
+            Bookmark(user_id=i, recruitment_id=i, created_at=timezone.now())
+            for i in range(1, 6)
+        ]
         serializer = self.serializer_class(mock_data, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response({"results": serializer.data}, status=status.HTTP_200_OK)
 
 
 class BookmarkRetrieveDestroyAPIView(APIView):
@@ -42,10 +60,12 @@ class BookmarkRetrieveDestroyAPIView(APIView):
 
     @extend_schema(tags=["Bookmarks"], summary="북마크 상세 조회 API")
     def get(self, request: Request, recruitment_id: int, *args: Any, **kwargs: Any) -> Response:
+
         mock_data = Bookmark(user_id=1, recruitment_id=recruitment_id, created_at=timezone.now())
         serializer = self.serializer_class(mock_data)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     @extend_schema(tags=["Bookmarks"], summary="북마크 삭제 API")
     def delete(self, request: Request, recruitment_id: int, *args: Any, **kwargs: Any) -> Response:
-        return Response(status=status.HTTP_204_NO_CONTENT)
+
+        return Response({"detail": "북마크가 삭제되었습니다."}, status=status.HTTP_204_NO_CONTENT)
