@@ -2,6 +2,7 @@ from django.urls import path
 
 from apps.studies.views.members import DelegateLeaderAPIView
 from apps.studies.views.reviews import ReviewCreateView
+from apps.studies.views.groups import StudyGroupListCreateView
 
 app_name = "studies"
 
@@ -15,4 +16,5 @@ urlpatterns = [
         DelegateLeaderAPIView.as_view(),
         name="delegate-leader",
     ),
+    path("groups/", StudyGroupListCreateView.as_view(), name="study-group-list-create"),
 ]
