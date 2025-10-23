@@ -15,8 +15,12 @@ class RecommendationView(APIView):
     serializer_class = LectureListSerializer
     permission_classes = [IsAuthenticated]
 
-    recommendation_service: RecommendationService = RecommendationService()
     RECOMMENDATION_COUNT = 3
+
+    def get_recommendation_service(self) -> RecommendationService:
+        if not hasattr(self, "_recommendation_service"):
+            self._recommendation_service = RecommendationService()
+        return self._recommendation_service
 
     @extend_schema(
         operation_id="v1_lectures_recommendations",
@@ -40,18 +44,14 @@ class RecommendationView(APIView):
         # 런타임 시에도 user_id가 실제 int인지 보증하는 검증 역할 겸함
         assert isinstance(user_id, int)
 
-        # 1. RecommendationService를 통해 추천 강의 QuerySet 3개 조회
-        lectures_queryset = self.recommendation_service.recommend_lectures_for_user(user_id, self.RECOMMENDATION_COUNT)
-
-        # 2. 강의 목록 데이터 직렬화
+        recommendation_service = self.get_recommendation_service()
+        lectures_queryset = recommendation_service.recommend_lectures_for_user(user_id, self.RECOMMENDATION_COUNT)
         serializer = self.serializer_class(lectures_queryset, many=True, context={"request": request})
 
         return Response(
             {
                 "detail": "맞춤 강의 추천 조회가 완료되었습니다.",
-                "data": {
-                    "recommendations": serializer.data,
-                },
+                "data": {"recommendations": serializer.data},
             },
             status=status.HTTP_200_OK,
         )

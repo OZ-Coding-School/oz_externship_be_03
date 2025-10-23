@@ -18,8 +18,8 @@ from apps.studies.models.groups import StudyLecture
 
 User = get_user_model()
 
+# 문자열 평점을 숫자로 매핑하는 딕셔너리
 RATING_SCORE_MAP: Dict[str, float] = {
-    # 문자열 평점 필드를 수치형 점수 (float)로 매핑하기 위한 딕셔너리
     "5_OUT_OF_5_STARS": 5.0,
     "4_OUT_OF_5_STARS": 4.0,
     "3_OUT_OF_5_STARS": 3.0,
@@ -29,26 +29,22 @@ RATING_SCORE_MAP: Dict[str, float] = {
 
 
 class RecommendationService:
+    # 사용자 행동별 가중치를 설정하는 딕셔너리
     WEIGHTS: Dict[str, float] = {
-        # 사용자 행동별 가중치 설정: Implicit ALS의 신뢰도(Confidence) 점수에 기여
-        "bookmark": 3.0,  # 북마크: 가장 강력한 긍정 신호
-        "search": 1.0,  # 검색: 낮은 수준의 관심사 표현
-        "study_participation": 2.0,  # 스터디 참여: 높은 몰입도 신호
+        "bookmark": 3.0,  # 북마크: 가장 강한 긍정 신호
+        "search": 1.0,  # 검색: 낮은 강도의 관심 표현
+        "study_participation": 2.0,  # 스터디 참여: 높은 몰입 신호
         "category_match": 2.5,  # 카테고리 일치: 장기 선호도 반영
-        "review_rating": 1.5,  # 리뷰 평점: 콘텐츠 품질 만족도 반영
+        "review_rating": 1.5,  # 리뷰 평점: 품질 만족도 반영
     }
 
     def __init__(self) -> None:
-        """
-        RecommendationService 인스턴스 초기화 시,
-        반복 조회되는 LectureCategory 맵핑 데이터를 한 번만 로드하여 캐시. (쿼리 최적화)
-        """
-        self._lecture_category_map = self._load_lecture_category_map()
+        # 초기화 시점에는 DB 쿼리를 하지 않고, 필요 시 데이터 로드
+        self._lecture_category_map: Optional[Dict[int, set[int]]] = None
 
     def _load_lecture_category_map(self) -> Dict[int, set[int]]:
         """
-        모든 강의-카테고리 맵핑 데이터를 DB에서 로드하여 반환.
-        N+1 쿼리 방지 및 반복적인 DB 조회를 회피.
+        모든 강의-카테고리 관계를 DB에서 로드하여 캐시에 저장.
         """
         lecture_category_map: Dict[int, set[int]] = {}
         # values_list를 사용하여 불필요한 모델 인스턴스 생성 피함.
@@ -56,12 +52,20 @@ class RecommendationService:
             lecture_category_map.setdefault(lec_id, set()).add(cat_id)
         return lecture_category_map
 
+    def get_lecture_category_map(self) -> Dict[int, set[int]]:
+        """
+        캐시된 강의-카테고리 관계를 반환. 없으면 DB에서 조회 후 캐싱.
+        """
+        if self._lecture_category_map is None:
+            self._lecture_category_map = self._load_lecture_category_map()
+        return self._lecture_category_map
+
     def aggregate_user_interactions(self, user_id: int) -> Dict[int, float]:
         """
-        다중 암묵적 행동 신호를 통합하여 강의별 가중치 점수(Confidence Score) 생성
+        사용자 행동 신호를 통합해 강의별 신뢰도 점수를 계산.
 
-        :param user_id: 사용자 고유 ID
-        :return: {강의ID: 총 가중치 점수} 딕셔너리
+        :param user_id: 사용자 ID
+        :return: {강의ID: 점수} 딕셔너리
         """
         score_map: Dict[int, float] = {}
 
@@ -87,14 +91,13 @@ class RecommendationService:
             for lec_id in study_lecture_ids:
                 score_map[lec_id] = score_map.get(lec_id, 0.0) + self.WEIGHTS["study_participation"]
         except Exception:
-            # 관련 모델 또는 데이터 구조 변경 시 에러 무시
-            pass
+            pass  # 데이터 구조 변경 시 안전하게 무시
 
-        # 4. 사용자 선호 카테고리 반영 (캐시된 맵 _lecture_category_map 사용): 장기적 선호도 반영
+        # 4. 사용자 선호 카테고리와 강의 카테고리 매칭에 따른 가중치 부여
         prefer_category_ids = set(
             UserPreferCategory.objects.filter(user_id=user_id).values_list("category_id", flat=True)
         )
-        lecture_category_map = self._lecture_category_map
+        lecture_category_map = self.get_lecture_category_map()
 
         for lec_id in list(score_map.keys()):
             lec_cats = lecture_category_map.get(lec_id, set())
@@ -127,16 +130,15 @@ class RecommendationService:
         Optional[List[int]],
     ]:
         """
-        ALS 훈련을 위한 사용자-아이템 희소 행렬 구축
-        원본 ID와 행렬 인덱스 간의 맵핑 정보 반환.
+        ALS 학습에 필요한 사용자-강의 상호작용 희소 행렬과 인덱스 맵 생성
 
-        :return: (희소 행렬, 사용자 인덱스 맵, 강의 인덱스 맵, 사용자 ID 리스트, 강의 ID 리스트)
+        :return: (희소 행렬, 사용자ID->행 인덱스, 강의ID->열 인덱스, 사용자 리스트, 강의 리스트)
         """
         interaction_rows: List[int] = []
         interaction_cols: List[int] = []
         interaction_data: List[float] = []
 
-        # 상호작용 데이터(북마크)가 있는 사용자 및 강의만 추출 (차원 축소 목적)
+        # 상호작용 데이터(북마크)가 있는 사용자 및 강의만 필터링
         users = list(User.objects.filter(lecture_bookmarks__isnull=False).values_list("id", flat=True).distinct())
         lectures = list(CrawledLecture.objects.filter(bookmarks__isnull=False).values_list("id", flat=True).distinct())
 
@@ -178,10 +180,9 @@ class RecommendationService:
         Optional[List[int]],
     ]:
         """
-        Implicit ALS 모델 학습 실행. 훈련에 사용된 행렬 객체를 함께 반환.
-        (행렬 객체 반환은 build_user_item_matrix()의 중복 호출을 막기 위함)
+        ALS 모델 훈련 실행 및 결과 반환
 
-        :return: (행렬 객체, 학습 완료 모델, 사용자 인덱스 맵, 강의 인덱스 맵, 사용자 ID 리스트, 강의 ID 리스트)
+        :return: (훈련 행렬, ALS 모델, 사용자 인덱스 맵, 강의 인덱스 맵, 사용자 리스트, 강의 리스트)
         """
         matrix, u_to_i, l_to_i, users, lectures = self.build_user_item_matrix()
         if matrix is None:
@@ -201,16 +202,14 @@ class RecommendationService:
 
     def recommend_lectures_for_user(self, user_id: int, top_n: int = 5) -> Optional[QuerySet[CrawledLecture]]:
         """
-        특정 사용자 대상 ALS 모델을 사용해 Top-N 강의 추천 결과를 QuerySet으로 반환
+        특정 사용자 대상 Top-N 맞춤 강의 추천 반환
 
-        :param user_id: 추천 대상 사용자 ID
-        :param top_n: 반환할 추천 강의 수
-        :return: 추천 강의 QuerySet 또는 폴백 QuerySet
+        :param user_id: 사용자 ID
+        :param top_n: 추천 개수
+        :return: 추천 강의 QuerySet 또는 인기순 폴백 QuerySet
         """
-        # 1. 모델 훈련 및 맵핑 정보 로드
         matrix, model, user_to_idx, lecture_to_idx, _, _ = self.train_als_model()
 
-        # 2. 모델 실패/콜드 스타트 폴백 처리
         if (
             model is None
             or user_to_idx is None
@@ -224,7 +223,6 @@ class RecommendationService:
 
         # 3. 추천 계산
         user_index = user_to_idx[user_id]
-
         recommended = model.recommend(
             user_index,
             matrix.tocsr(),  # 훈련에 사용된 행렬 객체 재활용
@@ -234,13 +232,7 @@ class RecommendationService:
 
         # 4. 결과 변환 및 QuerySet 반환
         idx_to_lecture_id = {v: k for k, v in lecture_to_idx.items()}
-        recommended_ids = []
-        for item in recommended:
-            # item은 튜플 또는 리스트로 예상, 첫번째가 인덱스여야 함
-            lecture_idx = item[0]
-            # 강의 인덱스가 딕셔너리에 없으면 무시 (방어적 코드)
-            if lecture_idx in idx_to_lecture_id:
-                recommended_ids.append(idx_to_lecture_id[lecture_idx])
+        recommended_ids = [idx_to_lecture_id[item[0]] for item in recommended if item[0] in idx_to_lecture_id]
 
         if not recommended_ids:
             # 추천 결괏값 없으면 인기순 폴백
