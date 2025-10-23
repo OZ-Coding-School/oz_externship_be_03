@@ -122,6 +122,3 @@ class StudyGroupLectureSerializer:
         self.data = [
             {"id": sl.lecture.id, "title": sl.lecture.title, "instructor": sl.lecture.instructor} for sl in data
         ]
-
-
-class StudyGroupDetailSerializer(serializers.ModelSerializer):
