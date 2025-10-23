@@ -96,6 +96,8 @@ class BasePhoneVerificationTests(IsolatedRedisTestClient):
         r1 = self.client.post(self.send_code_url, self.valid_phone_data, format="json")
         self.assertEqual(r1.status_code, status.HTTP_200_OK)
 
+        print("\nratelimit Cache Value: ", cache.get(f"ratelimit:phone:send:{_normalize_kr_phone(self.PHONE)}"))
+
         # 2차 전송: 쿨다운으로 429 반환
         r2 = self.client.post(self.send_code_url, self.valid_phone_data, format="json")
         self.assertEqual(r2.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
