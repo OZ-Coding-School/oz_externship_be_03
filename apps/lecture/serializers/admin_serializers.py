@@ -4,7 +4,7 @@ from rest_framework import serializers
 from rest_framework.utils.serializer_helpers import ReturnDict
 
 from apps.lecture.models import CrawledLecture
-from apps.lecture.serializers import LectureListSerializer
+from apps.lecture.serializers.lecture_serializers import LectureListSerializer
 
 
 class AdminLectureListSerializer(serializers.ModelSerializer[CrawledLecture]):
