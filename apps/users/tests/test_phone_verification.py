@@ -156,8 +156,8 @@ class BasePhoneVerificationTests(IsolatedRedisTestClient):
 # =========================
 class SignupPhoneVerificationSmokeTests(BasePhoneVerificationTests):
     PURPOSE = PhoneVerificationPurpose.SIGNUP
-    SEND_URL_NAME = "signup_send_code"
-    CONFIRM_URL_NAME = "signup_confirm_code"
+    SEND_URL_NAME = "phone_signup_send_code"
+    CONFIRM_URL_NAME = "phone_signup_confirm_code"
 
 
 # =========================
