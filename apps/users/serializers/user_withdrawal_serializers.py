@@ -27,7 +27,7 @@ class UserWithdrawalsSerializer(serializers.ModelSerializer[Withdrawal]):
         }
 
 
-class UserWithdrawalsRecoverySerializer(serializers.Serializer[Dict[str, Any]]):
+class UserAccountRecoverySerializer(serializers.Serializer[Dict[str, Any]]):
     """
     탈퇴 계정 복구 Serializer\
     - 토큰 형식 검증만 수행, 비즈니스 로직(토큰 검증/소모, 계정 활성화, withdrawals 삭제)은 서비스에서 처리
