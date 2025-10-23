@@ -27,24 +27,32 @@ from config.settings.base import (
 # ---------------------------------------------------------------------
 # 내부 유틸
 # ---------------------------------------------------------------------
-def _purpose_whitelist(purpose: str) -> bool:
-    return purpose in EmailVerificationPurpose
+def _purpose_str(p: EmailVerificationPurpose | str) -> str:
+    return str(p)
+
+
+def _purpose_whitelist(purpose: EmailVerificationPurpose | str) -> bool:
+    try:
+        EmailVerificationPurpose(str(purpose))
+        return True
+    except ValueError:
+        return False
 
 
 def _normalize_email(raw: str) -> str:
     return (raw or "").strip().lower()
 
 
-def _pending_key(email: str, purpose: str, request_id: str) -> str:
-    return f"verify:email:pending:{email}:{purpose}:{request_id}"
+def _pending_key(email: str, purpose: EmailVerificationPurpose | str, request_id: str) -> str:
+    return f"verify:email:pending:{email}:{_purpose_str(purpose)}:{request_id}"
 
 
-def _lock_key(email: str, purpose: str) -> str:
-    return f"verify:email:lock:{email}:{purpose}"
+def _lock_key(email: str, purpose: EmailVerificationPurpose | str) -> str:
+    return f"verify:email:lock:{email}:{_purpose_str(purpose)}"
 
 
-def _fail_key(email: str, purpose: str) -> str:
-    return f"verify:email:failcnt:{email}:{purpose}"
+def _fail_key(email: str, purpose: EmailVerificationPurpose | str) -> str:
+    return f"verify:email:failcnt:{email}:{_purpose_str(purpose)}"
 
 
 def _rate_key(email: str) -> str:
@@ -64,10 +72,22 @@ def _generate_code() -> str:
     return "".join(secrets.choice(string.digits) for _ in range(6))
 
 
+def _safe_incr(key: str, ttl: int) -> int:
+    """
+    django-redis는 존재하지 않는 키에 incr 시 ValueError 발생.
+    없다면 0으로 초기화 후 증가.
+    """
+    try:
+        return int(cache.incr(key))
+    except ValueError:
+        cache.set(key, 0, timeout=ttl)
+        return int(cache.incr(key))
+
+
 # ---------------------------------------------------------------------
 # 발송
 # ---------------------------------------------------------------------
-def email_send_code(*, purpose: EmailVerificationPurpose, email: str) -> Response | Dict[str, Any]:
+def email_send_code(*, purpose: EmailVerificationPurpose | str, email: str) -> Response | Dict[str, Any]:
     """
     - 목적/이메일 검증
     - 레이트리밋(쿨다운)
@@ -93,7 +113,7 @@ def email_send_code(*, purpose: EmailVerificationPurpose, email: str) -> Respons
 
     # 코드 & 요청 ID
     code = _generate_code()
-    request_id = uuid.uuid4().hex  # Twilio SID 대체 개념
+    request_id = uuid.uuid4().hex  # 외부 SID 대체 개념
 
     # 보관: pending (목적/주체/요청ID 기준)
     cache.set(_pending_key(to, purpose, request_id), code, timeout=ONE_TIME_TTL_SECONDS)
@@ -101,7 +121,7 @@ def email_send_code(*, purpose: EmailVerificationPurpose, email: str) -> Respons
     # 이메일 발송
     subject = "[Dr.True] 이메일 인증코드 안내"
     message = (
-        f"요청 목적: {purpose}\n"
+        f"요청 목적: {_purpose_str(purpose)}\n"
         f"인증코드: {code}\n"
         f"유효시간: {ONE_TIME_TTL_SECONDS}초\n"
         f"이 코드는 타인과 공유하지 마세요."
@@ -127,13 +147,13 @@ def email_send_code(*, purpose: EmailVerificationPurpose, email: str) -> Respons
 # 확인
 # ---------------------------------------------------------------------
 def email_confirm_code(
-    *, purpose: EmailVerificationPurpose, email: str, verification_code: str, request_id: str
+    *, purpose: EmailVerificationPurpose | str, email: str, verification_code: str, request_id: str
 ) -> Response | Dict[str, Any]:
     """
     - 목적/이메일 검증
     - 락 체크(글로벌/목적)
     - pending(요청ID)에 저장된 코드와 입력 코드 비교
-    - 실패 시 카운트 증가/락
+    - 실패 시 카운트 증가/락 → 임계 도달 시 같은 요청에서 429 반환
     - 성공 시 verify_token 발급 + 목적별 카운터/락 정리 + pending 제거
     """
     if not _purpose_whitelist(purpose):
@@ -146,7 +166,7 @@ def email_confirm_code(
     if not to:
         return Response({"error": "이메일이 유효하지 않습니다."}, status=status.HTTP_400_BAD_REQUEST)
 
-    # 잠금 확인
+    # 잠금 확인(선차단)
     lock_key_global = _global_lock_key(to)
     lock_key_purpose = _lock_key(to, purpose)
     if cache.get(lock_key_global) or cache.get(lock_key_purpose):
@@ -165,24 +185,32 @@ def email_confirm_code(
     fail_key_global = _global_fail_key(to)
     fail_key_purpose = _fail_key(to, purpose)
 
-    def _bump_fail_and_maybe_lock() -> None:
+    def _bump_fail_and_maybe_lock() -> tuple[int, int]:
         # 글로벌 실패
-        cache.add(fail_key_global, 0, timeout=GLOBAL_LOCK_SECONDS)
-        gcnt = cache.incr(fail_key_global)
+        gcnt = _safe_incr(fail_key_global, GLOBAL_LOCK_SECONDS)
         if gcnt >= GLOBAL_MAX_FAILS:
             cache.set(lock_key_global, "1", timeout=GLOBAL_LOCK_SECONDS)
+
         # 목적별 실패
-        cache.add(fail_key_purpose, 0, timeout=ATTEMPT_LOCK_SECONDS)
-        pcnt = cache.incr(fail_key_purpose)
+        pcnt = _safe_incr(fail_key_purpose, ATTEMPT_LOCK_SECONDS)
         if pcnt >= MAX_FAIL_ATTEMPTS:
             cache.set(lock_key_purpose, "1", timeout=ATTEMPT_LOCK_SECONDS)
 
+        return gcnt, pcnt
+
+    # 코드 비교
     if str(pending_code) != str(verification_code):
-        _bump_fail_and_maybe_lock()
+        gcnt, pcnt = _bump_fail_and_maybe_lock()
+        # 임계 도달 즉시 같은 요청에서 429 반환(팀 규칙에 따라 > 로 바꿔도 됨)
+        if gcnt >= GLOBAL_MAX_FAILS or pcnt >= MAX_FAIL_ATTEMPTS:
+            return Response(
+                {"error": "시도 제한 횟수를 초과했습니다. 잠시 뒤 다시 시도해주세요."},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
         return Response({"error": "인증코드가 유효하지 않습니다."}, status=status.HTTP_400_BAD_REQUEST)
 
     # 성공: 검증 토큰 발급 (이메일 기준)
-    verify_token = issue_verify_token(sub=to, to=to, purpose=purpose)
+    verify_token = issue_verify_token(sub=to, to=to, purpose=EmailVerificationPurpose(_purpose_str(purpose)))
 
     cache.delete(fail_key_purpose)
     cache.delete(lock_key_purpose)

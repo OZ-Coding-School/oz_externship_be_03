@@ -120,7 +120,7 @@ class TestEmailVerificationServices(IsolatedRedisTestClient):
     # -------------------- send_code: 성공 --------------------
     @patch("apps.users.services.email_verification_services.send_mail")
     def test_send_code_success_returns_meta(self, mock_send_mail: Mock) -> None:
-        mock_send_mail.return_value = 1
+        mock_send_mail.return_value = 1  # 성공 가정
         out = svc.email_send_code(email=self.email, purpose=self.purpose)
 
         assert isinstance(out, dict)
@@ -141,7 +141,7 @@ class TestEmailVerificationServices(IsolatedRedisTestClient):
     @patch("apps.users.services.email_verification_services.send_mail")
     @patch("apps.users.services.email_verification_services._generate_code", return_value="123456")
     def test_send_code_cooldown_blocks_repeat(self, _mock_code: Mock, mock_send_mail: Mock) -> None:
-        mock_send_mail.return_value = 1
+        mock_send_mail.return_value = 1  # 성공 가정
         first = svc.email_send_code(email=self.email, purpose=self.purpose)
         assert isinstance(first, dict)
 
@@ -157,7 +157,8 @@ class TestEmailVerificationServices(IsolatedRedisTestClient):
     def test_confirm_code_success_returns_token(
         self, _mock_code: Mock, mock_send_mail: Mock, _mock_issue: Mock
     ) -> None:
-        mock_send_mail.return_value = 1
+        mock_send_mail.return_value = 1  # 성공 가정
+
         # 먼저 코드 발송
         meta = svc.email_send_code(email=self.email, purpose=self.purpose)
         assert isinstance(meta, dict)
@@ -169,7 +170,7 @@ class TestEmailVerificationServices(IsolatedRedisTestClient):
             verification_code=self.code_ok,
             request_id=meta["request_id"],
         )
-        assert isinstance(out, dict)
+        assert isinstance(out, dict)  # 글로벌락 간섭이 없으므로 dict 보장
         assert out["verify_token"] == "VTOK-123"
         assert isinstance(out["expires_in"], int) and out["expires_in"] > 0
 
@@ -178,28 +179,43 @@ class TestEmailVerificationServices(IsolatedRedisTestClient):
     @patch("apps.users.services.email_verification_services.send_mail")
     @patch("apps.users.services.email_verification_services._generate_code", return_value="123456")
     def test_confirm_code_wrong_code_then_lock_progresses(self, _mock_code: Mock, mock_send_mail: Mock) -> None:
-        mock_send_mail.return_value = 1
+        mock_send_mail.return_value = 1  # 성공 가정
+
         meta = svc.email_send_code(email=self.email, purpose=self.purpose)
         assert isinstance(meta, dict)
         rid = meta["request_id"]
 
-        locked: Response | None = None
+        # 1번째 실패 → 400 기대
+        r1 = svc.email_confirm_code(
+            email=self.email, purpose=self.purpose, verification_code=self.code_bad, request_id=rid
+        )
+        assert isinstance(r1, Response)
+        assert r1.status_code == status.HTTP_400_BAD_REQUEST
 
-        # 처음 1회는 400이 정상, 이후 2~4회차 중에 429 도달을 보장
-        for _ in range(4):
-            res = svc.email_confirm_code(
-                email=self.email,
-                purpose=self.purpose,
-                verification_code=self.code_bad,
-                request_id=rid,
+        # 2번째 실패: 구현에 따라 429(임계 도달) 또는 400(임계 초과에서 429)
+        r2 = svc.email_confirm_code(
+            email=self.email, purpose=self.purpose, verification_code=self.code_bad, request_id=rid
+        )
+        assert isinstance(r2, Response)
+
+        if r2.status_code == status.HTTP_429_TOO_MANY_REQUESTS:
+            locked: Response = r2
+        else:
+            # 3번째 실패에서 429 기대
+            r3 = svc.email_confirm_code(
+                email=self.email, purpose=self.purpose, verification_code=self.code_bad, request_id=rid
             )
-            assert isinstance(res, Response)
-            if res.status_code == status.HTTP_429_TOO_MANY_REQUESTS:
-                locked = res
-                break
+            assert isinstance(r3, Response)
+            locked = r3
 
-        assert locked is not None, "MAX_FAIL_ATTEMPTS=2 기준으로 4회 내 429가 발생해야 함"
         assert locked.status_code == status.HTTP_429_TOO_MANY_REQUESTS
+
+        # 락 지속성 확인: 추가 시도도 429 유지
+        r_next = svc.email_confirm_code(
+            email=self.email, purpose=self.purpose, verification_code=self.code_bad, request_id=rid
+        )
+        assert isinstance(r_next, Response)
+        assert r_next.status_code == status.HTTP_429_TOO_MANY_REQUESTS
 
     # -------------------- confirm_code: request_id 누락/만료 --------------------
     def test_confirm_code_missing_request_id(self) -> None:
@@ -220,9 +236,9 @@ class TestEmailVerificationServices(IsolatedRedisTestClient):
     def test_global_fail_lock_after_many_failures(self, _mock_code: Mock, mock_send_mail: Mock) -> None:
         """
         잘못된 코드 실패를 반복하면 글로벌 실패 카운터가 쌓여 이후 선락(429)이 걸린다.
-        같은 request_id로도 글로벌 카운트는 누적된다고 가정.
+        같은 request_id로도 글로벌 카운트는 누적됨.
         """
-        mock_send_mail.return_value = 1
+        mock_send_mail.return_value = 1  # 성공 가정
 
         # 단 한 번 발송하여 request_id 확보
         meta = svc.email_send_code(email=self.email, purpose=self.purpose)
@@ -233,10 +249,9 @@ class TestEmailVerificationServices(IsolatedRedisTestClient):
         r1 = svc.email_confirm_code(
             email=self.email, purpose=self.purpose, verification_code=self.code_bad, request_id=rid
         )
-        assert isinstance(r1, Response)
-        assert r1.status_code == status.HTTP_400_BAD_REQUEST
+        assert isinstance(r1, Response) and r1.status_code == status.HTTP_400_BAD_REQUEST
 
-        # 2) 두 번째 실패에서 429일 수도, 아니면 다음 호출에서 429일 수도
+        # 2) 두 번째 실패: 구현에 따라 429 또는 400
         r2 = svc.email_confirm_code(
             email=self.email, purpose=self.purpose, verification_code=self.code_bad, request_id=rid
         )
@@ -244,6 +259,7 @@ class TestEmailVerificationServices(IsolatedRedisTestClient):
         if r2.status_code == status.HTTP_429_TOO_MANY_REQUESTS:
             locked: Response = r2
         else:
+            # 3) 한 번 더 실패 → 429
             r3 = svc.email_confirm_code(
                 email=self.email, purpose=self.purpose, verification_code=self.code_bad, request_id=rid
             )
