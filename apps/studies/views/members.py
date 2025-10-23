@@ -140,7 +140,7 @@ class DelegateLeaderAPIView(APIView):
         # 리더 위임 서비스 실행
         MemberService.delegate_leader(
             mock_group,
-            serializer.validated_data["target_user_id"],
+            serializer.validated_data["target_member_id"],
         )
         # 성공 응답
         return Response(
