@@ -9,11 +9,9 @@ from apps.users.views.phone_verification_views import (
     SignupSendCodeView,
 )
 
-app_name = "phone_verifications"
-
 urlpatterns = [
-    path("phone/verifications/signup/send-code", SignupSendCodeView.as_view(), name="signup_send_code"),
-    path("phone/verifications/signup/confirm-code", SignupConfirmCodeView.as_view(), name="signup_confirm_code"),
+    path("phone/verifications/signup/send-code", SignupSendCodeView.as_view(), name="phone_signup_send_code"),
+    path("phone/verifications/signup/confirm-code", SignupConfirmCodeView.as_view(), name="phone_signup_confirm_code"),
     path("phone/verifications/find-email/send-code", FindEmailSendCodeView.as_view(), name="find_email_send_code"),
     path(
         "phone/verifications/find-email/confirm-code",
