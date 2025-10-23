@@ -1,9 +1,9 @@
+from datetime import timedelta
 from typing import Any, Iterable
 
 from django.utils import timezone
 from rest_framework import serializers
 
-from apps.lecture.models import CrawledLecture
 from apps.studies.models.groups import StudyGroup
 
 
@@ -63,8 +63,8 @@ class StudyGroupCreateSerializer(serializers.ModelSerializer):  # type: ignore[t
         end = attrs.get("end_at")
         today = timezone.now().date()
 
-        if start and end and end < start:
-            raise serializers.ValidationError({"end_at": "종료일은 시작일 이후여야 합니다."})
+        if start and end and end < start + timedelta(days=5):
+            raise serializers.ValidationError({"end_at": "종료일은 시작일보다 5일 이상 이후여야 합니다."})
         if start and start.date() < today:
             raise serializers.ValidationError({"start_at": "시작일은 오늘 또는 이후여야 합니다."})
         return attrs
@@ -122,3 +122,6 @@ class StudyGroupLectureSerializer:
         self.data = [
             {"id": sl.lecture.id, "title": sl.lecture.title, "instructor": sl.lecture.instructor} for sl in data
         ]
+
+
+class StudyGroupDetailSerializer(serializers.ModelSerializer):
