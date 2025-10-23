@@ -1,34 +1,27 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, datetime
-from typing import Any, Type, cast
+from typing import Any, Union
 
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
 from rest_framework.exceptions import APIException, ValidationError
 
 from apps.users.enums import Role
-from apps.users.managers.managers import UserManager
-from apps.users.models.user import User as UserType
+from apps.users.models.user import User as UserModel
 from apps.users.serializers.user_signup_serializers import SignupPayload
-from apps.users.services.email_verification_service import EmailVerificationService
 from apps.users.validators import (
+    validate_birthday,
     validate_korean_phone,
     validate_name,
     validate_nickname,
 )
 
-# ===========================================
-# Constants & Utilities
-# ===========================================
-email_svc = EmailVerificationService()
-UserModel = get_user_model()
-mgr: UserManager = UserModel.objects
+User = get_user_model()
 
 
 # ===========================================
-# Enum flag utilities
+# 유틸 함수
 # ===========================================
 def role_from_flags(*, is_staff: bool, is_superuser: bool) -> str:
     if is_superuser:
@@ -55,115 +48,21 @@ def active_from_status(status: str) -> bool:
 
 
 # ===========================================
-# Signup Service
-# ===========================================
-@dataclass
-class DefaultSignupService:
-    """회원가입 처리 서비스"""
-
-    @transaction.atomic
-    def sign_up(self, payload: SignupPayload) -> UserType:
-        email = payload["email"]
-        phone_number = payload["phone_number"]
-        nickname = payload["nickname"]
-        password = payload["password"]
-        name = payload["name"]
-        birthday = payload["birthday"]  # str | date | datetime 허용
-        gender = payload["gender"]
-        role = cast(str, payload.get("role", Role.USER.value))
-        flags = flags_from_role(role)
-
-        # --------------------------
-        # (1) Validation - 400 Bad Request
-        # --------------------------
-        errors_map: dict[str, list[str]] = {}
-
-        for field_name, validator, value in [
-            ("nickname", validate_nickname, nickname),
-            ("name", validate_name, name),
-            ("phone_number", validate_korean_phone, phone_number),
-        ]:
-            try:
-                validator(value)
-            except Exception as exc:
-                for msg in _extract_msgs(exc):
-                    errors_map.setdefault(field_name, []).append(msg)
-
-        # 생년월일 변환 및 검증
-        bday_parsed: date | None = None
-        if isinstance(birthday, datetime):
-            bday_parsed = birthday.date()
-        elif isinstance(birthday, date):
-            bday_parsed = birthday
-        elif isinstance(birthday, str):
-            try:
-                bday_parsed = date.fromisoformat(birthday.strip())
-            except ValueError:
-                errors_map.setdefault("birthday", []).append("생년월일 형식이 올바르지 않습니다. 예) 1990-06-06")
-        else:
-            errors_map.setdefault("birthday", []).append("생년월일 형식이 올바르지 않습니다. 예) 1990-06-06")
-
-        if bday_parsed and bday_parsed > date.today():
-            errors_map.setdefault("birthday", []).append("생년월일은 미래일 수 없습니다.")
-
-        if errors_map:
-            raise ValidationError(detail=errors_map)
-
-        # --------------------------
-        # (2) Email verification - 422
-        # --------------------------
-        if not email_svc.consume_verified(email=email, purpose="signup"):
-            ex = APIException(detail={"email": ["이메일 인증을 완료해주세요."]})
-            ex.status_code = 422
-            raise ex
-        # --------------------------
-        # (3) Create user - 409 Conflict
-        # --------------------------
-        try:
-            user = mgr.create_user(
-                email=email,
-                password=password,
-                nickname=nickname,
-                name=name,
-                phone_number=phone_number,
-                birthday=bday_parsed,
-                gender=gender,
-                is_staff=flags["is_staff"],
-                is_superuser=flags["is_superuser"],
-                is_active=True,
-            )
-        except IntegrityError as exc:
-            msg = str(exc).lower()
-            conflict_map: dict[str, list[str]] = {}
-
-            if "email" in msg or "users_email_key" in msg:
-                conflict_map.setdefault("email", []).append("이미 사용 중인 이메일입니다.")
-            if "phone" in msg or "phone_number" in msg or "users_phone_number_key" in msg:
-                conflict_map.setdefault("phone_number", []).append("이미 사용 중인 휴대폰 번호입니다.")
-            if "nickname" in msg or "users_nickname_key" in msg or "nick" in msg:
-                conflict_map.setdefault("nickname", []).append("이미 사용 중인 닉네임입니다.")
-
-            if not conflict_map:
-                conflict_map["non_field_errors"] = ["중복된 값이 존재합니다."]
-
-            ex = APIException(detail=conflict_map)
-            ex.status_code = 409
-            raise ex
-            # raise Conflict(conflict_map)
-
-        return user
-
-
-# ===========================================
-# Error extraction helper
+# 에러 헬퍼 함수
 # ===========================================
 def _extract_msgs(exc: Exception) -> list[str]:
-    """DRF/Django ValidationError 메시지를 리스트로 평탄화"""
+    """
+    DRF/Django ValidationError 호환 에러 메시지 리스트화.
+    detail/message_dict/messages 우선 사용, 없으면 str(exc).
+    """
     detail = getattr(exc, "detail", None)
     if isinstance(detail, dict):
         out: list[str] = []
         for v in detail.values():
-            out.extend([str(x) for x in v]) if isinstance(v, list) else out.append(str(v))
+            if isinstance(v, list):
+                out.extend(map(str, v))
+            else:
+                out.append(str(v))
         return out
     if isinstance(detail, list):
         return [str(x) for x in detail]
@@ -172,13 +71,108 @@ def _extract_msgs(exc: Exception) -> list[str]:
 
     message_dict = getattr(exc, "message_dict", None)
     if isinstance(message_dict, dict):
-        out_2: list[str] = []
+        out2: list[str] = []
         for v in message_dict.values():
-            out_2.extend([str(x) for x in v]) if isinstance(v, list) else out_2.append(str(v))
-        return out_2
+            if isinstance(v, list):
+                out2.extend(map(str, v))
+            else:
+                out2.append(str(v))
+        return out2
 
     messages = getattr(exc, "messages", None)
     if isinstance(messages, list):
         return [str(x) for x in messages]
 
     return [str(exc)]
+
+
+def _map_integrity_error_to_conflicts(exc: IntegrityError) -> dict[str, list[str]]:
+    """
+    DB 제약 위반(유니크 등)을 필드별 메시지로 매핑.
+    """
+    msg = str(exc).lower()
+    conflict_map: dict[str, list[str]] = {}
+
+    # 이메일
+    if any(k in msg for k in ["email", "users_email_key", "unique_email"]):
+        conflict_map.setdefault("email", []).append("이미 사용 중인 이메일입니다.")
+
+    # 휴대폰 번호
+    if any(k in msg for k in ["phone", "phone_number", "users_phone_number_key", "unique_phone"]):
+        conflict_map.setdefault("phone_number", []).append("이미 사용 중인 휴대폰 번호입니다.")
+
+    # 닉네임
+    if any(k in msg for k in ["nickname", "users_nickname_key", "unique_nickname", "nick"]):
+        conflict_map.setdefault("nickname", []).append("이미 사용 중인 닉네임입니다.")
+
+    if not conflict_map:
+        conflict_map["non_field_errors"] = ["중복된 값이 존재합니다."]
+
+    return conflict_map
+
+
+# ===========================================
+# Signup Service
+# ===========================================
+@dataclass
+class DefaultSignupService:
+    """
+    회원가입 처리 서비스
+    """
+
+    @transaction.atomic
+    def sign_up(self, payload: SignupPayload) -> UserModel:
+        # ---- 입력 추출
+        email: str = payload["email"]
+        phone_number: str = payload["phone_number"]
+        nickname: str = payload["nickname"]
+        password: str = payload["password"]
+        name: str = payload["name"]
+        birthday = payload["birthday"]
+        gender = payload.get("gender")
+
+        # ---- 역할 → 권한 플래그
+        flags = flags_from_role(payload.get("role", Role.USER))
+
+        # ---- 필드 검증
+        errors_map: dict[str, list[str]] = {}
+        validators: list[tuple[str, Any, Any]] = [
+            ("nickname", validate_nickname, nickname),
+            ("name", validate_name, name),
+            ("phone_number", validate_korean_phone, phone_number),
+        ]
+        for field_name, validator, value in validators:
+            try:
+                validator(value)
+            except Exception as exc:
+                errors_map.setdefault(field_name, []).extend(_extract_msgs(exc))
+
+        try:
+            validate_birthday(birthday)
+        except Exception as exc:
+            errors_map.setdefault("birthday", []).extend(_extract_msgs(exc))
+
+        if errors_map:
+            raise ValidationError(detail=errors_map)
+
+        # ---- 유저 생성
+        try:
+            user = User.objects.create_user(
+                email=email,  # UserManager에서 도메인만 소문자화
+                password=password,
+                nickname=nickname,
+                name=name,
+                phone_number=phone_number,
+                birthday=birthday,
+                gender=gender,
+                is_staff=flags["is_staff"],
+                is_superuser=flags["is_superuser"],
+                is_active=True,
+            )
+        except IntegrityError as exc:
+            conflict_map = _map_integrity_error_to_conflicts(exc)
+            api_exc = APIException(detail=conflict_map)
+            api_exc.status_code = 409
+            raise api_exc
+
+        return user
