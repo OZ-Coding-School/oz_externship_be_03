@@ -24,6 +24,4 @@ class RecruitmentSerializer(serializers.ModelSerializer[Recruitment]):
 
 
 class RecruitmentDetailSerializer(RecruitmentSerializer):
-    """추가 세부 정보를 반환할 수 있는 상세 시리얼라이저"""
-
     pass

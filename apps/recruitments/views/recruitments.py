@@ -1,4 +1,3 @@
-# apps/recruitments/views/recruitments.py
 import uuid
 from datetime import timedelta
 from typing import Any
