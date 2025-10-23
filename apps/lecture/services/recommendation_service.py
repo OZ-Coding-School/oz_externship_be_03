@@ -234,7 +234,17 @@ class RecommendationService:
 
         # 4. 결과 변환 및 QuerySet 반환
         idx_to_lecture_id = {v: k for k, v in lecture_to_idx.items()}
-        recommended_ids = [idx_to_lecture_id[idx] for idx, _ in recommended]
+        recommended_ids = []
+        for item in recommended:
+            # item은 튜플 또는 리스트로 예상, 첫번째가 인덱스여야 함
+            lecture_idx = item[0]
+            # 강의 인덱스가 딕셔너리에 없으면 무시 (방어적 코드)
+            if lecture_idx in idx_to_lecture_id:
+                recommended_ids.append(idx_to_lecture_id[lecture_idx])
+
+        if not recommended_ids:
+            # 추천 결괏값 없으면 인기순 폴백
+            return CrawledLecture.objects.order_by("-average_rating")[:top_n]
 
         lectures = CrawledLecture.objects.filter(id__in=recommended_ids).prefetch_related(
             "lecture_categories__category"
