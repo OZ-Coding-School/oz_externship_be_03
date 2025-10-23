@@ -56,5 +56,4 @@ class ReviewCreateSerializer(serializers.ModelSerializer[Review]):
         return attrs
 
     def create(self, validated_data: Dict[str, Any]) -> Review:
-        requests: Request = self.context["request"]
         return Review.objects.create(user=self.context["request"].user, **validated_data)
