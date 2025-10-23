@@ -8,6 +8,9 @@ from drf_spectacular.views import (
 )
 
 urlpatterns: list[URLPattern | URLResolver] = [
+    path("api/lectures/", include("apps.lecture.urls")),
+    path("api/recruitment-tags/", include("apps.recruitments.urls.recruitment_tag")),
+    path("api/", include("apps.recruitments.urls.tag")),
     path("api/v1/lectures/", include("apps.lecture.urls")),
     path("api/v1/", include("apps.users.urls")),
     path("api/v1/studies/", include("apps.studies.urls")),
