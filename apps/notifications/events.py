@@ -4,17 +4,17 @@ from typing import Dict, List
 
 
 class NotificationEventSystem:
-    def __init__(self):
-        self.user_queues: Dict[int, queue.Queue] = {}
+    def __init__(self) -> None:
+        self.user_queues: Dict[int, queue.Queue[str]] = {}
         self.lock = threading.Lock()
 
-    def get_or_create_queue(self, user_id: int) -> queue.Queue:
+    def get_or_create_queue(self, user_id: int) -> queue.Queue[str]:
         with self.lock:
             if user_id not in self.user_queues:
                 self.user_queues[user_id] = queue.Queue()
-                return self.user_queues[user_id]
+            return self.user_queues[user_id]
 
-    def notify_user(self, user_id: int):
+    def notify_user(self, user_id: int) -> None:
         user_queue = self.get_or_create_queue(user_id)
         user_queue.put("new_notification")
 
@@ -27,4 +27,4 @@ class NotificationEventSystem:
             return False
 
 
-notification_events = NotificationEventSystem()
+notification_events:NotificationEventSystem = NotificationEventSystem()

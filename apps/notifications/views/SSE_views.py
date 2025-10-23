@@ -23,17 +23,19 @@ async def notification_stream(request: HttpRequest) -> StreamingHttpResponse:
             yield f"data:{json.dumps({'type':'error','message':'User not authenticated'})}\n\n"
             return
 
+        user_id:int = request.user.id
+
         # 이벤트 기반 대기 루프
         while True:
             # Signal에서 보낸 트리거 대기(blocking)
             has_new_notifcation = await sync_to_async(notification_events.wait_for_notification)(
-                request.user.id, timeout=5.0
+                user_id, timeout=5.0
             )
 
             if has_new_notifcation:
                 # 트리거 받으면 새 알림 조회
                 latest_notification = await sync_to_async(
-                    lambda: Notification.objects.filter(user_id=request.user.id, is_read=False)
+                    lambda: Notification.objects.filter(user_id=user_id, is_read=False)
                     .order_by("-created_at")
                     .first()
                 )()
