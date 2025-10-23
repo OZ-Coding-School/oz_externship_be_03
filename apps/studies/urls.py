@@ -11,7 +11,7 @@ app_name = "studies"
 
 urlpatterns = [
     # POST /api/v1/studies/groups/{group_id}/reviews/
-    path("studies/groups/<uuid:group_id>/reviews/", ReviewCreateView.as_view(), name="group-review-create"),
+    path("groups/<int:group_id>/reviews/", ReviewCreateView.as_view(), name="group-review-create"),
     # REQ-STDY-006: 스터디 그룹 리더 위임 API
     path(
         "groups/<uuid:group_id>/delegate-leader",

@@ -50,24 +50,11 @@ class ReviewCreateSerializer(serializers.ModelSerializer[Review]):
         fields = ("study_group", "star_rating", "content")
 
     def validate(self, attrs: Dict[str, Any]) -> Dict[str, Any]:
-        request: Request = self.context["request"]
-        if not getattr(request.user, "is_authenticated", False):
-            raise serializers.ValidationError({"non_field_errors": ["인증이 필요합니다."]})
-
-        raw_pk = getattr(request.user, "pk", None)
-        if raw_pk is None:
-            raise serializers.ValidationError({"non_field_errors": ["인증이 필요합니다"]})
-
-        user_id: str | int = raw_pk if isinstance(raw_pk, (str, int)) else str(raw_pk)
-        study_group = attrs["study_group"]
-
-        if Review.objects.filter(user_id=user_id, study_group=study_group).exists():
-            raise serializers.ValidationError({"non_field_errors": ["해당 스터디에 이미 리뷰를 작성했습니다."]})
-
         content = attrs.get("content")
         if content is not None and not str(content).strip():
             raise serializers.ValidationError({"content": ["내용이 비어 있습니다."]})
         return attrs
 
     def create(self, validated_data: Dict[str, Any]) -> Review:
+        requests: Request = self.context["request"]
         return Review.objects.create(user=self.context["request"].user, **validated_data)
