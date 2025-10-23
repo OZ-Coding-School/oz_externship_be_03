@@ -5,8 +5,7 @@ from django.test import TestCase
 
 from apps.chat.consumers import ChatConsumer
 from apps.chat.models.chat_message import ChatMessage
-from apps.studies.models.groups import StudyGroup
-from apps.studies.models.groups import GroupMember
+from apps.studies.models.groups import GroupMember, StudyGroup
 
 User = get_user_model()
 
@@ -52,9 +51,7 @@ class ChatConsumerTest(TestCase):
 
         # 4. 테스트 메시지 전송
         test_message_content = "Hello, this is a test message."
-        await communicator.send_json_to(
-            {"type": "chat.message", "content": test_message_content}
-        )
+        await communicator.send_json_to({"type": "chat.message", "content": test_message_content})
 
         # 5. 방송된 메시지 확인
         response = await communicator.receive_json_from()
