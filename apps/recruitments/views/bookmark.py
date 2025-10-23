@@ -13,71 +13,64 @@ from apps.recruitments.serializers.bookmark import BookmarkSerializer
 
 
 class BookmarkListCreateAPIView(APIView):
+
     serializer_class = BookmarkSerializer
     permission_classes = [AllowAny]
     parser_classes = [parsers.JSONParser, parsers.MultiPartParser]
+
     MOCK_DUPLICATE_IDS = [2, 4]
     MOCK_NONEXISTENT_IDS = [9999]
 
     @extend_schema(tags=["Bookmarks"], summary="북마크 생성 API")
     def post(self, request: Request, *args: Any, **kwargs: Any) -> Response:
-        data = request.data
-        recruitment_id = data.get("recruitment_id")
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
 
-        if not recruitment_id:
-            return Response(
-                {"detail": "유효하지 않은 데이터입니다."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
+        recruitment_id = serializer.validated_data.get("recruitment_id")
+        if recruitment_id is None:
+            return Response({"detail": "recruitment_id가 필요합니다."}, status=status.HTTP_400_BAD_REQUEST)
         if recruitment_id in self.MOCK_DUPLICATE_IDS:
             return Response(
                 {"detail": "이미 북마크한 강의입니다."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-
         if recruitment_id in self.MOCK_NONEXISTENT_IDS:
             return Response(
                 {"detail": "존재하지 않는 강의입니다."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-
+        mock_bookmark = Bookmark(user_id=1, recruitment_id=recruitment_id, created_at=timezone.now())
         return Response(
-            {"detail": "북마크가 추가되었습니다.", "bookmark_id": recruitment_id},
+            self.serializer_class(mock_bookmark).data,
             status=status.HTTP_201_CREATED,
         )
 
-    @extend_schema(
-        operation_id="v1_bookmarks_list",
-        tags=["Bookmarks"],
-        summary="북마크 전체 목록 조회 API",
-        responses={200: BookmarkSerializer(many=True)},
-    )
-    def get(self, request: Request, *args: Any, **kwargs: Any) -> Response:
-
-        mock_data = [Bookmark(user_id=i, recruitment_id=i, created_at=timezone.now()) for i in range(1, 16)]
+    @extend_schema(summary="북마크 목록 조회 API ")
+    def get(self, request: Request) -> Response:
+        mock_data = [Bookmark(user_id=1, recruitment_id=i, created_at=timezone.now()) for i in range(1, 6)]
         serializer = self.serializer_class(mock_data, many=True)
-
-        page = int(request.query_params.get("page", 1))
-        page_size = 10
-        start = (page - 1) * page_size
-        end = start + page_size
-        paged_data = serializer.data[start:end]
-
-        return Response({"results": paged_data}, status=status.HTTP_200_OK)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 class BookmarkRetrieveDestroyAPIView(APIView):
+
     serializer_class = BookmarkSerializer
     permission_classes = [AllowAny]
-    parser_classes = [parsers.JSONParser, parsers.MultiPartParser]
+    parser_classes = [parsers.JSONParser]
 
     @extend_schema(tags=["Bookmarks"], summary="북마크 상세 조회 API")
     def get(self, request: Request, recruitment_id: int, *args: Any, **kwargs: Any) -> Response:
-        mock_data = Bookmark(user_id=1, recruitment_id=recruitment_id, created_at=timezone.now())
-        serializer = self.serializer_class(mock_data)
+        mock_bookmark = Bookmark(
+            user_id=1,
+            recruitment_id=recruitment_id,
+            created_at=timezone.now(),
+        )
+        serializer = self.serializer_class(mock_bookmark)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     @extend_schema(tags=["Bookmarks"], summary="북마크 삭제 API")
     def delete(self, request: Request, recruitment_id: int, *args: Any, **kwargs: Any) -> Response:
-        return Response({"detail": "북마크가 삭제되었습니다."}, status=status.HTTP_204_NO_CONTENT)
+        return Response(
+            {"detail": f"북마크(recruitment_id={recruitment_id})가 삭제되었습니다."},
+            status=status.HTTP_204_NO_CONTENT,
+        )
