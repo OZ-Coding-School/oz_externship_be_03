@@ -12,6 +12,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.studies.models.groups import StudyGroup
+from apps.studies.models.reviews import Review
 from apps.studies.serializers.reviews import ReviewCreateSerializer
 
 
@@ -40,10 +41,17 @@ class ReviewCreateView(APIView):
             )
         ],
     )
-    def post(self, request: Request, group_id: UUID, *args: Any, **kwargs: Any) -> Response:
-        study_group = get_object_or_404(StudyGroup, pk=group_id)
+    def post(self, request: Request, group_id: int, *args: Any, **kwargs: Any) -> Response:
+        study_group = get_object_or_404(StudyGroup, id=group_id)
 
-        data = {**request.data, "study_group": str(study_group.id)}
+        user_id = getattr(request.user, "pk", None)
+        if user_id is None:
+            return Response(status=401)
+
+        if Review.objects.filter(user_id=user_id, study_group=study_group).exists():
+            return Response({"detail": "이미 해당 스터디에 리뷰를 작성했습니다"}, status=409)
+
+        data = {"study_group": study_group.pk, **request.data}
         serializer = ReviewCreateSerializer(data=data, context={"request": request})
 
         if not serializer.is_valid():
@@ -54,4 +62,4 @@ class ReviewCreateView(APIView):
         except IntegrityError:
             return Response({"detail": "이미 해당 스터디에 리뷰를 작성했습니다"}, status=409)
 
-        return Response(serializer.data, status=201)
+        return Response(status=201)
