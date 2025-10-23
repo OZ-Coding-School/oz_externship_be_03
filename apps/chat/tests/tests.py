@@ -9,6 +9,7 @@ from apps.studies.models.groups import GroupMember, StudyGroup
 
 User = get_user_model()
 
+
 class ChatConsumerTest(TestCase):
     # Django의 테스트 러너는 `async def test_...` 메소드를 직접 실행
     async def test_group_member_can_connect_and_send_message(self) -> None:
