@@ -1,6 +1,9 @@
 from django.urls import path
 
-from apps.users.views.email_verification_views import EmailConfirmCodeView, EmailSendCodeView
+from apps.users.views.email_verification_views import (
+    EmailConfirmCodeView,
+    EmailSendCodeView,
+)
 from apps.users.views.phone_verification_views import (
     ChangePhoneConfirmCodeView,
     ChangePhoneSendCodeView,
