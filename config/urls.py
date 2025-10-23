@@ -1,3 +1,5 @@
+from sys import path_hooks
+
 from django.conf import settings
 from django.conf.urls.static import static
 from django.urls import URLPattern, URLResolver, include, path
@@ -9,6 +11,8 @@ from drf_spectacular.views import (
 
 urlpatterns: list[URLPattern | URLResolver] = [
     path("api/lectures/", include("apps.lecture.urls")),
+    path("api/recruitment-tags/", include("apps.recruitments.urls.recruitment_tag")),
+    path("api/", include("apps.recruitments.urls.tag")),
 ]
 
 if settings.DEBUG:
