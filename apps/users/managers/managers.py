@@ -37,6 +37,16 @@ class UserManager(BaseUserManager["User"]):
         user.save(using=self._db)
         return user
 
+    def create_superuser(self, email: str, password: str, **extra_fields: object) -> "User":
+        """어드민 생성"""
+        extra_fields.setdefault("is_staff", True)
+        extra_fields.setdefault("is_superuser", True)
+
+        if not (extra_fields.get("is_staff") and extra_fields.get("is_superuser")):
+            raise ValueError("관리자 계정을 생성할 수 없습니다.")
+
+        return self.create_user(email, password, **extra_fields)
+
 
 class SocialUserManager(models.Manager["SocialUser"]):
     def kakao_users(self) -> models.QuerySet["SocialUser"]:
