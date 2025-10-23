@@ -21,6 +21,7 @@ class StudyGroupCreateSerializer(serializers.ModelSerializer):  # type: ignore[t
         child=serializers.IntegerField(min_value=1),
         required=False,
         allow_empty=True,
+        default=list,
         help_text="강의 ID 목록 (선택사항, 최대 5개 지정 가능)",
     )
 
@@ -95,7 +96,7 @@ class StudyGroupListSerializer(serializers.ModelSerializer[StudyGroup]):
         ]
 
     def get_current_headcount(self, obj: StudyGroup) -> int:
-        return obj.members.count()
+        return len(obj.members.all())
 
     def get_is_leader(self, obj: StudyGroup) -> bool:
         request = self.context.get("request")

@@ -23,12 +23,17 @@ class StudyGroupListCreateView(APIView):
     # JSON, 이미지 파일을 요청으로부터 넘겨받기 위함
     parser_classes = [parsers.JSONParser, parsers.MultiPartParser]
 
-    @extend_schema(tags=["StudyGroup"], summary="스터디 그룹 생성 API")
+    @extend_schema(
+        operation_id="v1_studies_groups_create",
+        tags=["StudyGroup"],
+        summary="스터디 그룹 생성 API",
+        request=StudyGroupCreateSerializer,
+    )
     def post(self, request: Request) -> Response:
         serializer = StudyGroupCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        return Response(status=status.HTTP_201_CREATED)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     @extend_schema(
         operation_id="v1_studies_groups_list",
@@ -77,6 +82,8 @@ class StudyGroupListCreateView(APIView):
                 StudyLecture(study_group=study_group, lecture=lec) for lec in selected_lectures
             ]
 
+        # Mock에서는 FK 참조 못해서 수동으로 응답 구성. 실 API에서는 시리얼라이저 사용.
+        # 실 API에서 current_headcount 값은 prefetch로 참조(n+1 방지)
         serializer = StudyGroupListSerializer(mock_data, many=True)
         response_data = []
 
