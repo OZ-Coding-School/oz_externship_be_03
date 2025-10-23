@@ -1,21 +1,20 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Mapping, cast
+from typing import Any, Dict, List, Optional, Protocol, cast
 
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.exceptions import APIException
 from rest_framework.exceptions import ValidationError as DRFValidationError
-from rest_framework.permissions import AllowAny
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.users.serializers.user_signup_serializers import (
-    SignupResponseSerializer,  # ✅ 오타 수정: SignupResponseSerializerclass -> SignupResponseSerializer
-)
+from apps.users.models.user import User as UserModel
+from apps.users.permissions import EmailVerifiedPermission, PhoneVerifiedPermission
 from apps.users.serializers.user_signup_serializers import (
     SignupPayload,
+    SignupResponseSerializer,
     UserPublicSerializer,
     UserSignupSerializer,
 )
@@ -49,38 +48,50 @@ def normalize_errors(detail: Any) -> Dict[str, List[str]]:
     return {"non_field_errors": [str(detail)]}
 
 
-def to_public_user(user: Any) -> Dict[str, Any]:
-    """
-    User 모델을 API 응답용 dict로 변환.
-    getattr 사용으로 테스트 더블(모의 객체) 호환성도 높임.
-    """
+def to_public_user(user: "UserModel") -> Dict[str, Any]:
+    """응답 생성용 공개 사용자 dict 변환 유틸"""
     return {
-        "id": getattr(user, "id", getattr(user, "pk", None)),
         "email": getattr(user, "email", None),
         "nickname": getattr(user, "nickname", None),
         "name": getattr(user, "name", None),
         "phone_number": getattr(user, "phone_number", None),
         "birthday": getattr(user, "birthday", None),
         "gender": getattr(user, "gender", None),
-        "role": getattr(user, "role", "user"),
-        "status": status_from_active(getattr(user, "is_active", False)),
+        "status": status_from_active(bool(getattr(user, "is_active", False))),
         "created_at": getattr(user, "created_at", None),
     }
 
 
-class UserSignupView(APIView):
-    permission_classes = [AllowAny]
+# ---------------------------------------------------------------------
+# 서비스 타입 프로토콜 (테스트/의존성 주입 용)
+# ---------------------------------------------------------------------
+class SignupServiceProto(Protocol):
+    def sign_up(self, payload: SignupPayload) -> UserModel: ...
 
-    # ✅ 테스트/주입 편의: 서비스 클래스를 속성으로 보관
-    SERVICE_CLASS = DefaultSignupService
+
+# ---------------------------------------------------------------------
+# 회원가입 뷰
+# ---------------------------------------------------------------------
+class UserSignupView(APIView):
+    """
+    이메일+휴대폰 인증(verify_token) 완료 후 회원가입 처리.
+    Permission 단계에서 이미 토큰 검증/소비가 끝난 상태.
+    """
+
+    permission_classes = [EmailVerifiedPermission, PhoneVerifiedPermission]
+    purpose = "signup"
+
+    SERVICE_CLASS: type[SignupServiceProto] = DefaultSignupService
 
     @extend_schema(
         operation_id="user_signup",
         tags=["Users"],
         request=UserSignupSerializer,
-        responses={201: SignupResponseSerializer},
+        responses={
+            201: SignupResponseSerializer,
+        },
         summary="사용자 회원가입 API",
-        description="이메일/비밀번호 기반 회원 생성.",
+        description="이메일/휴대폰 인증 완료 후 계정 생성.",
     )
     def post(self, request: Request) -> Response:
         # 1) 요청 스키마 검증 (400)
@@ -94,19 +105,37 @@ class UserSignupView(APIView):
 
         payload: SignupPayload = cast(SignupPayload, serializer.validated_data)
 
-        # 2) 서비스 호출 (400/409/422 예외 → 일관 포맷)
+        # 2) verify 토큰의 sub 값과 요청값 일치 검증
+        claims_email: Optional[Dict[str, Any]] = cast(
+            Optional[Dict[str, Any]], getattr(request, "email_verify_claims", None)
+        )
+        if claims_email and str(claims_email.get("sub", "")).strip().lower() != str(payload["email"]).strip().lower():
+            return error(
+                "인증 이메일과 요청 이메일이 일치하지 않습니다.",
+                status_code=status.HTTP_400_BAD_REQUEST,
+                errors={"email": ["인증된 이메일과 불일치합니다."]},
+            )
+
+        claims_phone: Optional[Dict[str, Any]] = cast(
+            Optional[Dict[str, Any]], getattr(request, "phone_verify_claims", None)
+        )
+        if claims_phone and str(claims_phone.get("sub", "")) != str(payload["phone_number"]):
+            return error(
+                "인증 휴대폰과 요청 휴대폰이 일치하지 않습니다.",
+                status_code=status.HTTP_400_BAD_REQUEST,
+                errors={"phone_number": ["인증된 휴대폰과 불일치합니다."]},
+            )
+
+        # 3) 서비스 호출 (400/409/422 예외 처리)
         try:
             user = self.SERVICE_CLASS().sign_up(payload)
-
         except DRFValidationError as exc:
             return error(
                 "입력값을 확인해주세요.",
                 status_code=status.HTTP_400_BAD_REQUEST,
                 errors=normalize_errors(exc.detail),
             )
-
         except APIException as exc:
-            # detail과 status_code가 없을 수도 있으니 안전 접근
             formatted = normalize_errors(getattr(exc, "detail", {}))
             code = getattr(exc, "status_code", status.HTTP_500_INTERNAL_SERVER_ERROR)
 
@@ -119,7 +148,7 @@ class UserSignupView(APIView):
 
             return error(message, status_code=code, errors=formatted)
 
-        # 3) 성공 (201)
+        # 4) 성공 (201) — 스키마 전용 Serializer에 dict 주입
         user_out = UserPublicSerializer(to_public_user(user)).data
         return ok(
             "회원가입에 성공하였습니다.",
