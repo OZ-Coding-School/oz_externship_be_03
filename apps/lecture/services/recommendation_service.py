@@ -3,7 +3,7 @@ from typing import Dict, List, Optional, Tuple
 import implicit  # type: ignore  # Implicit ALS 구현 라이브러리 (타입 스텁 미제공)
 import numpy as np  # 수치 계산 및 배열 처리용 (행렬 변환에 필수)
 from django.contrib.auth import get_user_model
-from django.db.models import QuerySet
+from django.db.models import Q, QuerySet
 from scipy.sparse import coo_matrix  # 좌표 형식(Coordinate format)의 희소 행렬 처리용
 
 from apps.lecture.models import (
@@ -74,11 +74,13 @@ class RecommendationService:
         for lec_id in bookmarks:
             score_map[lec_id] = score_map.get(lec_id, 0.0) + self.WEIGHTS["bookmark"]
 
-        # 2. 검색어 기반 점수 누적: 관심사 파악
-        search_keywords = LectureSearchLog.objects.filter(user_id=user_id).values_list("keyword", flat=True)
-        for keyword in search_keywords:
-            # 검색어와 강의 제목의 부분 일치 강의를 찾아 점수 부여
-            matched_lectures = CrawledLecture.objects.filter(title__icontains=keyword).values_list("id", flat=True)
+        # 2. 검색어 기반 점수 누적: N+1 문제 예방을 위해 Q 객체로 통합 조회
+        search_keywords = list(LectureSearchLog.objects.filter(user_id=user_id).values_list("keyword", flat=True))
+        if search_keywords:
+            query = Q()
+            for keyword in search_keywords:
+                query |= Q(title__icontains=keyword)
+            matched_lectures = CrawledLecture.objects.filter(query).values_list("id", flat=True)
             for lec_id in matched_lectures:
                 score_map[lec_id] = score_map.get(lec_id, 0.0) + self.WEIGHTS["search"]
 
