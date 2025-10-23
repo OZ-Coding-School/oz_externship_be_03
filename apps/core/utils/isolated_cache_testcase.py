@@ -8,12 +8,15 @@ from rest_framework.test import APITestCase
 
 
 class IsolatedRedisTestClient(APITestCase):
+    START_CACHE_INDEX = 5
+
     def setUp(self) -> None:
         super().setUp()
         cache_settings = copy.deepcopy(settings.CACHES)
         # 각 테스트마다 고유한 UUID로 KEY_PREFIX를 설정
-        cache_settings["default"]["KEY_PREFIX"] = f"test_{uuid.uuid4().hex}_"
-        cache_settings["default"]["LOCATION"] = f"redis://{settings.REDIS_HOST}:6379/15"
+        self.CACHE_PREFIX = f"test_{uuid.uuid4().hex}_"
+        cache_settings["default"]["KEY_PREFIX"] = self.CACHE_PREFIX
+        cache_settings["default"]["LOCATION"] = f"redis://{settings.REDIS_HOST}:6379/{self.get_redis_db_index()}"
         self._isolated_cache_settings_override = override_settings(CACHES=cache_settings)
         self._isolated_cache_settings_override.enable()
         self.redis_client = get_redis_connection("default")
@@ -22,3 +25,12 @@ class IsolatedRedisTestClient(APITestCase):
         self._isolated_cache_settings_override.disable()
         self.redis_client.flushdb()  # 현재 DB만 초기화
         super().tearDown()
+
+    def get_redis_db_index(self) -> int:
+        result = self.START_CACHE_INDEX
+        self.__class__.START_CACHE_INDEX += 1
+
+        if self.__class__.START_CACHE_INDEX > 15:
+            self.__class__.START_CACHE_INDEX = 5
+
+        return result
