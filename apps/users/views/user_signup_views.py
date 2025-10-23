@@ -77,6 +77,7 @@ class UserSignupView(APIView):
     이메일+휴대폰 인증(verify_token) 완료 후 회원가입 처리.
     Permission 단계에서 이미 토큰 검증/소비가 끝난 상태.
     """
+    authentication_classes: list = []
 
     permission_classes = [EmailVerifiedPermission, PhoneVerifiedPermission]
     purpose = "signup"
