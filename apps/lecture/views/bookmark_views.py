@@ -30,7 +30,7 @@ class LectureBookmarkListCreateView(APIView):
 
     @extend_schema(
         tags=["Lectures"],
-        summary="로그인 유저 북마크 목록 조회 및 북마크 추가 API (Mock)",
+        summary="강의 북마크 목록 조회 API (Mock)",
         responses={
             200: LectureBookmarkListSerializer(many=True),
             201: {"description": "북마크가 추가되었습니다."},
@@ -74,6 +74,16 @@ class LectureBookmarkListCreateView(APIView):
         serializer = LectureBookmarkListSerializer(mock_bookmarks, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+    @extend_schema(
+        tags=["Lectures"],
+        summary="강의 북마크 추가 API (Mock)",
+        request=LectureBookmarkCreateSerializer,
+        responses={
+            201: {"description": "북마크가 추가되었습니다."},
+            400: {"description": "잘못된 요청 또는 중복 북마크"},
+            404: {"description": "존재하지 않는 강의입니다."},
+        },
+    )
     def post(self, request: Request) -> Response:
         # 1. context={"request": request} 제거 (필수 아님, 일반적인 request 정보는 남겨도 무방)
         serializer = LectureBookmarkCreateSerializer(data=request.data)

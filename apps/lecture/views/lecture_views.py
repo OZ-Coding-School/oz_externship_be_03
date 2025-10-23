@@ -29,7 +29,7 @@ class LectureListView(APIView):
 
     @extend_schema(
         operation_id="v1_lecture_list",
-        tags=["Lecture"],
+        tags=["Lectures"],
         summary="강의 목록 조회 API",
         responses={200: LectureListSerializer(many=True)},
     )
@@ -97,7 +97,7 @@ class LectureReviewListView(APIView):
 
     @extend_schema(
         operation_id="v1_lecture_review_list",
-        tags=["Lecture"],
+        tags=["Lectures"],
         summary="강의 리뷰 조회 API",
         responses={200: LectureReviewSerializer(many=True)},
     )
