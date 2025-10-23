@@ -1,3 +1,4 @@
+from collections import defaultdict
 from typing import Dict, List, Optional, Tuple
 
 import implicit  # type: ignore  # Implicit ALS 구현 라이브러리 (타입 스텁 미제공)
@@ -39,12 +40,16 @@ class RecommendationService:
     }
 
     def __init__(self) -> None:
-        # 초기화 시점에는 DB 쿼리를 하지 않고, 필요 시 데이터 로드
+        """
+        RecommendationService 인스턴스 초기화.
+        DB 쿼리를 지연시키기 위해 맵핑 데이터를 None으로 초기화 (Lazy Loading 준비).
+        """
         self._lecture_category_map: Optional[Dict[int, set[int]]] = None
 
     def _load_lecture_category_map(self) -> Dict[int, set[int]]:
         """
-        모든 강의-카테고리 관계를 DB에서 로드하여 캐시에 저장.
+        모든 강의-카테고리 관계를 DB에서 로드하여 반환.
+        N+1 쿼리 방지 및 반복적인 DB 조회를 회피.
         """
         lecture_category_map: Dict[int, set[int]] = {}
         # values_list를 사용하여 불필요한 모델 인스턴스 생성 피함.
@@ -54,7 +59,7 @@ class RecommendationService:
 
     def get_lecture_category_map(self) -> Dict[int, set[int]]:
         """
-        캐시된 강의-카테고리 관계를 반환. 없으면 DB에서 조회 후 캐싱.
+        캐시된 강의-카테고리 관계를 반환. 없으면 _load_lecture_category_map() 호출 후 캐싱.
         """
         if self._lecture_category_map is None:
             self._lecture_category_map = self._load_lecture_category_map()
@@ -62,27 +67,30 @@ class RecommendationService:
 
     def aggregate_user_interactions(self, user_id: int) -> Dict[int, float]:
         """
-        사용자 행동 신호를 통합해 강의별 신뢰도 점수를 계산.
+        사용자 행동 신호를 통합해 강의별 신뢰도 점수를 계산. (Pythonic 및 N+1 최적화 적용)
 
         :param user_id: 사용자 ID
         :return: {강의ID: 점수} 딕셔너리
         """
-        score_map: Dict[int, float] = {}
+        # score_map을 defaultdict로 초기화하여 누적 시 .get(..., 0.0) 호출 생략
+        score_map: defaultdict[int, float] = defaultdict(float)
 
         # 1. 북마크 점수 누적: 사용자 의도가 가장 명확
         bookmarks = LectureBookmark.objects.filter(user_id=user_id).values_list("lecture_id", flat=True)
         for lec_id in bookmarks:
-            score_map[lec_id] = score_map.get(lec_id, 0.0) + self.WEIGHTS["bookmark"]
+            score_map[lec_id] += self.WEIGHTS["bookmark"]
 
         # 2. 검색어 기반 점수 누적: N+1 문제 예방을 위해 Q 객체로 통합 조회
         search_keywords = list(LectureSearchLog.objects.filter(user_id=user_id).values_list("keyword", flat=True))
         if search_keywords:
             query = Q()
             for keyword in search_keywords:
+                # 모든 키워드를 Q 객체로 묶어 OR 조건으로 결합
                 query |= Q(title__icontains=keyword)
+            # 단 한 번의 쿼리로 모든 관련 강의 ID 조회
             matched_lectures = CrawledLecture.objects.filter(query).values_list("id", flat=True)
             for lec_id in matched_lectures:
-                score_map[lec_id] = score_map.get(lec_id, 0.0) + self.WEIGHTS["search"]
+                score_map[lec_id] += self.WEIGHTS["search"]
 
         # 3. 스터디 참여 점수 누적: 높은 몰입도 신호
         try:
@@ -91,7 +99,7 @@ class RecommendationService:
                 "lecture_id", flat=True
             )
             for lec_id in study_lecture_ids:
-                score_map[lec_id] = score_map.get(lec_id, 0.0) + self.WEIGHTS["study_participation"]
+                score_map[lec_id] += self.WEIGHTS["study_participation"]
         except Exception:
             pass  # 데이터 구조 변경 시 안전하게 무시
 
@@ -101,26 +109,31 @@ class RecommendationService:
         )
         lecture_category_map = self.get_lecture_category_map()
 
-        for lec_id in list(score_map.keys()):
+        # score_map.keys() 이터레이터를 사용하여 메모리 효율적으로 반복
+        for lec_id in score_map.keys():
             lec_cats = lecture_category_map.get(lec_id, set())
             matched_cats = lec_cats.intersection(prefer_category_ids)
             # 일치하는 카테고리 수에 비례하여 가중치 부여
             if matched_cats:
                 score_map[lec_id] += len(matched_cats) * self.WEIGHTS["category_match"]
 
-        # 5. 리뷰 평점 점수 반영: 콘텐츠 품질 만족도 반영
-        review_map: Dict[int, List[float]] = {}
-        # 상호작용이 있는 강의의 리뷰만 필터링하여 리뷰 데이터셋 크기 감소
-        reviews = CrawledLectureReview.objects.filter(lecture__in=score_map.keys())
+        # 5. 리뷰 평점 점수 반영: 콘텐츠 품질 만족도 반영 (I/O 및 Python 연산 최적화)
+        review_map = defaultdict(list)
+
+        # 필요한 필드('lecture_id', 'rating')만 가져와 DB-Python 간 전송량 감소
+        reviews = CrawledLectureReview.objects.filter(lecture__in=score_map.keys()).values("lecture_id", "rating")
+
         for r in reviews:
-            review_map.setdefault(r.lecture_id, []).append(RATING_SCORE_MAP.get(r.rating, 0.0))
+            # defaultdict(list)로 setdefault 없이 바로 append 가능
+            review_map[r["lecture_id"]].append(RATING_SCORE_MAP.get(r["rating"], 0.0))
 
         for lec_id, ratings in review_map.items():
             avg_rating = sum(ratings) / len(ratings) if ratings else 0.0
             # 평균 평점에 가중치를 곱하여 최종 신뢰도 점수에 합산
-            score_map[lec_id] = score_map.get(lec_id, 0.0) + avg_rating * self.WEIGHTS["review_rating"]
+            score_map[lec_id] += avg_rating * self.WEIGHTS["review_rating"]
 
-        return score_map
+        # 최종적으로 defaultdict를 일반 dict으로 변환하여 반환 (타입 힌트 준수)
+        return dict(score_map)
 
     def build_user_item_matrix(
         self,
@@ -140,8 +153,9 @@ class RecommendationService:
         interaction_cols: List[int] = []
         interaction_data: List[float] = []
 
-        # 상호작용 데이터(북마크)가 있는 사용자 및 강의만 필터링
-        users = list(User.objects.filter(lecture_bookmarks__isnull=False).values_list("id", flat=True).distinct())
+        # 북마크 테이블을 직접 조회하여 사용자 목록 추출 (User 테이블 JOIN 회피)
+        users = list(LectureBookmark.objects.values_list("user_id", flat=True).distinct())
+        # 상호작용 데이터(북마크)가 있는 강의만 필터링
         lectures = list(CrawledLecture.objects.filter(bookmarks__isnull=False).values_list("id", flat=True).distinct())
 
         # 고유 ID를 0부터 시작하는 행렬 인덱스로 매핑
