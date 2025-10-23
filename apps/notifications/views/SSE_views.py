@@ -18,41 +18,10 @@ async def notification_stream(request: HttpRequest) -> StreamingHttpResponse:
         # 연결 완료 신호
         yield f"data:{json.dumps({'type':'connected'})}\n\n"
 
-            # user.id가 None일 가능성 체크
+        # user.id가 None일 가능성 체크
         if request.user.id is None:
             yield f"data:{json.dumps({'type':'error','message':'User not authenticated'})}\n\n"
             return
-
-        #
-        initial_notifications = await sync_to_async(
-            lambda: list(Notification.objects.filter(
-                user_id=request.user.id,
-                is_read=False
-            ))
-        )()
-
-            # 새 알림이 있으면 전송
-        if initial_notifications:
-            notifications_data = []
-            notification_ids = []
-            for notification in initial_notifications:
-                notification_ids.append(notification.id)
-                data = {
-                    "id": notification.id,
-                    "content": notification.content,
-                    "type": notification.type,
-                    "back_url_link": notification.back_url_link,
-                    "created_at": notification.created_at.isoformat(),
-                    "is_read": notification.is_read,
-                }
-                notifications_data.append(data)
-
-            await sync_to_async(
-                Notification.objects.filter(id__in=notification_ids).update
-            )(is_read=True)
-
-            # 클라이언트에 전송
-            yield f"data: {json.dumps({'type': 'notifications', 'data': notifications_data})}\n\n"
 
         #이벤트 기반 대기 루프
         while True:
@@ -63,33 +32,24 @@ async def notification_stream(request: HttpRequest) -> StreamingHttpResponse:
 
             if has_new_notifcation:
                 #트리거 받으면 새 알림 조회
-                new_notifications = await sync_to_async(
-                    lambda: list(Notification.objects.filter(
+                latest_notification = await sync_to_async(
+                    lambda: Notification.objects.filter(
                         user_id=request.user.id,
                         is_read=False
-                    ))
+                    ).order_by('-created_at').first()
                 )()
 
-                if new_notifications:
-                    notifications_data = []
-                    notification_ids = []
-                    for notification in new_notifications:
-                        notification_ids.append(notification.id)
-                        data = {
-                            "id": notification.id,
-                            "content": notification.content,
-                            "type": notification.type,
-                            "back_url_link": notification.back_url_link,
-                            "created_at": notification.created_at.isoformat(),
-                            "is_read": notification.is_read,
-                        }
-                        notifications_data.append(data)
+                if latest_notification:
+                    data = {
+                        "id": latest_notification.id,
+                        "content": latest_notification.content,
+                        "type": latest_notification.type,
+                        "back_url_link": latest_notification.back_url_link,
+                        "created_at": latest_notification.created_at.isoformat(),
+                        "is_read": latest_notification.is_read,
+                    }
 
-                    await sync_to_async(
-                        Notification.objects.filter(id__in=notification_ids).update
-                    )(is_read=True)
-
-                    yield f"data: {json.dumps({'type': 'notifications', 'data': notifications_data})}\n\n"
+                    yield f"data: {json.dumps({'type': 'notifications', 'data': data})}\n\n"
 
                 await asyncio.sleep(0.1)
 
