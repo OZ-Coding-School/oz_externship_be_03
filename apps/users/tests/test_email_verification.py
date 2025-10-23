@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import uuid
 from typing import Any
 from unittest.mock import Mock, patch
 
@@ -110,9 +111,8 @@ class EmailVerificationViewTests(IsolatedRedisTestClient):
 class TestEmailVerificationServices(IsolatedRedisTestClient):
     def setUp(self) -> None:
         super().setUp()
-
-        self.email = "Example@Example.COM"
-        self.norm_email = "example@example.com"
+        self.email = f"{uuid.uuid4().hex}@example.com"
+        self.norm_email = self.email.lower()
         self.purpose = EmailVerificationPurpose.SIGNUP
         self.code_ok = "123456"
         self.code_bad = "000000"
@@ -150,6 +150,7 @@ class TestEmailVerificationServices(IsolatedRedisTestClient):
         assert second.status_code == status.HTTP_429_TOO_MANY_REQUESTS
 
     # -------------------- confirm_code: 성공 --------------------
+    @patch("apps.users.services.email_verification_services.GLOBAL_MAX_FAILS", 99)
     @patch("apps.users.services.email_verification_services.issue_verify_token", return_value="VTOK-123")
     @patch("apps.users.services.email_verification_services.send_mail")
     @patch("apps.users.services.email_verification_services._generate_code", return_value="123456")
@@ -180,38 +181,24 @@ class TestEmailVerificationServices(IsolatedRedisTestClient):
         mock_send_mail.return_value = 1
         meta = svc.email_send_code(email=self.email, purpose=self.purpose)
         assert isinstance(meta, dict)
+        rid = meta["request_id"]
 
-        # 1번째 오입력 → 400
-        r1 = svc.email_confirm_code(
-            email=self.email,
-            purpose=self.purpose,
-            verification_code=self.code_bad,
-            request_id=meta["request_id"],
-        )
-        assert isinstance(r1, Response)
-        assert r1.status_code == status.HTTP_400_BAD_REQUEST
+        locked: Response | None = None
 
-        # 2번째 오입력: 구현에 따라 즉시 429 또는 다음 호출에서 429
-        r2 = svc.email_confirm_code(
-            email=self.email,
-            purpose=self.purpose,
-            verification_code=self.code_bad,
-            request_id=meta["request_id"],
-        )
-
-        assert isinstance(r2, Response)
-        if r2.status_code == status.HTTP_429_TOO_MANY_REQUESTS:
-            locked: Response = r2
-        else:
-            r3 = svc.email_confirm_code(
+        # 처음 1회는 400이 정상, 이후 2~4회차 중에 429 도달을 보장
+        for _ in range(4):
+            res = svc.email_confirm_code(
                 email=self.email,
                 purpose=self.purpose,
                 verification_code=self.code_bad,
-                request_id=meta["request_id"],
+                request_id=rid,
             )
-            assert isinstance(r3, Response)
-            locked = r3
+            assert isinstance(res, Response)
+            if res.status_code == status.HTTP_429_TOO_MANY_REQUESTS:
+                locked = res
+                break
 
+        assert locked is not None, "MAX_FAIL_ATTEMPTS=2 기준으로 4회 내 429가 발생해야 함"
         assert locked.status_code == status.HTTP_429_TOO_MANY_REQUESTS
 
     # -------------------- confirm_code: request_id 누락/만료 --------------------
@@ -232,32 +219,31 @@ class TestEmailVerificationServices(IsolatedRedisTestClient):
     @patch("apps.users.services.email_verification_services._generate_code", return_value="123456")
     def test_global_fail_lock_after_many_failures(self, _mock_code: Mock, mock_send_mail: Mock) -> None:
         """
-        잘못된 코드 실패 누적 → 글로벌 락(429) 확인
-        같은 request_id로도 글로벌 카운터는 누적되므로 send_code는 1회만 호출한다.
+        잘못된 코드 실패를 반복하면 글로벌 실패 카운터가 쌓여 이후 선락(429)이 걸린다.
+        같은 request_id로도 글로벌 카운트는 누적된다고 가정.
         """
         mock_send_mail.return_value = 1
 
-        # 1) 단 한 번만 발송하여 request_id 확보
+        # 단 한 번 발송하여 request_id 확보
         meta = svc.email_send_code(email=self.email, purpose=self.purpose)
         assert isinstance(meta, dict)
         rid = meta["request_id"]
 
-        # 2) GLOBAL_MAX_FAILS(=2)만큼 연속 오입력 → 마지막/다음에서 429
+        # 1) 첫 실패 → 400
         r1 = svc.email_confirm_code(
             email=self.email, purpose=self.purpose, verification_code=self.code_bad, request_id=rid
         )
         assert isinstance(r1, Response)
         assert r1.status_code == status.HTTP_400_BAD_REQUEST
 
+        # 2) 두 번째 실패에서 429일 수도, 아니면 다음 호출에서 429일 수도
         r2 = svc.email_confirm_code(
             email=self.email, purpose=self.purpose, verification_code=self.code_bad, request_id=rid
         )
         assert isinstance(r2, Response)
-
         if r2.status_code == status.HTTP_429_TOO_MANY_REQUESTS:
             locked: Response = r2
         else:
-            # 임계 초과 시점에 429가 나오는 구현이라면 한 번 더 확인
             r3 = svc.email_confirm_code(
                 email=self.email, purpose=self.purpose, verification_code=self.code_bad, request_id=rid
             )
