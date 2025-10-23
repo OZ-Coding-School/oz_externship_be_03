@@ -71,7 +71,7 @@ class BasePhoneVerificationTests(IsolatedRedisTestClient):
 
     # ---------- 공통 테스트 ----------
     @patch("apps.users.services.phone_verification_services._twilio")
-    def test_send_code_success(self, mock_twilio: Mock) -> None:
+    def send_code_success(self, mock_twilio: Mock) -> None:
         """휴대폰 인증코드 전송 성공"""
         self.auth()  # 항상 호출; 공개 API면 no-op, 인증 필요 API면 로그인됨
         mock_twilio.verify.v2.services.return_value.verifications.create.return_value.sid = self.REQUEST_ID
@@ -86,7 +86,7 @@ class BasePhoneVerificationTests(IsolatedRedisTestClient):
         self.assertIsInstance(data["data"]["max_attempts"], int)
 
     @patch("apps.users.services.phone_verification_services._twilio")
-    def test_send_code_resend_cooldown(self, mock_twilio: Mock) -> None:
+    def send_code_resend_cooldown(self, mock_twilio: Mock) -> None:
         """재전송 쿨다운 중 요청 시 429"""
         self.auth()
 
@@ -96,8 +96,6 @@ class BasePhoneVerificationTests(IsolatedRedisTestClient):
         r1 = self.client.post(self.send_code_url, self.valid_phone_data, format="json")
         self.assertEqual(r1.status_code, status.HTTP_200_OK)
 
-        print("\nratelimit Cache Value: ", cache.get(f"ratelimit:phone:send:{_normalize_kr_phone(self.PHONE)}"))
-
         # 2차 전송: 쿨다운으로 429 반환
         r2 = self.client.post(self.send_code_url, self.valid_phone_data, format="json")
         self.assertEqual(r2.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
@@ -105,7 +103,7 @@ class BasePhoneVerificationTests(IsolatedRedisTestClient):
 
     @patch("apps.users.services.phone_verification_services.issue_verify_token", return_value="mocked-token")
     @patch("apps.users.services.phone_verification_services._twilio")
-    def test_confirm_code_success(self, mock_twilio: Mock, _mock_issue: Mock) -> None:
+    def confirm_code_success(self, mock_twilio: Mock, _mock_issue: Mock) -> None:
         """휴대폰 인증코드 검증 성공"""
         self.auth()
         mock_twilio.verify.v2.services.return_value.verification_checks.create.return_value.status = "approved"
@@ -119,7 +117,7 @@ class BasePhoneVerificationTests(IsolatedRedisTestClient):
         self.assertIsInstance(data["data"]["expires_in"], int)
 
     @patch("apps.users.services.phone_verification_services._twilio")
-    def test_confirm_code_invalid_request_id(self, mock_twilio: Mock) -> None:
+    def confirm_code_invalid_request_id(self, mock_twilio: Mock) -> None:
         """잘못된 request_id로 요청 시 404"""
         self.auth()
         mock_twilio.verify.v2.services.return_value.verification_checks.create.return_value.status = "approved"
@@ -129,7 +127,7 @@ class BasePhoneVerificationTests(IsolatedRedisTestClient):
         self.assertIn("error", response.json())
 
     @patch("apps.users.services.phone_verification_services._twilio")
-    def test_confirm_code_invalid_code(self, mock_twilio: Mock) -> None:
+    def confirm_code_invalid_code(self, mock_twilio: Mock) -> None:
         """인증코드 불일치 시 400"""
         self.auth()
         mock_twilio.verify.v2.services.return_value.verification_checks.create.return_value.status = "pending"
@@ -140,7 +138,7 @@ class BasePhoneVerificationTests(IsolatedRedisTestClient):
         self.assertIn("error", response.json())
 
     @patch("apps.users.services.phone_verification_services._twilio")
-    def test_confirm_code_locked(self, mock_twilio: Mock) -> None:
+    def confirm_code_locked(self, mock_twilio: Mock) -> None:
         """락이 걸린 번호/목적에 대해 429"""
         self.auth()
         mock_twilio.verify.v2.services.return_value.verification_checks.create.return_value.status = "approved"
@@ -161,6 +159,23 @@ class SignupPhoneVerificationSmokeTests(BasePhoneVerificationTests):
     SEND_URL_NAME = "phone_signup_send_code"
     CONFIRM_URL_NAME = "phone_signup_confirm_code"
 
+    def test_send_code_success_for_signup(self) -> None:
+        self.send_code_success()
+
+    def test_confirm_code_success_for_signup(self) -> None:
+        self.confirm_code_success()
+
+    def test_send_code_resend_cooldown_for_signup(self) -> None:
+        self.send_code_resend_cooldown()
+
+    def test_confirm_code_invalid_request_id_for_signup(self) -> None:
+        self.confirm_code_invalid_request_id()
+
+    def test_confirm_code_invalid_code_for_signup(self) -> None:
+        self.confirm_code_invalid_code()
+
+    def test_confirm_code_locked_for_signup(self) -> None:
+        self.confirm_code_locked()
 
 # =========================
 # 이메일 찾기용 인증 테스트
@@ -170,6 +185,23 @@ class FindEmailPhoneVerificationSmokeTests(BasePhoneVerificationTests):
     SEND_URL_NAME = "find_email_send_code"
     CONFIRM_URL_NAME = "find_email_confirm_code"
 
+    def test_send_code_success_for_find_email(self) -> None:
+        self.send_code_success()
+
+    def test_confirm_code_success_for_find_email(self) -> None:
+        self.confirm_code_success()
+
+    def test_send_code_resend_cooldown_for_find_email(self) -> None:
+        self.send_code_resend_cooldown()
+
+    def test_confirm_code_invalid_request_id_for_find_email(self) -> None:
+        self.confirm_code_invalid_request_id()
+
+    def test_confirm_code_invalid_code_for_find_email(self) -> None:
+        self.confirm_code_invalid_code()
+
+    def test_confirm_code_locked_for_find_email(self) -> None:
+        self.confirm_code_locked()
 
 # =========================
 # 비밀번호 변경용 인증 테스트
@@ -201,3 +233,21 @@ class ChangePhoneVerificationViewTests(BasePhoneVerificationTests):
         self.client.force_authenticate(user=None)
         response = self.client.post(self.send_code_url, self.valid_phone_data, format="json")
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_send_code_success_for_change_phone(self) -> None:
+        self.send_code_success()
+
+    def test_confirm_code_success_for_change_phone(self) -> None:
+        self.confirm_code_success()
+
+    def test_send_code_resend_cooldown_for_change_phone(self) -> None:
+        self.send_code_resend_cooldown()
+
+    def test_confirm_code_invalid_request_id_for_change_phone(self) -> None:
+        self.confirm_code_invalid_request_id()
+
+    def test_confirm_code_invalid_code_for_change_phone(self) -> None:
+        self.confirm_code_invalid_code()
+
+    def test_confirm_code_locked_for_change_phone(self) -> None:
+        self.confirm_code_locked()
