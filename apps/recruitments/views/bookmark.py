@@ -1,11 +1,12 @@
 from typing import Any
+
 from django.utils import timezone
+from drf_spectacular.utils import extend_schema
 from rest_framework import parsers, status
 from rest_framework.permissions import AllowAny
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from drf_spectacular.utils import extend_schema
 
 from apps.recruitments.models.bookmark import Bookmark
 from apps.recruitments.serializers.bookmark import BookmarkSerializer
@@ -20,19 +21,25 @@ class BookmarkListCreateAPIView(APIView):
     def post(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         data = request.data
         recruitment_id = data.get("recruitment_id")
+
         if not recruitment_id:
             return Response(
-                {"detail": "유효하지 않은 데이터입니다."}, status=status.HTTP_400_BAD_REQUEST
-            )
-        if recruitment_id in [1, 2]:
-            return Response(
-                {"detail": "이미 존재하는 북마크입니다."}, status=status.HTTP_400_BAD_REQUEST
+                {"detail": "유효하지 않은 데이터입니다."},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
-        if recruitment_id in [9999]:
+        if recruitment_id in [1, 2]:
             return Response(
-                {"detail": "존재하지 않는 강의입니다."}, status=status.HTTP_400_BAD_REQUEST
+                {"detail": "이미 북마크한 강의입니다."},
+                status=status.HTTP_400_BAD_REQUEST,
             )
+
+        if recruitment_id in [9999]:  # 테스트 기준 존재하지 않는 lecture
+            return Response(
+                {"detail": "존재하지 않는 강의입니다."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         return Response(
             {"detail": "북마크가 추가되었습니다.", "bookmark_id": recruitment_id},
             status=status.HTTP_201_CREATED,
@@ -45,11 +52,9 @@ class BookmarkListCreateAPIView(APIView):
         responses={200: BookmarkSerializer(many=True)},
     )
     def get(self, request: Request, *args: Any, **kwargs: Any) -> Response:
-        mock_data = [
-            Bookmark(user_id=i, recruitment_id=i, created_at=timezone.now())
-            for i in range(1, 11)
-        ]
+        mock_data = [Bookmark(user_id=i, recruitment_id=i, created_at=timezone.now()) for i in range(1, 16)]
         serializer = self.serializer_class(mock_data, many=True)
+
         return Response({"results": serializer.data}, status=status.HTTP_200_OK)
 
 
