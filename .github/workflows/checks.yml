@@ -143,7 +143,7 @@ jobs:
       - name: Check each app has test & Run coverage
         run: |
           # 전체 테스트를 병렬로 실행하며 coverage 수집
-          poetry run coverage run --parallel-mode --concurrency=multiprocessing manage.py test --parallel
+          poetry run coverage run --parallel-mode --concurrency=multiprocessing manage.py test --parallel 3
       
           # 커버리지 데이터 합치기
           poetry run coverage combine
