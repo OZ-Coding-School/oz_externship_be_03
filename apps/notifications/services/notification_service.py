@@ -22,16 +22,13 @@ async def get_user_notifications(user_id: int) -> List[Notification]:
             break
         notification_ids.append(int(notification_id))
 
-    #Redis에 신호가 있을 때만 DB 조회
+    # Redis에 신호가 있을 때만 DB 조회
     if not notification_ids:
-        return [] # DB조회 생략
+        return []  # DB조회 생략
 
-    #Redis ID로 DB에서 조회
+    # Redis ID로 DB에서 조회
     new_notifications = await sync_to_async(
-        lambda: list(Notification.objects.filter(
-            id__in=notification_ids,
-            is_read=False
-        ).order_by('-created_at'))
+        lambda: list(Notification.objects.filter(id__in=notification_ids, is_read=False).order_by("-created_at"))
     )()
 
     return new_notifications
