@@ -27,4 +27,4 @@ class NotificationEventSystem:
             return False
 
 
-notification_events:NotificationEventSystem = NotificationEventSystem()
+notification_events: NotificationEventSystem = NotificationEventSystem()
