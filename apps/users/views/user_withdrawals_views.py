@@ -1,6 +1,5 @@
 from typing import Any, cast
 
-from django.contrib.auth import get_user_model
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
@@ -14,7 +13,7 @@ from apps.users.serializers.user_withdrawal_serializers import (
     UserAccountRecoverySerializer,
     UserWithdrawalsSerializer,
 )
-from apps.users.services.user_withdrawal_services import recover_account, withdraw
+from apps.users.services import user_withdrawal_services
 
 
 class UserWithdrawalAPIView(APIView):
@@ -32,7 +31,7 @@ class UserWithdrawalAPIView(APIView):
         serializer = UserWithdrawalsSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        withdraw(
+        user_withdrawal_services.withdraw(
             user=user,
             reason=serializer.validated_data["reason"],
             reason_detail=serializer.validated_data["reason_detail"],
@@ -63,6 +62,6 @@ class UserAccountRecoveryAPIView(APIView):
         serializer.is_valid(raise_exception=True)
 
         claims = getattr(request, "email_verify_claims")
-        recover_account(claims=claims)
+        user_withdrawal_services.recover_account(claims=claims)
 
         return Response({"detail": "계정 복구가 완료되었습니다."}, status=status.HTTP_200_OK)
