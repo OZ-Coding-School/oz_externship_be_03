@@ -62,8 +62,9 @@ class DataLoader:
             # set 객체를 포함하므로 pickle로 역직렬화
             try:
                 return cast(Dict[int, Set[int]], pickle.loads(cached_data))
-            except (pickle.UnpicklingError, TypeError, EOFError):
+            except (pickle.UnpicklingError, TypeError, EOFError) as e:
                 # 캐시 데이터 손상 시 새로 로드하도록 폴백
+                logger.warning(f"Lecture category map cache corrupted. Reloading from DB. Error: {e}")
                 pass
 
         # 2. 캐시 데이터가 없거나 손상되었을 경우 DB에서 로드
@@ -76,7 +77,7 @@ class DataLoader:
             cache.set(LECTURE_CATEGORY_MAP_CACHE_KEY, serialized_data, LECTURE_CATEGORY_MAP_TIMEOUT)
         except Exception as e:
             # 캐싱 실패 시 DB에서 로드한 데이터로 계속 진행
-            print(f"Error caching lecture category map to Redis: {e}")
+            logger.error(f"Error caching lecture category map to Redis: {e}")
 
         return lecture_category_map
 
@@ -111,8 +112,11 @@ class DataLoader:
 
                 # 3) study_group_id -> user_id 매핑 준비 (처리 대상 user만 포함)
                 group_user_map: Dict[int, Set[int]] = defaultdict(set)
-                for gm in GroupMember.objects.filter(study_group_id__in=study_group_ids, user_id__in=users):
-                    group_user_map[gm.study_group_id].add(gm.user_id)
+                group_members_data = GroupMember.objects.filter(
+                    study_group_id__in=study_group_ids, user_id__in=users
+                ).values_list("study_group_id", "user_id")
+                for grp_id, user_id in group_members_data:
+                    group_user_map[grp_id].add(user_id)
 
                 # 4) 사용자별 강의에 가중치 부여
                 for grp_id, lec_id in study_participations:
@@ -134,6 +138,7 @@ class DataLoader:
         lecture_category_map = self.get_lecture_category_map()
         weighted_category = self.WEIGHTS.get("category_match", 0.0)
 
+        # 상호작용이 이미 발생한 (user_id, lec_id) 쌍에 대해서만 카테고리 매칭 점수 계산
         for user_id, lec_id in all_interactions.keys():
             user_prefs = user_prefer_map[user_id]
             lec_cats = lecture_category_map.get(lec_id, set())
@@ -146,9 +151,13 @@ class DataLoader:
             When(rating=k, then=Value(v, output_field=FloatField())) for k, v in self.RATING_SCORE_MAP.items()
         ]
 
+        # 상호작용이 있는 강의만 필터링하여 DB 부담 완화
+        relevant_lecture_ids = [lec_id for (_, lec_id) in all_interactions.keys()]
+
         # ORM 레벨에서 평점 평균을 계산하여 DB I/O 최적화
         lecture_avg_ratings = (
-            CrawledLectureReview.objects.values("lecture_id")
+            CrawledLectureReview.objects.filter(lecture_id__in=relevant_lecture_ids)  # 관련 강의만 필터링
+            .values("lecture_id")
             .annotate(score=Case(*rating_cases, default=Value(0.0, output_field=FloatField())))
             .values("lecture_id")
             .annotate(avg_rating=Sum("score") / Sum(Value(1)))
@@ -214,7 +223,9 @@ class DataLoader:
 
         # 상호작용 데이터가 있는 모든 사용자/강의 목록 추출
         users = target_user_ids or list(LectureBookmark.objects.values_list("user_id", flat=True).distinct())
-        lectures = list(CrawledLecture.objects.filter(bookmarks__isnull=False).values_list("id", flat=True).distinct())
+
+        # LectureBookmark에서 직접 강의 ID 추출하여 조인 쿼리 방지
+        lectures = list(LectureBookmark.objects.values_list("lecture_id", flat=True).distinct())
 
         if not users or not lectures:
             return None, None, None, None, None
