@@ -20,6 +20,8 @@ class StudyNote(BaseModel):
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,  # 작성자 삭제되면 이 노트도 같이 삭제됨
         related_name="study_notes",  # user.study_notes 이런 식으로 접근 가능
+        null=True,  # mock 단계에서만 허용 서비스화에서 반드시 False로 변경
+        blank=True,
     )
 
     # 노트 기본 내용
