@@ -280,4 +280,8 @@ AUTH_REFRESH_COOKIE_SAMESITE = "None"
 
 FRONTEND_DOMAIN = os.environ.get("FRONTEND_DOMAIN", "")
 
+
+# 추천 모델 저장 경로 설정
+MODEL_STORAGE_PATH = os.getenv("MODEL_STORAGE_PATH", os.path.join(BASE_DIR, "model_storage"))
+
 APPEND_SLASH = False
