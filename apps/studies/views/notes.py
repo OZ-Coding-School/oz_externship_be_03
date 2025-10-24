@@ -13,60 +13,29 @@ from rest_framework.views import APIView
 
 from apps.studies.models.groups import StudyGroup
 from apps.studies.models.notes import StudyNote
+from apps.studies.permissions import IsGroupMember
 from apps.studies.serializers.notes import (
     StudyNoteCreateSerializer,
     StudyNoteDetailSerializer,
     StudyNoteListItemSerializer,
-    StudyNoteSummarySerializer,
     StudyNoteUpdateSerializer,
 )
+from apps.studies.services.notes import StudyNoteService
 
 
 class StudyNoteListCreateAPIView(APIView):
     """
-    스터디 노트 생성 및 목록 조회 API
+    스터디 노트 목록 조회 및 생성 API
     """
 
     permission_classes = [AllowAny]
-    parser_classes = [parsers.JSONParser, parsers.MultiPartParser]
-
-    @extend_schema(summary="스터디 노트 생성 API")
-    def post(self, request: Request, *args: Any, **kwargs: Any) -> Response:
-        group_id = kwargs.get("group_id")
-        group = get_object_or_404(StudyGroup, uuid=self.kwargs["group_id"])
-
-        serializer = StudyNoteCreateSerializer(data=request.data)
-        if not serializer.is_valid():
-            return Response(
-                {
-                    "status": 400,
-                    "message": "유효성 검사에 실패했습니다.",
-                    "error": serializer.errors,
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        note = serializer.save(
-            author=request.user if request.user.is_authenticated else None,
-            study_group=group,
-        )
-        return Response(
-            {
-                "status": 201,
-                "message": "노트가 성공적으로 생성되었습니다.",
-                "data": StudyNoteDetailSerializer(note).data,
-            },
-            status=status.HTTP_201_CREATED,
-        )
+    parser_classes = [parsers.JSONParser, parsers.MultiPartParser]  # s3 구현 후 삭제할 것
+    # permission_classes = [IsAuthenticated, IsGroupMember]
 
     @extend_schema(summary="스터디 노트 목록 조회 API")
-    def get(self, request: Request, *args: Any, **kwargs: Any) -> Response:
-        group_id = kwargs.get("group_id")
-        group = get_object_or_404(StudyGroup, uuid=self.kwargs["group_id"])
-
-        notes = (  # N+1 미연에 방지
-            StudyNote.objects.filter(study_group=group)
-            .select_related("author")
+    def get(self, request: Request) -> Response:
+        notes = (
+            StudyNote.objects.select_related("author", "study_group")
             .prefetch_related("attachments", "images")
             .order_by("-created_at")
         )
@@ -81,6 +50,31 @@ class StudyNoteListCreateAPIView(APIView):
             status=status.HTTP_200_OK,
         )
 
+    @extend_schema(summary="스터디 노트 생성 API")
+    def post(self, request: Request) -> Response:
+        serializer = StudyNoteCreateSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(
+                {
+                    "status": 400,
+                    "message": "유효성 검사에 실패했습니다.",
+                    "error": serializer.errors,
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        note = serializer.save(
+            author=request.user if request.user.is_authenticated else None,
+        )
+        return Response(
+            {
+                "status": 201,
+                "message": "노트가 성공적으로 생성되었습니다.",
+                "data": StudyNoteDetailSerializer(note).data,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
 
 class StudyNoteDetailAPIView(APIView):
     """
@@ -88,16 +82,19 @@ class StudyNoteDetailAPIView(APIView):
     """
 
     permission_classes = [AllowAny]
+    parser_classes = [parsers.JSONParser, parsers.MultiPartParser]  # s3 구현 후 삭제할 것
 
     @extend_schema(summary="스터디 노트 단일 조회 API")
-    def get(self, request: Request, *args: Any, **kwargs: Any) -> Response:
-        group_uuid = kwargs.get("group_id")
-        note_id = kwargs.get("note_id")
+    def get(self, request: Request, note_id: int) -> Response:
+        # group uuid가 URL 매핑에서 제거되었으므로 전달 불필요,
+        # StudyNote가 FK로 StudyGroup에 연결되어 있으므로 group 접근 및 권한 검증은
+        # 그 둘을 연결한 note.study_group을 통해 처리.
+        note = get_object_or_404(
+            StudyNote.objects.select_related("author", "study_group"),
+            id=note_id,
+        )
 
-        # group_id → uuid 기반으로 StudyGroup 조회
-        group = get_object_or_404(StudyGroup, uuid=group_uuid)
-        note = get_object_or_404(StudyNote, id=note_id, study_group=group)
-
+        note = StudyNoteService.summarize(note)  # AI 요약 로직 통합
         serializer = StudyNoteDetailSerializer(note)
         return Response(
             {
@@ -109,15 +106,12 @@ class StudyNoteDetailAPIView(APIView):
         )
 
     @extend_schema(summary="스터디 노트 수정 API")
-    def put(self, request: Request, *args: Any, **kwargs: Any) -> Response:
-        group_uuid = kwargs.get("group_id")
-        note_id = kwargs.get("note_id")
-
-        group = get_object_or_404(StudyGroup, uuid=group_uuid)
-        note = get_object_or_404(StudyNote, id=note_id, study_group=group)
-
-        if note.author != request.user:
-            raise PermissionDenied("해당 노트를 수정할 권한이 없습니다.")
+    def patch(self, request: Request, note_id: int) -> Response:
+        note = get_object_or_404(
+            StudyNote.objects.select_related("author", "study_group"),
+            id=note_id,
+        )
+        self.check_object_permissions(request, note)  # IsGroupMember 로 검증계획 지금은 다 통과
 
         serializer = StudyNoteUpdateSerializer(note, data=request.data, partial=True)
         if not serializer.is_valid():
@@ -130,57 +124,22 @@ class StudyNoteDetailAPIView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        updated = serializer.save()
+        updated_note = serializer.save()
         return Response(
             {
                 "status": 200,
                 "message": "노트가 성공적으로 수정되었습니다.",
-                "data": StudyNoteDetailSerializer(updated).data,
+                "data": StudyNoteDetailSerializer(updated_note).data,
             },
             status=status.HTTP_200_OK,
         )
 
     @extend_schema(summary="스터디 노트 삭제 API")
-    def delete(self, request: Request, *args: Any, **kwargs: Any) -> Response:
-        group_uuid = kwargs.get("group_id")
-        note_id = kwargs.get("note_id")
-
-        group = get_object_or_404(StudyGroup, uuid=group_uuid)
-        note = get_object_or_404(StudyNote, id=note_id, study_group=group)
-
-        if note.author != request.user:
-            raise PermissionDenied("해당 노트를 삭제할 권한이 없습니다.")
-
+    def delete(self, request: Request, note_id: int) -> Response:
+        note = get_object_or_404(
+            StudyNote.objects.select_related("author", "study_group"),
+            id=note_id,
+        )
+        self.check_object_permissions(request, note)  # PATCH 와 마찬가지로 지금은 다 통과
         note.delete()
-        return Response(
-            {
-                "status": 204,
-                "message": "노트가 성공적으로 삭제되었습니다.",
-                "data": None,
-            },
-            status=status.HTTP_204_NO_CONTENT,
-        )
-
-
-class StudyNoteSummaryAPIView(APIView):
-    """
-    노트 요약 조회 API (Mock)
-    """
-
-    permission_classes = [AllowAny]
-
-    @extend_schema(summary="스터디 노트 요약 조회 API")
-    def get(self, request: Request, *args: Any, **kwargs: Any) -> Response:
-        group_id = kwargs.get("group_id")
-        note_id = kwargs.get("note_id")
-
-        note = get_object_or_404(StudyNote, id=note_id, study_group_id=group_id)
-        serializer = StudyNoteSummarySerializer(note)
-        return Response(
-            {
-                "status": 200,
-                "message": "요약 정보를 성공적으로 조회했습니다.",
-                "data": serializer.data,
-            },
-            status=status.HTTP_200_OK,
-        )
+        return Response(status=status.HTTP_204_NO_CONTENT)

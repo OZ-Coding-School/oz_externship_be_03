@@ -10,9 +10,10 @@ from apps.studies.models.notes import StudyNote
 
 class StudyNoteService:
     """
-    StudyNote 관련 Mock 및 실제 생성/조회 로직을 관리하는 서비스 계층.
+    StudyNote 관련 CRUD 및 요약 로직을 관리하는 통합 서비스 계층.
     """
 
+    # Mock (임시 더미 데이터)
     @staticmethod
     def create_mock(title: str, content: str) -> StudyNote:
         now = timezone.now()
@@ -52,6 +53,7 @@ class StudyNoteService:
             updated_at=now,
         )
 
+    # CRUD 유틸 (실제 DB 로직 전환 예정)
     @staticmethod
     def update_mock(note_id: int, title: Optional[str] = None, content: Optional[str] = None) -> StudyNote:
         now = timezone.now()
@@ -66,18 +68,15 @@ class StudyNoteService:
 
     @staticmethod
     def delete_mock(note_id: int) -> None:
-        # 실제 DB 삭제 로직으로 대체될 예정
         return None
 
-
-class StudyNoteSummaryService:
-    """
-    학습 노트 요약 생성 / 조회 관련 로직 담당.
-    추후 AI Summarization API 연동 포인트.
-    """
-
+    # AI 요약 class 통합
     @staticmethod
-    def get_summary(note: StudyNote) -> StudyNote:
+    def summarize(note: StudyNote) -> StudyNote:
+        """
+        AI 요약 로직 (현재 Mock).
+        추후 실제 Summarization API 호출 로직으로 대체될 예정.
+        """
         note.ai_summary = "요약 내용입니다."
         note.updated_at = timezone.now()
         return note
