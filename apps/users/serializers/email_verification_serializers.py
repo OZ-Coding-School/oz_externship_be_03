@@ -4,8 +4,6 @@ from typing import Any, Dict
 
 from rest_framework import serializers
 
-from apps.users.enums import EmailVerificationPurpose
-
 
 class EmailVerificationRequestSerializer(serializers.Serializer[Dict[str, Any]]):
     """
@@ -16,12 +14,6 @@ class EmailVerificationRequestSerializer(serializers.Serializer[Dict[str, Any]])
         required=True,
         write_only=True,
         help_text="인증 코드를 받을 이메일 주소",
-    )
-    purpose = serializers.ChoiceField(
-        choices=EmailVerificationPurpose.choices,
-        required=True,
-        write_only=True,
-        help_text="요청 목적 (signup | restore_user | reset_password)",
     )
 
     class Meta:
@@ -58,12 +50,7 @@ class EmailVerifyCodeSerializer(serializers.Serializer[Dict[str, Any]]):
         write_only=True,
         help_text="인증코드 6자리 숫자",
     )
-    purpose = serializers.ChoiceField(
-        choices=EmailVerificationPurpose.choices,
-        required=True,
-        write_only=True,
-        help_text="요청 목적 (signup | restore_user | reset_password)",
-    )
+
     request_id = serializers.CharField(
         required=True,
         write_only=True,

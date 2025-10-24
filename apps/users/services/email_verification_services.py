@@ -5,7 +5,6 @@ import string
 import uuid
 from typing import Any, Dict
 
-from django.conf import settings
 from django.core.cache import cache
 from django.core.mail import send_mail
 from rest_framework import status
@@ -15,7 +14,7 @@ from apps.users.enums import EmailVerificationPurpose
 from apps.users.utils.verify_token import issue_verify_token
 from config.settings.base import (
     ATTEMPT_LOCK_SECONDS,
-    EMAIL_HOST_USER,
+    DEFAULT_FROM_EMAIL,
     GLOBAL_LOCK_SECONDS,
     GLOBAL_MAX_FAILS,
     MAX_FAIL_ATTEMPTS,
@@ -41,7 +40,8 @@ def _purpose_whitelist(purpose: EmailVerificationPurpose | str) -> bool:
 
 
 def _normalize_email(raw: str) -> str:
-    return (raw or "").strip().lower()
+    local, domain = raw.rsplit("@", 1)
+    return f"{local}@{domain.lower()}"
 
 
 def _pending_key(email: str, purpose: EmailVerificationPurpose | str, request_id: str) -> str:
@@ -102,7 +102,6 @@ def email_send_code(*, purpose: EmailVerificationPurpose | str, email: str) -> R
             {"error": "요청한 목적은 이메일 인증에서 지원되지 않습니다."},
             status=status.HTTP_400_BAD_REQUEST,
         )
-
     to = _normalize_email(email)
     if not to:
         return Response({"error": "이메일이 유효하지 않습니다."}, status=status.HTTP_400_BAD_REQUEST)
@@ -117,17 +116,21 @@ def email_send_code(*, purpose: EmailVerificationPurpose | str, email: str) -> R
     request_id = uuid.uuid4().hex  # 외부 SID 대체 개념
 
     # 보관: pending (목적/주체/요청ID 기준)
-    cache.set(_pending_key(to, purpose, request_id), code, timeout=ONE_TIME_TTL_SECONDS)
+    pstr = _purpose_str(purpose)
+    cache.set(_pending_key(to, pstr, request_id), code, timeout=ONE_TIME_TTL_SECONDS)
+
+    # 발신자
+    from_email = DEFAULT_FROM_EMAIL
 
     # 이메일 발송
     subject = "이메일 인증코드 안내"
     message = (
-        f"요청 목적: {_purpose_str(purpose)}\n"
+        f"요청 목적: {pstr}\n"
         f"인증코드: {code}\n"
         f"유효시간: {ONE_TIME_TTL_SECONDS}초\n"
         f"이 코드는 타인과 공유하지 마세요."
     )
-    from_email = EMAIL_HOST_USER
+
     try:
         send_mail(subject, message, from_email, [to], fail_silently=False)
     except Exception as e:
