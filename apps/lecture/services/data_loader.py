@@ -2,7 +2,7 @@ from collections import defaultdict
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
-from django.db.models import Case, FloatField, Sum, Value, When
+from django.db.models import Case, FloatField, Q, Sum, Value, When
 from scipy.sparse import coo_matrix
 
 from apps.lecture.models import (
@@ -105,24 +105,28 @@ class DataLoader:
                 all_interactions[(user_id, lec_id)] += avg_rating_map[lec_id] * weighted_rating
 
         # 5. 검색어 기반 점수 누적
-        all_search_logs: defaultdict[int, List[str]] = defaultdict(list)
+        user_keywords: defaultdict[int, List[str]] = defaultdict(list)
         for user_id, keyword in LectureSearchLog.objects.filter(user_id__in=users).values_list("user_id", "keyword"):
-            all_search_logs[user_id].append(keyword)
+            if keyword and keyword not in user_keywords[user_id]:
+                user_keywords[user_id].append(keyword)
 
-        all_lectures = {lec.id: lec.title for lec in CrawledLecture.objects.all()}
         weighted_search = self.WEIGHTS["search"]
 
-        for user_id, keywords in all_search_logs.items():
-            for lec_id, title in all_lectures.items():
-                match_count = 0
-                if not title:
-                    continue
-                for keyword in keywords:
-                    if keyword and keyword.lower() in title.lower():
-                        match_count += 1
+        for user_id, keywords in user_keywords.items():
+            if not keywords:
+                continue
 
-                if match_count > 0:
-                    all_interactions[(user_id, lec_id)] += match_count * weighted_search
+            search_query = Q()
+            for keyword in keywords:
+                # 강의 제목에 키워드가 포함되는지 검사
+                search_query |= Q(title__icontains=keyword)
+
+            # 단일 쿼리로 해당 유저의 모든 매칭 강의 ID 조회
+            matched_lectures = CrawledLecture.objects.filter(search_query).values_list("id", flat=True)
+
+            # 매칭된 강의에 대해 단순 가중치 부여
+            for lec_id in matched_lectures:
+                all_interactions[(user_id, lec_id)] += weighted_search
 
         return all_interactions
 
