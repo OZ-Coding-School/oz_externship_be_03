@@ -2,10 +2,9 @@ from datetime import timedelta
 from typing import TYPE_CHECKING, Mapping, Union, cast
 
 from django.contrib.auth import get_user_model
-from django.core.exceptions import BadRequest
 from django.db import transaction
 from django.utils import timezone
-from rest_framework.exceptions import NotFound
+from rest_framework.exceptions import NotFound, ValidationError
 
 from apps.users.enums import Reason
 from apps.users.models import Withdrawal
@@ -25,7 +24,7 @@ def _to_reason(code: Union[str, Reason]) -> Reason:
     try:
         return Reason(code)
     except Exception:
-        raise BadRequest({"error": "유효하지 않은 탈퇴 사유입니다."})
+        raise ValidationError({"error": "유효하지 않은 탈퇴 사유입니다."})
 
 
 @transaction.atomic
@@ -37,13 +36,13 @@ def withdraw(*, user: "UserModel", reason: str, reason_detail: str) -> None:
     - 서버사이드 로그아웃
     """
     if not user.is_active:
-        raise BadRequest({"error": "이미 탈퇴 처리된 계정입니다."})
+        raise ValidationError({"error": "이미 탈퇴 처리된 계정입니다."})
 
     reason_enum = _to_reason(reason)
 
     # 중복 요청 방지 (조건부 유니크 제약 또는 추가 검사)
     if Withdrawal.objects.filter(user=user).exists():
-        raise BadRequest({"error": "이미 탈퇴 요청이 존재합니다."})
+        raise ValidationError({"error": "이미 탈퇴 요청이 존재합니다."})
 
     due_date = timezone.now().date() + timedelta(days=DELETE_GRACE_DAYS)
 
