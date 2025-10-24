@@ -1,20 +1,18 @@
 from apps.studies.models.groups import StudyGroup
 
 
-# 스터디 그룹 리더 위임 비즈니스 로직
 class MemberService:
-    @classmethod
-    def delegate_leader(cls, group: StudyGroup, target_user_id: int) -> None:
-        cls.validate_study_group(study_group=group)
-        cls.validate_target_user_id(user_id=target_user_id)
-        # TODO: 실제 리더 위임 로직 추가
+    @staticmethod
+    def kick_member(study_group: StudyGroup, member_id: int) -> None:
+        """스터디 그룹 멤버 추방 로직 (Mock)"""
+        print(f"[MemberService] 그룹({study_group.id})에서 멤버({member_id}) 추방")
 
     @staticmethod
-    def validate_study_group(study_group: StudyGroup) -> None:
-        if not isinstance(study_group, StudyGroup):
-            raise ValueError("유효하지 않은 스터디 그룹입니다.")
+    def leave_group(study_group: StudyGroup, user_id: int) -> None:
+        """스터디 그룹 자진 탈퇴 로직 (Mock)"""
+        print(f"[MemberService] 그룹({study_group.id})에서 사용자({user_id}) 탈퇴")
 
     @staticmethod
-    def validate_target_user_id(user_id: int) -> None:
-        if user_id <= 0:
-            raise ValueError("유효하지 않은 유저 ID입니다.")
+    def delegate_leader(study_group: StudyGroup, target_user_id: int) -> None:
+        """리더 위임 로직 (Mock)"""
+        print(f"[MemberService] 그룹({study_group.id}) 리더를 사용자({target_user_id})로 위임")
