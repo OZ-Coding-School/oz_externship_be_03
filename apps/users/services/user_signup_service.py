@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Union
+from typing import Any
 
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction

@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional, Protocol, cast
 
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
+from rest_framework.authentication import BaseAuthentication
 from rest_framework.exceptions import APIException
 from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.request import Request
@@ -77,7 +78,9 @@ class UserSignupView(APIView):
     이메일+휴대폰 인증(verify_token) 완료 후 회원가입 처리.
     Permission 단계에서 이미 토큰 검증/소비가 끝난 상태.
     """
-    authentication_classes: list = []
+
+    # 회원가입에서는 인증 비활성화 필요
+    authentication_classes: tuple[type[BaseAuthentication], ...] = ()
 
     permission_classes = [EmailVerifiedPermission, PhoneVerifiedPermission]
     purpose = "signup"

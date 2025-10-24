@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Callable, Dict
+from typing import Callable
 
 from drf_spectacular.utils import F, extend_schema, inline_serializer
 from rest_framework import serializers, status
