@@ -41,8 +41,8 @@ class StudyGroupCreateSerializer(StudyGroupBaseSerializer):
         help_text="강의 ID 목록 (선택사항, 최대 5개 지정 가능)",
     )
 
-    class Meta:
-        fields = StudyGroupBaseSerializer.Meta.fields + ["introduction"]
+    class Meta(StudyGroupBaseSerializer.Meta):
+        fields = StudyGroupBaseSerializer.Meta.fields + ["introduction", "lectures"]
 
     # 그룹명 필수 검증
     def validate_name(self, value: str) -> str:
@@ -82,7 +82,7 @@ class StudyGroupListSerializer(StudyGroupBaseSerializer):
     is_leader = serializers.SerializerMethodField()
     lectures = serializers.SerializerMethodField()
 
-    class Meta:
+    class Meta(StudyGroupBaseSerializer.Meta):
         fields = StudyGroupBaseSerializer.Meta.fields + ["current_headcount", "is_leader", "lectures"]
         read_only_fields = StudyGroupBaseSerializer.Meta.read_only_fields + [
             "current_headcount",
