@@ -20,9 +20,9 @@ class CategoryListView(APIView):
     )
     def get(self, request: Request) -> Response:
         mock_data = [
-            {"id":1, "name":"Django"},
-            {"id":2, "name":"FastAPI"},
-            {"id":3, "name":"Spring"},
+            {"id": 1, "name": "Django"},
+            {"id": 2, "name": "FastAPI"},
+            {"id": 3, "name": "Spring"},
         ]
 
         return Response(mock_data, status=status.HTTP_200_OK)
