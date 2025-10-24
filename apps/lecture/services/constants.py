@@ -19,6 +19,24 @@ RATING_SCORE_MAP: Final[Dict[str, float]] = {
     "1_OUT_OF_5_STARS": 1.0,
 }
 
+# 검색 상호작용 선별적 반영을 위한 상수
+SEARCH_LOG_DAYS_LIMIT: Final[int] = 30  # 최근 30일 이내 검색 로그만 사용
+
+# 인기 강의 정렬 기준 필드 (Django ORM 필드 이름)
+POPULAR_LECTURE_ORDER_BY: Final[str] = "-average_rating"
+
+# ALS 모델 캐시 관련 상수
+MODEL_CACHE_TIMEOUT: Final[int] = 60 * 60 * 24 * 7  # 7일 (604800초)
+ALS_MODEL_CACHE_KEY: Final[str] = "als_model_v1"
+U_TO_IDX_CACHE_KEY: Final[str] = "als_u_to_idx_v1"
+L_TO_IDX_CACHE_KEY: Final[str] = "als_l_to_idx_v1"
+L_IDX_TO_ID_CACHE_KEY: Final[str] = "als_l_idx_to_id_v1"
+USER_ITEMS_MATRIX_CACHE_KEY: Final[str] = "als_user_items_matrix_v1"
+
+# Redis 캐시 설정 상수
+LECTURE_CATEGORY_MAP_CACHE_KEY: Final[str] = "lecture_category_map_v1"
+LECTURE_CATEGORY_MAP_TIMEOUT: Final[int] = 60 * 60 * 24  # 1일 (86400초)
+
 
 # ALS 하이퍼파라미터 (dataclass + 불변)
 @dataclass(frozen=True)

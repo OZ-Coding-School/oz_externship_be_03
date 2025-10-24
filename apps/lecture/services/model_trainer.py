@@ -1,9 +1,9 @@
 import os
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, cast
 
 import numpy as np
 from django.conf import settings
-from implicit.cpu.als import AlternatingLeastSquares  # type: ignore
+from implicit.als import AlternatingLeastSquares  # type: ignore
 
 from apps.lecture.services.constants import ALS_PARAMS
 from apps.lecture.services.data_loader import DataLoader
@@ -38,7 +38,7 @@ class ModelTrainer:
             regularization=self.params.regularization,
             iterations=self.params.iterations,
             calculate_training_loss=self.params.calculate_training_loss,
-            # use_gpu=self.params.use_gpu,
+            use_gpu=self.params.use_gpu,
         )
 
         model.fit(matrix.T.tocsr())
