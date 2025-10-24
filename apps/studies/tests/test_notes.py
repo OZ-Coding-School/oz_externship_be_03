@@ -25,7 +25,7 @@ class StudyNoteCRUDTestCase(APITestCase):
 
         # URL reverse 시 반드시 uuid 사용
         self.list_create_url = reverse(
-            "study-note-list-create",
+            "studies:study-note-list-create",
             kwargs={"group_id": str(self.group.uuid)},
         )
 
@@ -45,7 +45,7 @@ class StudyNoteCRUDTestCase(APITestCase):
 
         # 단일 조회 (uuid로 교체)
         detail_url = reverse(
-            "study-note-detail",
+            "studies:study-note-detail",
             kwargs={"group_id": str(self.group.uuid), "note_id": note_id},
         )
         res_detail = self.client.get(detail_url)
@@ -62,7 +62,7 @@ class StudyNoteCRUDTestCase(APITestCase):
 
         # group_id는 반드시 uuid 문자열
         url = reverse(
-            "study-note-detail",
+            "studies:study-note-detail",
             kwargs={"group_id": str(self.group.uuid), "note_id": note.id},
         )
 
