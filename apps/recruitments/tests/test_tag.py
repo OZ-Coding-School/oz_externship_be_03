@@ -5,12 +5,10 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.test import APIClient
 
-from apps.recruitments.models import Tag
-
 
 @pytest.mark.django_db
-class TestTagView:
-    """Tag 관련 API 테스트"""
+class TestTagMockView:
+    """Mock 기반 TagListView 테스트"""
 
     client: APIClient
 
@@ -19,25 +17,23 @@ class TestTagView:
         self.client = APIClient()
 
     def test_get_tags(self) -> None:
-        """전체 태그 목록 조회"""
-        Tag.objects.create(name="Django")
-        Tag.objects.create(name="Python")
-
+        """전체 태그 목록(Mock 데이터) 조회"""
         response: Response = self.client.get("/api/recruitments/tags/")
         assert response.status_code == status.HTTP_200_OK
         assert isinstance(response.data, list)
-        assert len(response.data) >= 2
+        assert len(response.data) == 5  # MOCK_TAGS 개수
+        assert {"id": 1, "name": "Python"} in response.data
 
-    def test_post_tag(self) -> None:
-        """새로운 태그 생성"""
+    def test_post_tag_success(self) -> None:
+        """새로운 태그 생성(Mock 응답 확인)"""
         data: dict[str, str] = {"name": "FastAPI"}
         response: Response = self.client.post("/api/recruitments/tags/", data)
-        assert response.status_code in [status.HTTP_201_CREATED, status.HTTP_200_OK]
-        assert Tag.objects.filter(name="FastAPI").exists()
+        assert response.status_code == status.HTTP_201_CREATED
+        assert response.data["name"] == "FastAPI"
+        assert "id" in response.data
 
-    def test_post_tag_duplicate(self) -> None:
-        """중복 태그 생성 시 예외 발생"""
-        Tag.objects.create(name="React")
-        data: dict[str, str] = {"name": "React"}
-        response: Response = self.client.post("/api/recruitments/tags/", data)
-        assert response.status_code in [status.HTTP_400_BAD_REQUEST, status.HTTP_409_CONFLICT]
+    def test_post_tag_missing_name(self) -> None:
+        """태그 이름이 누락된 경우 400 반환"""
+        response: Response = self.client.post("/api/recruitments/tags/", {})
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "태그 이름은 필수입니다" in str(response.data)
