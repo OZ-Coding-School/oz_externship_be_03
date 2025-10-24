@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 class RedisPubSubService:
-    def __init__(self):
+    def __init__(self) -> None:
         self.redis_client = redis.Redis.from_url(getattr(settings, "CACHES", {}).get("default", {}).get("LOCATION"))
 
     def get_user_channel(self, user_id: int) -> str:
@@ -50,4 +50,4 @@ class RedisPubSubService:
             await pubsub.close()
 
 
-notification_pubsub = RedisPubSubService()
+notification_pubsub:RedisPubSubService = RedisPubSubService()

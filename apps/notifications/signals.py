@@ -34,7 +34,7 @@ def notifications_created(sender: Any, instance: Application, created: bool, **k
             asyncio.create_task(
                 notification_pubsub.publish_notification(
                     user_id=recruitment.author_id,
-                    data={
+                    notification_data={
                         "id": notification.id,
                         "type": notification.type,
                         "content": notification.content,
@@ -48,7 +48,7 @@ def notifications_created(sender: Any, instance: Application, created: bool, **k
             asyncio.run(
                 notification_pubsub.publish_notification(
                     user_id=recruitment.author_id,
-                    data={
+                    notification_data={
                         "id": notification.id,
                         "type": notification.type,
                         "content": notification.content,
