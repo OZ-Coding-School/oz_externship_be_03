@@ -265,6 +265,6 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": crontab(minute=10, hour=0),  # 매일 00:10 KST
         "options": {"expires": 60 * 60},  # 1시간 뒤 만료(중복 방지용)
         "args": (),
-        "kwargs": {"batch_size": 1000, "dry_run": False},
+        "kwargs": {"batch_size": 1000},
     },
 }
