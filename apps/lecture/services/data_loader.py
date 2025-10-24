@@ -23,7 +23,10 @@ from apps.lecture.services.constants import (
     LECTURE_CATEGORY_MAP_TIMEOUT,
     SEARCH_LOG_DAYS_LIMIT,
 )
-from apps.studies.models.groups import StudyLecture
+from apps.studies.models.groups import (
+    GroupMember,
+    StudyLecture,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -85,19 +88,37 @@ class DataLoader:
 
         # 1. 북마크 점수 누적
         bookmarks = LectureBookmark.objects.filter(user_id__in=users).values_list("user_id", "lecture_id")
+        weighted_bookmark = self.WEIGHTS.get("bookmark", 0.0)
         for user_id, lec_id in bookmarks:
-            all_interactions[(user_id, lec_id)] += self.WEIGHTS["bookmark"]
+            all_interactions[(user_id, lec_id)] += weighted_bookmark
 
-        # 2. 스터디 참여 점수 누적
+        # 2. 스터디 참여 점수 누적 (FieldError 해결을 위해 쿼리 분리 및 Python 집계)
         try:
-            study_participations = (
-                StudyLecture.objects.filter(study_group_id__group_members__user_id__in=users)
-                .values_list("study_group_id__group_members__user_id", "lecture_id")
-                .distinct()
+            weighted_study = self.WEIGHTS.get("study_participation", 0.0)
+
+            # 1) 사용자가 속한 스터디 그룹 ID 리스트 구함
+            study_group_ids = list(
+                GroupMember.objects.filter(user_id__in=users).values_list("study_group_id", flat=True).distinct()
             )
 
-            for user_id, lec_id in study_participations:
-                all_interactions[(user_id, lec_id)] += self.WEIGHTS["study_participation"]
+            if study_group_ids:
+                # 2) 해당 그룹 ID들의 스터디 강의 조회 (그룹 ID, 강의 ID 쌍)
+                study_participations = (
+                    StudyLecture.objects.filter(study_group_id__in=study_group_ids)
+                    .values_list("study_group_id", "lecture_id")
+                    .distinct()
+                )
+
+                # 3) study_group_id -> user_id 매핑 준비 (처리 대상 user만 포함)
+                group_user_map: Dict[int, Set[int]] = defaultdict(set)
+                for gm in GroupMember.objects.filter(study_group_id__in=study_group_ids, user_id__in=users):
+                    group_user_map[gm.study_group_id].add(gm.user_id)
+
+                # 4) 사용자별 강의에 가중치 부여
+                for grp_id, lec_id in study_participations:
+                    for user_id in group_user_map.get(grp_id, set()):
+                        all_interactions[(user_id, lec_id)] += weighted_study
+
         except (ProgrammingError, OperationalError) as e:
             # 심각한 DB 오류 발생 시 로그 기록 후 해당 가중치 누락을 허용하고 계속 진행
             logger.error(f"CRITICAL DB Error loading study participation data: {e}", exc_info=True)
@@ -111,13 +132,14 @@ class DataLoader:
             user_prefer_map[user_id].add(cat_id)
 
         lecture_category_map = self.get_lecture_category_map()
+        weighted_category = self.WEIGHTS.get("category_match", 0.0)
 
         for user_id, lec_id in all_interactions.keys():
             user_prefs = user_prefer_map[user_id]
             lec_cats = lecture_category_map.get(lec_id, set())
             matched_cats = user_prefs.intersection(lec_cats)
             if matched_cats:
-                all_interactions[(user_id, lec_id)] += len(matched_cats) * self.WEIGHTS["category_match"]
+                all_interactions[(user_id, lec_id)] += len(matched_cats) * weighted_category
 
         # 4. 리뷰 평점 점수 반영 (Django ORM 집계)
         rating_cases = [
@@ -134,7 +156,7 @@ class DataLoader:
         )
 
         avg_rating_map = {r["lecture_id"]: r["avg_rating"] for r in lecture_avg_ratings}
-        weighted_rating = self.WEIGHTS["review_rating"]
+        weighted_rating = self.WEIGHTS.get("review_rating", 0.0)
 
         for (user_id, lec_id), score in all_interactions.items():
             if lec_id in avg_rating_map:
@@ -158,7 +180,7 @@ class DataLoader:
                 user_keywords[user_id].append(keyword)
                 processed_keywords.add((user_id, keyword))
 
-        weighted_search = self.WEIGHTS["search"]
+        weighted_search = self.WEIGHTS.get("search", 0.0)
 
         for user_id, keywords in user_keywords.items():
             if not keywords:
