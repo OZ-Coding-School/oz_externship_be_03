@@ -1,9 +1,38 @@
 import os
-from typing import Dict, List, Optional, Tuple, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
+import joblib  # type: ignore
 import numpy as np
 from django.conf import settings
-from implicit.als import AlternatingLeastSquares  # type: ignore
+
+# Mypy 에러 해결을 위한 타입 정의
+if TYPE_CHECKING:
+    from implicit.als import AlternatingLeastSquares as ALSModelClass  # type: ignore
+else:
+    ALSModelClass = Any
+
+
+# 자동 분기 - GPU가 가능하면 gpu.als, 아니면 als 임포트 자동 분기
+try:
+    import implicit.gpu.als as implicit_als  # type: ignore
+
+    # GPU 초기화 시도해보고 문제 시 CPU 버전 사용
+    try:
+        AlternatingLeastSquares = implicit_als.AlternatingLeastSquares
+        # 모델 초기화 시도하여 CUDA 확장 유무 확인
+        _ = AlternatingLeastSquares(factors=10)
+        print("Using GPU ALS")
+    except Exception:
+        import implicit.als as implicit_als
+
+        AlternatingLeastSquares = implicit_als.AlternatingLeastSquares
+        print("GPU ALS init failed, fallback to CPU ALS")
+except ImportError:
+    import implicit.als as implicit_als  # type: ignore
+
+    AlternatingLeastSquares = implicit_als.AlternatingLeastSquares
+    print("Using CPU ALS")
+
 
 from apps.lecture.services.constants import ALS_PARAMS
 from apps.lecture.services.data_loader import DataLoader
@@ -38,9 +67,7 @@ class ModelTrainer:
             regularization=self.params.regularization,
             iterations=self.params.iterations,
             calculate_training_loss=self.params.calculate_training_loss,
-            use_gpu=self.params.use_gpu,
         )
-
         model.fit(matrix.T.tocsr())
 
         self._save_model_and_mappings(model, u_to_i, l_to_i, users, lectures)
@@ -49,13 +76,13 @@ class ModelTrainer:
 
     def _save_model_and_mappings(
         self,
-        model: AlternatingLeastSquares,
+        model: "ALSModelClass",
         u_to_i: Dict[int, int],
         l_to_i: Dict[int, int],
         users: List[int],
         lectures: List[int],
     ) -> None:
-        model.save(self.MODEL_PATH)
+        joblib.dump(model, self.MODEL_PATH)
         np.savez(
             self.MAPPING_PATH,
             user_to_idx=np.array(u_to_i, dtype=object),
@@ -67,7 +94,7 @@ class ModelTrainer:
     def load_model_and_mappings(
         self,
     ) -> Tuple[
-        Optional[AlternatingLeastSquares],
+        Optional["ALSModelClass"],
         Optional[Dict[int, int]],
         Optional[Dict[int, int]],
         Optional[List[int]],
@@ -77,13 +104,12 @@ class ModelTrainer:
             return None, None, None, None, None
 
         try:
-            model = AlternatingLeastSquares.load(self.MODEL_PATH)
+            model = joblib.load(self.MODEL_PATH)
             data = np.load(self.MAPPING_PATH, allow_pickle=True)
             u_to_i: Dict[int, int] = data["user_to_idx"].item()
             l_to_i: Dict[int, int] = data["lecture_to_idx"].item()
             users: List[int] = data["users"].tolist()
             lectures: List[int] = data["lectures"].tolist()
-
             return model, u_to_i, l_to_i, users, lectures
         except Exception as e:
             print(f"Error loading model or mappings: {e}")

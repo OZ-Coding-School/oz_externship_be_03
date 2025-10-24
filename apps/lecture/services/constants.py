@@ -45,7 +45,6 @@ class ALS_Hyperparameters:
     regularization: float = 0.1  # 정규화 강도
     iterations: int = 15  # 반복 횟수
     calculate_training_loss: bool = False  # 훈련 손실 계산 여부 (성능 최적화를 위해 False)
-    use_gpu: bool = False  # GPU 사용 여부
 
 
 ALS_PARAMS: Final[ALS_Hyperparameters] = ALS_Hyperparameters()
