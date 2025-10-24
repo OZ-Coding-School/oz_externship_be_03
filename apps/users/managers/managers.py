@@ -1,45 +1,52 @@
+from __future__ import annotations
+
 from typing import TYPE_CHECKING, Optional
 
 from django.contrib.auth.base_user import BaseUserManager
 from django.db import models
 
-if TYPE_CHECKING:  # pragma: no cover
-    from apps.users.models.social_user import SocialUser
-    from apps.users.models.user import User
+if TYPE_CHECKING:
+    from ..models.social_user import SocialUser
+    from ..models.user import User
 
 
-# ---------------------------------------------------------------------
-# UserManager
-# ---------------------------------------------------------------------
 class UserManager(BaseUserManager["User"]):
     def get_active_user(self) -> models.QuerySet["User"]:
-        return self.filter(is_active=True)
+        """
+        활성화 유저 확인
+        """
+        qs: models.QuerySet["User"] = self.get_queryset()
+        return qs.filter(is_active=True)
+
+    def exists_email(self, email: str) -> bool:
+        """
+        이메일 중복 확인
+        """
+        return self.get_active_user().filter(email=email).exists()
+
+    def exists_nickname(self, nickname: str) -> bool:
+        """
+        닉네임 중복 확인
+        """
+        return self.get_active_user().filter(nickname=nickname).exists()
 
     def create_user(self, email: str, password: Optional[str] = None, **extra_fields: object) -> "User":
         """유저 생성: 이메일 정규화 적용 + 비밀번호 설정(None이면 unusable)"""
         user = self.model(email=self.normalize_email(email), **extra_fields)
-
         user.set_password(password)
         user.save(using=self._db)
         return user
 
-    def create_superuser(self, email: str, password: str, **extra_fields: object) -> "User":
-        """어드민 생성"""
-        extra_fields.setdefault("is_staff", True)
-        extra_fields.setdefault("is_superuser", True)
 
-        if not (extra_fields.get("is_staff") and extra_fields.get("is_superuser")):
-            raise ValueError("관리자 계정을 생성할 수 없습니다.")
-
-        return self.create_user(email, password, **extra_fields)
-
-
-# ---------------------------------------------------------------------
-# SocialUserManager
-# ---------------------------------------------------------------------
 class SocialUserManager(models.Manager["SocialUser"]):
     def kakao_users(self) -> models.QuerySet["SocialUser"]:
+        """
+        카카오 연동 계정만
+        """
         return self.filter(provider="kakao")
 
     def naver_users(self) -> models.QuerySet["SocialUser"]:
+        """
+        네이버 연동 계정만
+        """
         return self.filter(provider="naver")
