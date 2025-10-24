@@ -40,7 +40,7 @@ class StudyGroupListCreateView(APIView):
         tags=["StudyGroup"],
         summary="스터디 그룹 전체 목록 조회 API",
         responses={
-            200: StudyGroupCreateSerializer(many=True),
+            200: StudyGroupListSerializer(many=True),
         },
     )
     def get(self, request: Request) -> Response:
