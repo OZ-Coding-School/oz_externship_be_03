@@ -39,7 +39,7 @@ def notifications_created(sender: Any, instance: Application, created: bool, **k
                 "back_url_link": f"{settings.FRONTEND_DOMAIN}/studies/applications",
                 "created_at": notification.created_at.isoformat(),
                 "is_read": notification.is_read,
-            }
+            },
         )
     except Exception as e:
         logger.error(f"Redis pub 오류: {e}")
