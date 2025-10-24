@@ -1,8 +1,8 @@
 from typing import Dict, Optional
 
 from django.db.models import QuerySet
-from implicit.cpu.als import AlternatingLeastSquares # type: ignore
-from scipy.sparse import csr_matrix # 타입 힌트를 위해 추가
+from implicit.cpu.als import AlternatingLeastSquares  # type: ignore
+from scipy.sparse import csr_matrix  # 타입 힌트를 위해 추가
 
 from apps.lecture.models import CrawledLecture, LectureBookmark
 from apps.lecture.services.constants import INTERACTION_WEIGHTS, RATING_SCORE_MAP
@@ -26,7 +26,6 @@ class RecommendationService:
         self._user_to_idx: Optional[Dict[int, int]] = None
         self._lecture_to_idx: Optional[Dict[int, int]] = None
         self._lecture_idx_to_id: Optional[Dict[int, int]] = None
-        # ⚠️ 수정 1: user_items 행렬 캐시 변수 추가
         self._user_items_matrix: Optional[csr_matrix] = None
 
     def _ensure_model_loaded(self) -> bool:
@@ -50,7 +49,6 @@ class RecommendationService:
             print("Could not load interaction matrix for recommender.")
             return False
 
-            # model.recommend()는 보통 CSR 형식의 'user x item' 행렬을 기대합니다.
         user_items_csr = interaction_matrix.tocsr()
 
         assert l_to_i is not None
@@ -60,7 +58,6 @@ class RecommendationService:
         self._user_to_idx = u_to_i
         self._lecture_to_idx = l_to_i
         self._lecture_idx_to_id = {v: k for k, v in l_to_i.items()}
-        # ⚠️ 수정 2: user_items 행렬 캐싱
         self._user_items_matrix = user_items_csr
         return True
 
@@ -77,14 +74,13 @@ class RecommendationService:
         assert self._user_to_idx is not None
         assert self._lecture_to_idx is not None
         assert self._lecture_idx_to_id is not None
-        # ⚠️ 수정 3: user_items 행렬이 로드되었는지 확인
         assert self._user_items_matrix is not None
 
         model = self._model
         user_to_idx = self._user_to_idx
         lecture_to_idx = self._lecture_to_idx
         lecture_idx_to_id = self._lecture_idx_to_id
-        user_items_matrix = self._user_items_matrix # 변수 할당
+        user_items_matrix = self._user_items_matrix  # 변수 할당
 
         user_index = user_to_idx[user_id]
 
@@ -96,7 +92,6 @@ class RecommendationService:
         # 3. 추천 계산 (user_items 인자 추가)
         recommended = model.recommend(
             user_index,
-            # ⚠️ 수정 4: user_items 필수 인자 전달
             user_items_matrix,
             N=top_n,
             filter_items=liked_indices,

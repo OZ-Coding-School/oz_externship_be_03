@@ -3,9 +3,9 @@ import uuid
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from django.conf import settings
-from django.urls import reverse
 from django.contrib.auth import get_user_model
 from django.db.models.query import QuerySet
+from django.urls import reverse
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.test import APITestCase
@@ -20,18 +20,16 @@ from apps.lecture.models import (
     LectureSearchLog,
     UserPreferCategory,
 )
+from apps.lecture.services.constants import INTERACTION_WEIGHTS, RATING_SCORE_MAP
 from apps.lecture.services.data_loader import DataLoader
 from apps.lecture.services.model_trainer import ModelTrainer
 from apps.lecture.services.recommender import RecommendationService
-from apps.lecture.services.constants import INTERACTION_WEIGHTS, RATING_SCORE_MAP
 
 User = get_user_model()
 
 
 class EmptyDataLoader(DataLoader):
-    def build_user_item_matrix(
-        self, target_user_ids: Optional[List[int]] = None
-    ) -> Tuple[
+    def build_user_item_matrix(self, target_user_ids: Optional[List[int]] = None) -> Tuple[
         Optional[coo_matrix],
         Optional[Dict[int, int]],
         Optional[Dict[int, int]],
@@ -129,7 +127,9 @@ class RecommendationAPIViewIntegrationTest(APITestCase):
         self.assertTrue(result)
 
         recommender = RecommendationService()
-        recommended: Union[QuerySet[CrawledLecture], None] = recommender.recommend_lectures_for_user(self.user.id, top_n=3)
+        recommended: Union[QuerySet[CrawledLecture], None] = recommender.recommend_lectures_for_user(
+            self.user.id, top_n=3
+        )
         self.assertIsNotNone(recommended)
 
         if recommended:
