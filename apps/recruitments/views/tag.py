@@ -22,11 +22,25 @@ class TagListView(APIView):
         {"id": "5", "name": "Frontend"},
     ]
 
+    @extend_schema(
+        summary="전체 태그 목록 조회 (Mock)",
+        description="전체 태그(Mock 데이터)를 반환합니다.",
+        responses={200: TagSerializer(many=True)},
+    )
     def get(self, request: Request) -> Response:
         serializer = TagSerializer(data=self.MOCK_TAGS, many=True)
         serializer.is_valid(raise_exception=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+    @extend_schema(
+        summary="새로운 태그 생성 (Mock)",
+        description="입력된 이름으로 새로운 태그(Mock)를 생성합니다.",
+        request=TagSerializer,
+        responses={
+            201: TagSerializer,
+            400: {"example": {"error": "태그 이름은 필수입니다."}},
+        },
+    )
     def post(self, request: Request) -> Response:
         name = request.data.get("name")
         if not isinstance(name, str) or not name:
@@ -54,6 +68,11 @@ class TagDetailView(APIView):
     def _get_tag(self, tag_id: int) -> dict[str, str] | None:
         return next((t for t in self.MOCK_TAGS if int(t["id"]) == tag_id), None)
 
+    @extend_schema(
+        summary="특정 태그 조회 (Mock)",
+        description="특정 ID에 해당하는 태그(Mock)를 반환합니다.",
+        responses={200: TagSerializer, 404: {"example": {"detail": "해당 태그를 찾을 수 없습니다."}}},
+    )
     def get(self, request: Request, tag_id: int) -> Response:
         tag = self._get_tag(tag_id)
         if not tag:
@@ -62,6 +81,16 @@ class TagDetailView(APIView):
         serializer.is_valid(raise_exception=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+    @extend_schema(
+        summary="태그 수정 (Mock)",
+        description="특정 태그의 이름을 수정합니다.",
+        request=TagSerializer,
+        responses={
+            200: TagSerializer,
+            400: {"example": {"error": "태그 이름은 필수입니다."}},
+            404: {"example": {"detail": "해당 태그를 찾을 수 없습니다."}},
+        },
+    )
     def put(self, request: Request, tag_id: int) -> Response:
         name = request.data.get("name")
         if not isinstance(name, str) or not name:
@@ -74,6 +103,14 @@ class TagDetailView(APIView):
         tag["name"] = name
         return Response(tag, status=status.HTTP_200_OK)
 
+    @extend_schema(
+        summary="태그 삭제 (Mock)",
+        description="특정 ID의 태그를 삭제합니다.",
+        responses={
+            204: {"example": {"detail": "태그 삭제 완료"}},
+            404: {"example": {"detail": "해당 태그를 찾을 수 없습니다."}},
+        },
+    )
     def delete(self, request: Request, tag_id: int) -> Response:
         tag = self._get_tag(tag_id)
         if not tag:
