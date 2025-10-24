@@ -1,16 +1,12 @@
+import logging
 import os
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import joblib  # type: ignore
 import numpy as np
 from django.conf import settings
 
-# Mypy 에러 해결을 위한 타입 정의
-if TYPE_CHECKING:
-    from implicit.als import AlternatingLeastSquares as ALSModelClass  # type: ignore
-else:
-    ALSModelClass = Any
-
+logger = logging.getLogger(__name__)
 
 # 자동 분기 - GPU가 가능하면 gpu.als, 아니면 als 임포트 자동 분기
 try:
@@ -21,17 +17,17 @@ try:
         AlternatingLeastSquares = implicit_als.AlternatingLeastSquares
         # 모델 초기화 시도하여 CUDA 확장 유무 확인
         _ = AlternatingLeastSquares(factors=10)
-        print("Using GPU ALS")
+        logger.info("Using GPU ALS")
     except Exception:
         import implicit.als as implicit_als
 
         AlternatingLeastSquares = implicit_als.AlternatingLeastSquares
-        print("GPU ALS init failed, fallback to CPU ALS")
+        logger.warning("GPU ALS init failed, fallback to CPU ALS")
 except ImportError:
     import implicit.als as implicit_als  # type: ignore
 
     AlternatingLeastSquares = implicit_als.AlternatingLeastSquares
-    print("Using CPU ALS")
+    logger.warning("Using CPU ALS (implicit.gpu.als not found)")
 
 
 from apps.lecture.services.constants import ALS_PARAMS
@@ -55,11 +51,11 @@ class ModelTrainer:
         os.makedirs(self.MODEL_DIR, exist_ok=True)
 
     def train_and_save_full_model(self) -> bool:
-        print("--- Full Model Training Started ---")
+        logger.info("--- Full Model Training Started ---")
         matrix, u_to_i, l_to_i, users, lectures = self.data_loader.build_user_item_matrix()
 
         if matrix is None or u_to_i is None or l_to_i is None or users is None or lectures is None:
-            print("No interaction data available. Skipping training.")
+            logger.info("No interaction data available. Skipping training.")
             return False
 
         model = AlternatingLeastSquares(
@@ -70,31 +66,46 @@ class ModelTrainer:
         )
         model.fit(matrix.T.tocsr())
 
-        self._save_model_and_mappings(model, u_to_i, l_to_i, users, lectures)
-        print("--- Full Model Training Finished and Saved ---")
+        if not self._save_model_and_mappings(model, u_to_i, l_to_i, users, lectures):
+            logger.error("--- Full Model Training Failed to Save ---")
+            return False
+
+        logger.info("--- Full Model Training Finished and Saved ---")
         return True
 
     def _save_model_and_mappings(
         self,
-        model: "ALSModelClass",
+        model: Any,
         u_to_i: Dict[int, int],
         l_to_i: Dict[int, int],
         users: List[int],
         lectures: List[int],
-    ) -> None:
-        joblib.dump(model, self.MODEL_PATH)
-        np.savez(
-            self.MAPPING_PATH,
-            user_to_idx=np.array(u_to_i, dtype=object),
-            lecture_to_idx=np.array(l_to_i, dtype=object),
-            users=np.array(users),
-            lectures=np.array(lectures),
-        )
+    ) -> bool:
+        """모델, 매핑 데이터를 디스크에 저장. 저장 실패 시 False 반환."""
+        try:
+            # 1. 모델 저장
+            joblib.dump(model, self.MODEL_PATH)
+
+            # 2. 매핑 데이터 저장
+            np.savez(
+                self.MAPPING_PATH,
+                user_to_idx=np.array(u_to_i, dtype=object),
+                lecture_to_idx=np.array(l_to_i, dtype=object),
+                users=np.array(users),
+                lectures=np.array(lectures),
+            )
+            return True  # 저장 성공
+
+        # 저장 실패 시 예외를 잡고 False 반환
+        except Exception as e:
+            # 디스크 공간 부족, 권한 문제 등 파일 쓰기 오류 처리
+            logger.error(f"Error saving ALS model or mappings: {e}", exc_info=True)
+            return False
 
     def load_model_and_mappings(
         self,
     ) -> Tuple[
-        Optional["ALSModelClass"],
+        Optional[Any],
         Optional[Dict[int, int]],
         Optional[Dict[int, int]],
         Optional[List[int]],
@@ -112,5 +123,5 @@ class ModelTrainer:
             lectures: List[int] = data["lectures"].tolist()
             return model, u_to_i, l_to_i, users, lectures
         except Exception as e:
-            print(f"Error loading model or mappings: {e}")
+            logger.error(f"Error loading model or mappings: {e}", exc_info=True)
             return None, None, None, None, None

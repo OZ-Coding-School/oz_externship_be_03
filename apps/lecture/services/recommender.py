@@ -1,8 +1,9 @@
+import logging
 import pickle
 from typing import Dict, Optional
 
 from django.core.cache import cache
-from django.db.models import QuerySet
+from django.db.models import Case, IntegerField, QuerySet, Value, When
 from implicit.als import AlternatingLeastSquares  # type: ignore
 from scipy.sparse import csr_matrix
 
@@ -20,6 +21,8 @@ from apps.lecture.services.constants import (
 )
 from apps.lecture.services.data_loader import DataLoader
 from apps.lecture.services.model_trainer import ModelTrainer
+
+logger = logging.getLogger(__name__)
 
 
 class RecommendationService:
@@ -50,6 +53,7 @@ class RecommendationService:
             return True
 
         # 2. Redis에서 캐시 데이터 로드 시도
+        cached_data = None
         try:
             cached_data = cache.get_many(
                 [
@@ -61,12 +65,11 @@ class RecommendationService:
                 ]
             )
         except Exception as e:
-            # Redis 연결 오류 등 발생 시, 디스크 로드로 폴백하기 위해 False 반환
-            print(f"Redis get_many error: {e}")
-            return False
+            # Redis 오류 발생 시, 로깅 후 디스크 로드로 폴백 (cached_data는 None 유지)
+            logger.error(f"Redis get_many error: {e}. Falling back to disk load.")
 
-        # 3. Redis 캐시가 모두 존재하면 역직렬화하여 메모리 변수에 할당
-        if all(
+        # 3. Redis 캐시가 모두 존재하고 손상되지 않았으면 역직렬화하여 메모리 변수에 할당
+        if cached_data and all(
             key in cached_data and cached_data[key] is not None
             for key in [
                 ALS_MODEL_CACHE_KEY,
@@ -84,23 +87,23 @@ class RecommendationService:
                 self._user_items_matrix = pickle.loads(cached_data[USER_ITEMS_MATRIX_CACHE_KEY])
                 return True
             except (pickle.UnpicklingError, TypeError, EOFError) as e:
-                print(f"Redis deserialization error. Deleting cache: {e}")
-                # 역직렬화 오류 시 캐시 삭제 및 재로드를 위해 False 반환
+                logger.error(f"Redis deserialization error. Deleting cache: {e}")
+                # 역직렬화 오류 시 캐시 삭제 및 재로드를 위해 디스크 로드로 폴백
                 cache.delete_many(cached_data.keys())
-                return False
+                # cached_data가 유효하지 않으므로, 다음 단계(디스크 로드)로 넘어감
 
-        # 4. Redis에 캐시가 없으면 디스크에서 모델 로드 (ModelTrainer)
+        # 4. Redis에 캐시가 없거나 오류/손상되었으면 디스크에서 모델 로드 (ModelTrainer)
         model, u_to_i, l_to_i, _, _ = self.model_trainer.load_model_and_mappings()
         if model is None:
             return False
         if u_to_i is None or l_to_i is None:
-            print("Could not load model mappings (u_to_i or l_to_i).")
+            logger.error("Could not load model mappings (u_to_i or l_to_i).")
             return False
 
         # 5. 상호작용 행렬 생성 (DataLoader)
         interaction_matrix, _, _, _, _ = self.data_loader.build_user_item_matrix()
         if interaction_matrix is None:
-            print("Could not load interaction matrix for recommender.")
+            logger.error("Could not load interaction matrix for recommender.")
             return False
 
         user_items_csr = interaction_matrix.tocsr()
@@ -127,7 +130,7 @@ class RecommendationService:
             )
         except Exception as e:
             # 캐싱 실패하더라도 현재 워커의 메모리 변수는 유효하므로 True 반환
-            print(f"Redis set_many error: {e}")
+            logger.error(f"Redis set_many error: {e}")
 
         return True
 
@@ -138,7 +141,7 @@ class RecommendationService:
         # 1. 모델 로드 확인 및 콜드 스타트/폴백 처리
         if not self._ensure_model_loaded() or self._user_to_idx is None or user_id not in self._user_to_idx:
             # 모델 로드 실패 또는 신규 사용자(콜드 스타트)인 경우 폴백
-            return self._get_popular_lectures(top_n)
+            return self._get_popular_lectures(user_id, top_n)
 
         # 모델이 로드되었으므로, 캐시된 변수 사용
         model = self._model
@@ -172,18 +175,36 @@ class RecommendationService:
         # 추천된 인덱스를 실제 강의 ID로 변환
         recommended_ids = [lecture_idx_to_id[item[0]] for item in recommended if item[0] in lecture_idx_to_id]
 
-        if not recommended_ids:
-            return self._get_popular_lectures(top_n)
+        # 모델이 요청된 개수(top_n) 미만을 반환하면 폴백으로 대체
+        if len(recommended_ids) < top_n:
+            logger.error(f"Fallback due to insufficient recommendation results: {len(recommended_ids)} < {top_n}")
+            return self._get_popular_lectures(user_id, top_n)
 
         # Django ORM을 사용하여 강의 정보 조회 및 카테고리 프리패치
-        lectures = CrawledLecture.objects.filter(id__in=recommended_ids).prefetch_related(
-            "lecture_categories__category"
+        lectures = (
+            CrawledLecture.objects.filter(id__in=recommended_ids)
+            .prefetch_related("lecture_categories__category")
+            .order_by(
+                Case(
+                    *[When(id=pk, then=Value(i)) for i, pk in enumerate(recommended_ids)],
+                    output_field=IntegerField(),
+                )
+            )
         )
-
         return lectures
 
-    def _get_popular_lectures(self, top_n: int) -> QuerySet[CrawledLecture]:
-        """모델 실패 또는 콜드 스타트 시 인기순 폴백 제공."""
-        print("Fallback to popular lectures due to cold start/model failure.")
-        # average_rating 기준으로 정렬하여 반환
-        return CrawledLecture.objects.order_by(POPULAR_LECTURE_ORDER_BY)[:top_n]
+    def _get_popular_lectures(self, user_id: int, top_n: int) -> QuerySet[CrawledLecture]:
+        """모델 실패 또는 콜드 스타트 시 인기순 폴백 제공 (북마크 제외)."""
+        logger.error("Fallback to popular lectures due to cold start/model failure.")
+
+        liked_lecture_ids = LectureBookmark.objects.filter(user_id=user_id).values_list("lecture_id", flat=True)
+
+        queryset = (
+            CrawledLecture.objects.exclude(id__in=liked_lecture_ids)
+            .prefetch_related("lecture_categories__category")
+            .order_by(POPULAR_LECTURE_ORDER_BY, "id")
+        )
+
+        result_qs = queryset[:top_n]
+
+        return result_qs
