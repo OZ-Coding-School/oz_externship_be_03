@@ -12,7 +12,10 @@ from apps.recruitments.serializers.tag import TagSerializer
 
 @extend_schema(tags=["Tags"])
 class TagListView(APIView):
+    """전체 태그(Mock) 목록 조회 및 생성"""
+
     permission_classes = [AllowAny]
+    serializer_class = TagSerializer
 
     MOCK_TAGS: list[dict[str, str]] = [
         {"id": "1", "name": "Python"},
@@ -55,7 +58,10 @@ class TagListView(APIView):
 
 @extend_schema(tags=["Tags"])
 class TagDetailView(APIView):
+    """개별 태그(Mock) 조회, 수정, 삭제"""
+
     permission_classes = [AllowAny]
+    serializer_class = TagSerializer
 
     MOCK_TAGS: list[dict[str, str]] = [
         {"id": "1", "name": "Python"},

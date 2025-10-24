@@ -16,20 +16,25 @@ from apps.recruitments.serializers.recruitment_tag import RecruitmentTagMockSeri
     get=extend_schema(
         summary="특정 공고에 연결된 태그 목록 조회 (Mock)",
         description="특정 구인 공고(recruitment_id)에 연결된 모든 태그를 Mock 데이터로 반환합니다.",
+        responses={200: RecruitmentTagMockSerializer(many=True)},
     ),
     post=extend_schema(
         summary="특정 공고에 태그 추가 (Mock)",
         description="입력한 태그를 특정 구인 공고(recruitment_id)에 추가합니다.",
+        request=RecruitmentTagMockSerializer,
+        responses={201: RecruitmentTagMockSerializer},
     ),
     delete=extend_schema(
         summary="특정 공고에서 태그 삭제 (Mock)",
         description="특정 구인 공고(recruitment_id)에서 tag_id에 해당하는 태그를 삭제합니다.",
+        responses={204: None},
     ),
 )
 class RecruitmentTagListView(APIView):
     """공고별 태그 관리 (Mock)"""
 
     permission_classes = [AllowAny]
+    serializer_class = RecruitmentTagMockSerializer
 
     # recruitment_id → list[dict]
     MOCK_TAGS: dict[int, list[dict[str, Any]]] = {
