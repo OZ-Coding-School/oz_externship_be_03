@@ -16,12 +16,24 @@ def notifications_created(sender: Any, instance: Application, created: bool, **k
 
     recruitment = instance.recruitment
 
-    Notification.objects.create(
+    notification = Notification.objects.create(
         user_id=recruitment.author_id,
         content=f"공고 '{recruitment.title}'에 새로운 지원자가 지원했습니다.",
-        type="APPLICATION_CREATED",
+        type=Notification.NotificationType.APPLICATION_CREATED,
         back_url_link=f"{settings.FRONTEND_DOMAIN}/studies/applications",
     )
 
-    # 이벤트 시스템에 트리거 발송
-    notification_events.notify_user(recruitment.author_id)
+    #Redis pub/sub으로 실시간 알림 발송
+    notification_data = {
+        "id": notification.id,
+        "type": notification.type,
+        "content": notification.content,
+        "back_url_link": f"{settings.FRONTEND_DOMAIN}/studies/applications",
+        "created_at" : notification.created_at.isoformat(),
+        "is_read" : notification.is_read,
+    }
+
+    redis_pubsub_service.publish_notification(
+        user_id=recruitment.author_id,
+        notification_data=notification_data
+    )
