@@ -1,3 +1,4 @@
+from .admin_serializers import AdminLectureDetailSerializer, AdminLectureListSerializer
 from .lecture_serializers import (
     CategorySerializer,
     LectureListSerializer,
@@ -8,4 +9,6 @@ __all__ = [
     "CategorySerializer",
     "LectureListSerializer",
     "LectureReviewSerializer",
+    "AdminLectureDetailSerializer",
+    "AdminLectureListSerializer",
 ]
