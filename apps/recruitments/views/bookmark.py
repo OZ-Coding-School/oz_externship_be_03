@@ -58,19 +58,17 @@ class BookmarkRetrieveDestroyAPIView(APIView):
     permission_classes = [AllowAny]
     parser_classes = [parsers.JSONParser]
 
-    @extend_schema(tags=["Bookmarks"], summary="북마크 상세 조회 API")
-    def get(self, request: Request, recruitment_id: int, *args: Any, **kwargs: Any) -> Response:
-        mock_bookmark = Bookmark(
-            user_id=1,
-            recruitment_id=recruitment_id,
-            created_at=timezone.now(),
-        )
-        serializer = self.serializer_class(mock_bookmark)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
     @extend_schema(tags=["Bookmarks"], summary="북마크 삭제 API")
-    def delete(self, request: Request, recruitment_id: int, *args: Any, **kwargs: Any) -> Response:
-        return Response(
-            {"detail": f"북마크(recruitment_id={recruitment_id})가 삭제되었습니다."},
-            status=status.HTTP_204_NO_CONTENT,
-        )
+    def delete( self, request: Request, bookmark_uuid: str, *args: Any, **kwargs: Any) -> Response:
+        try:
+            bookmark = Bookmark.objects.get(uuid=bookmark_uuid)
+            bookmark.delete()
+            return Response(
+                {"detail": f"북마크(uuid={bookmark_uuid})가 삭제되었습니다."},
+                status=status.HTTP_204_NO_CONTENT,
+            )
+        except Bookmark.DoesNotExist:
+            return Response(
+                {"detail": f"해당 북마크(uuid={bookmark_uuid})를 찾을 수 없습니다."},
+                status=status.HTTP_404_NOT_FOUND,
+            )

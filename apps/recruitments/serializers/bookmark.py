@@ -14,7 +14,3 @@ class BookmarkSerializer(serializers.ModelSerializer[Bookmark]):
             "user_id": {"read_only": True},
             "created_at": {"read_only": True},
         }
-
-    def create(self, validated_data: dict[str, Any]) -> Bookmark:
-
-        return Bookmark(**validated_data)
