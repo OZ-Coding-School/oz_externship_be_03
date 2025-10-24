@@ -1,7 +1,12 @@
+import logging
+import pickle
 from collections import defaultdict
-from typing import Dict, List, Optional, Tuple
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Set, Tuple, cast
 
 import numpy as np
+from django.core.cache import cache
+from django.db import OperationalError, ProgrammingError
 from django.db.models import Case, FloatField, Q, Sum, Value, When
 from scipy.sparse import coo_matrix
 
@@ -13,7 +18,14 @@ from apps.lecture.models import (
     LectureSearchLog,
     UserPreferCategory,
 )
+from apps.lecture.services.constants import (
+    LECTURE_CATEGORY_MAP_CACHE_KEY,
+    LECTURE_CATEGORY_MAP_TIMEOUT,
+    SEARCH_LOG_DAYS_LIMIT,
+)
 from apps.studies.models.groups import StudyLecture
+
+logger = logging.getLogger(__name__)
 
 
 class DataLoader:
@@ -26,22 +38,44 @@ class DataLoader:
         """DataLoader 인스턴스 초기화. 가중치, 평점 맵을 주입받음."""
         self.WEIGHTS = weights
         self.RATING_SCORE_MAP = rating_map
-        # 강의-카테고리 맵을 지연 로딩하기 위해 None으로 초기화
         self._lecture_category_map: Optional[Dict[int, set[int]]] = None
 
     def _load_lecture_category_map(self) -> Dict[int, set[int]]:
         """모든 강의-카테고리 관계를 DB에서 로드하여 반환 (N+1 방지)."""
         lecture_category_map: Dict[int, set[int]] = {}
-        # values_list를 사용하여 불필요한 모델 인스턴스 생성 피함.
         for lec_id, cat_id in LectureCategory.objects.values_list("lecture_id", "category_id"):
             lecture_category_map.setdefault(lec_id, set()).add(cat_id)
         return lecture_category_map
 
     def get_lecture_category_map(self) -> Dict[int, set[int]]:
-        """캐시된 강의-카테고리 관계 맵 반환, 없으면 로드 후 캐싱."""
-        if self._lecture_category_map is None:
-            self._lecture_category_map = self._load_lecture_category_map()
-        return self._lecture_category_map
+        """
+        캐시된 강의-카테고리 관계 맵 반환.
+        Redis 캐시가 있으면 사용, 없으면 DB에서 로드 후 Redis에 캐싱.
+        """
+        # 1. Redis에서 캐시 데이터 로드 시도
+        cached_data = cache.get(LECTURE_CATEGORY_MAP_CACHE_KEY)
+
+        if cached_data is not None:
+            # set 객체를 포함하므로 pickle로 역직렬화
+            try:
+                return cast(Dict[int, Set[int]], pickle.loads(cached_data))
+            except (pickle.UnpicklingError, TypeError, EOFError):
+                # 캐시 데이터 손상 시 새로 로드하도록 폴백
+                pass
+
+        # 2. 캐시 데이터가 없거나 손상되었을 경우 DB에서 로드
+        lecture_category_map = self._load_lecture_category_map()
+
+        # 3. Redis에 캐싱
+        try:
+            # set 객체를 포함하므로 pickle로 직렬화
+            serialized_data = pickle.dumps(lecture_category_map)
+            cache.set(LECTURE_CATEGORY_MAP_CACHE_KEY, serialized_data, LECTURE_CATEGORY_MAP_TIMEOUT)
+        except Exception as e:
+            # 캐싱 실패 시 DB에서 로드한 데이터로 계속 진행
+            print(f"Error caching lecture category map to Redis: {e}")
+
+        return lecture_category_map
 
     def _get_all_interactions(self, users: List[int]) -> Dict[Tuple[int, int], float]:
         """
@@ -64,10 +98,12 @@ class DataLoader:
 
             for user_id, lec_id in study_participations:
                 all_interactions[(user_id, lec_id)] += self.WEIGHTS["study_participation"]
-        except Exception:
+        except (ProgrammingError, OperationalError) as e:
+            # 심각한 DB 오류 발생 시 로그 기록 후 해당 가중치 누락을 허용하고 계속 진행
+            logger.error(f"CRITICAL DB Error loading study participation data: {e}", exc_info=True)
             pass
 
-        # 3. 사용자 선호 카테고리 매칭 점수 누적
+        # 3. 사용자 선호 카테고리 매칭 점수 누적 (Redis 캐시 사용)
         user_prefer_map: defaultdict[int, set[int]] = defaultdict(set)
         for user_id, cat_id in UserPreferCategory.objects.filter(user_id__in=users).values_list(
             "user_id", "category_id"
@@ -104,11 +140,23 @@ class DataLoader:
             if lec_id in avg_rating_map:
                 all_interactions[(user_id, lec_id)] += avg_rating_map[lec_id] * weighted_rating
 
-        # 5. 검색어 기반 점수 누적
+        # 5. 검색어 기반 점수 누적 (최근 N일 로그 반영)
+        cutoff_date = datetime.now() - timedelta(days=SEARCH_LOG_DAYS_LIMIT)
+
         user_keywords: defaultdict[int, List[str]] = defaultdict(list)
-        for user_id, keyword in LectureSearchLog.objects.filter(user_id__in=users).values_list("user_id", "keyword"):
-            if keyword and keyword not in user_keywords[user_id]:
+        # 필터링: 최근 N일 이내의 로그만 조회
+        recent_logs = (
+            LectureSearchLog.objects.filter(user_id__in=users, created_at__gte=cutoff_date)
+            .values_list("user_id", "keyword")
+            .order_by("-created_at")
+        )
+
+        # 최신 로그 순서로 키워드를 저장 (중복 제거)
+        processed_keywords = set()
+        for user_id, keyword in recent_logs:
+            if keyword and (user_id, keyword) not in processed_keywords:
                 user_keywords[user_id].append(keyword)
+                processed_keywords.add((user_id, keyword))
 
         weighted_search = self.WEIGHTS["search"]
 

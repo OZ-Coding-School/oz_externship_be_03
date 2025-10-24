@@ -147,24 +147,24 @@ class RecommendationAPIViewIntegrationTest(APITestCase):
 
         recs: Union[List[Dict[str, Any]], None] = response.data["data"]["recommendations"]
         self.assertIsInstance(recs, list)
+        self.assertGreaterEqual(len(recs), 1)
 
-        if recs:
-            expected_keys = {
-                "id",
-                "uuid",
-                "title",
-                "instructor",
-                "thumbnail_img_url",
-                "categories",
-                "difficulty",
-                "original_price",
-                "discount_price",
-                "platform",
-                "average_rating",
-                "url_link",
-                "is_bookmarked",
-            }
-            self.assertTrue(expected_keys.issubset(recs[0].keys()))
+        expected_keys = {
+            "id",
+            "uuid",
+            "title",
+            "instructor",
+            "thumbnail_img_url",
+            "categories",
+            "difficulty",
+            "original_price",
+            "discount_price",
+            "platform",
+            "average_rating",
+            "url_link",
+            "is_bookmarked",
+        }
+        self.assertTrue(expected_keys.issubset(recs[0].keys()))
 
     def test_recommendations_api_requires_authentication(self) -> None:
         self.client.logout()
