@@ -1,35 +1,18 @@
 from apps.studies.models.groups import StudyGroup
 
 
-# 스터디 그룹 멤버 비즈니스 로직
 class MemberService:
-    @classmethod
-    def kick_member(cls, group: StudyGroup, target_member_id: int) -> None:  # pragma: no cover
-        """스터디 그룹 멤버 추방 비즈니스 로직"""
-        cls.validate_study_group(study_group=group)
-        cls.validate_target_member_id(member_id=target_member_id)
-        return
-
-    @classmethod
-    def leave_group(cls, group: StudyGroup, member_id: int) -> None:  # pragma: no cover
-        """스터디 그룹 자진 탈퇴 비즈니스 로직"""
-        cls.validate_study_group(study_group=group)
-        cls.validate_target_member_id(member_id=member_id)
-        # 실제 탈퇴 로직은 DB에서 GroupMember 삭제로 구현 예정
-        return
-
-    @classmethod
-    def delegate_leader(cls, group: StudyGroup, target_member_id: int) -> None:  # pragma: no cover
-        """스터디 그룹 리더 위임 비즈니스 로직"""
-        cls.validate_study_group(study_group=group)
-        cls.validate_target_member_id(member_id=target_member_id)
+    @staticmethod
+    def kick_member(study_group: StudyGroup, member_id: int) -> None:
+        """스터디 그룹 멤버 추방 로직 (Mock)"""
+        print(f"[MemberService] 그룹({study_group.id})에서 멤버({member_id}) 추방")
 
     @staticmethod
-    def validate_target_member_id(member_id: int) -> None:  # pragma: no cover
-        if member_id <= 0:
-            raise ValueError("유효하지 않은 멤버 ID입니다.")
+    def leave_group(study_group: StudyGroup, user_id: int) -> None:
+        """스터디 그룹 자진 탈퇴 로직 (Mock)"""
+        print(f"[MemberService] 그룹({study_group.id})에서 사용자({user_id}) 탈퇴")
 
     @staticmethod
-    def validate_study_group(study_group: StudyGroup) -> None:  # pragma: no cover
-        if not isinstance(study_group, StudyGroup):
-            raise ValueError("유효하지 않은 스터디 그룹입니다.")
+    def delegate_leader(study_group: StudyGroup, target_user_id: int) -> None:
+        """리더 위임 로직 (Mock)"""
+        print(f"[MemberService] 그룹({study_group.id}) 리더를 사용자({target_user_id})로 위임")

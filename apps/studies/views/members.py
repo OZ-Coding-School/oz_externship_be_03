@@ -11,8 +11,6 @@ from apps.studies.models.groups import StudyGroup
 from apps.studies.permissions import IsGroupLeader
 from apps.studies.serializers.members import (
     DelegateLeaderSerializer,
-    KickMemberSerializer,
-    LeaveGroupSerializer,
 )
 from apps.studies.services.members import MemberService
 
@@ -21,7 +19,6 @@ from apps.studies.services.members import MemberService
 class MemberKickAPIView(APIView):
     """REQ-STDY-006: 스터디 그룹 멤버 추방 API"""
 
-    serializer_class = KickMemberSerializer
     permission_classes = [IsAuthenticated, IsGroupLeader]
 
     @extend_schema(
@@ -98,10 +95,6 @@ class MemberKickAPIView(APIView):
         # Mock group 생성
         mock_group = StudyGroup(id=group_id, name="Mock Study Group")
 
-        # 요청 검증 (본문 없음)
-        serializer = self.serializer_class(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
         # 비즈니스 로직 실행 (Mock)
         MemberService.kick_member(mock_group, member_id)
 
@@ -114,7 +107,6 @@ class MemberKickAPIView(APIView):
 
 # REQ-STDY-007: 스터디 그룹 자진 탈퇴 API
 class MemberLeaveAPIView(APIView):
-    serializer_class = LeaveGroupSerializer
     permission_classes = [IsAuthenticated]
     parser_classes = [parsers.JSONParser]
 
@@ -122,7 +114,6 @@ class MemberLeaveAPIView(APIView):
         tags=["StudyGroup"],
         summary="스터디 그룹 자진 탈퇴 API",
         description="사용자가 자신이 속한 스터디 그룹을 자진 탈퇴합니다. (REQ-STDY-007)",
-        request=LeaveGroupSerializer,
         responses={
             200: {
                 "type": "object",
@@ -196,10 +187,6 @@ class MemberLeaveAPIView(APIView):
     def delete(self, request: Request, group_id: int) -> Response:
         """로그인된 사용자가 자신이 속한 스터디 그룹을 탈퇴하는 API"""
         mock_group = StudyGroup(id=group_id, name="Mock Study Group")
-
-        # 요청 본문 검증
-        serializer = self.serializer_class(data=request.data)
-        serializer.is_valid(raise_exception=True)
 
         # 로그인된 사용자 ID (mypy 타입 힌트 보정)
         user_id = cast(int, request.user.id)
