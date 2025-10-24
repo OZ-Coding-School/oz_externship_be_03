@@ -7,16 +7,32 @@ from rest_framework import serializers
 from apps.studies.models.groups import StudyGroup
 
 
+class StudyGroupBaseSerializer(serializers.ModelSerializer[StudyGroup]):
+
+    class Meta:
+        model = StudyGroup
+        fields = [
+            "id",
+            "name",
+            "profile_img_url",
+            "max_headcount",
+            "start_at",
+            "end_at",
+            "status",
+        ]
+        read_only_fields = ["id", "status"]
+
+
 # 스터디 그룹 생성 / 수정
-class StudyGroupCreateSerializer(serializers.ModelSerializer):  # type: ignore[type-arg]
+class StudyGroupCreateSerializer(StudyGroupBaseSerializer):
     name = serializers.CharField(required=True, allow_blank=False, help_text="스터디 그룹명 (필수, 공백 불가)")
     introduction = serializers.CharField(
         required=False, allow_blank=True, help_text="스터디 소개글 (선택사항, 최대 500자)"
     )
     profile_img_url = serializers.URLField(required=False, allow_null=True, help_text="프로필 이미지 URL (선택사항)")
     max_headcount = serializers.IntegerField(help_text="최대 인원 수 (2~10명)")
-    start_at = serializers.DateTimeField(help_text="스터디 시작일 (예: 2025-10-25T00:00:00)")
-    end_at = serializers.DateTimeField(help_text="스터디 종료일 (예: 2025-11-25T00:00:00)")
+    start_at = serializers.DateTimeField(help_text="스터디 시작일")
+    end_at = serializers.DateTimeField(help_text="스터디 종료일")
     lectures = serializers.ListField(
         child=serializers.IntegerField(min_value=1),
         required=False,
@@ -26,19 +42,7 @@ class StudyGroupCreateSerializer(serializers.ModelSerializer):  # type: ignore[t
     )
 
     class Meta:
-        model = StudyGroup
-        fields = [
-            "id",
-            "name",
-            "introduction",
-            "profile_img_url",
-            "max_headcount",
-            "start_at",
-            "end_at",
-            "status",
-            "lectures",
-        ]
-        read_only_fields = ["status"]
+        fields = StudyGroupBaseSerializer.Meta.fields + ["introduction"]
 
     # 그룹명 필수 검증
     def validate_name(self, value: str) -> str:
@@ -72,26 +76,17 @@ class StudyGroupCreateSerializer(serializers.ModelSerializer):  # type: ignore[t
 
 
 # 스터디 그룹 목록 조회
-class StudyGroupListSerializer(serializers.ModelSerializer[StudyGroup]):
-    # 현재 멤버 수
+class StudyGroupListSerializer(StudyGroupBaseSerializer):
     current_headcount = serializers.SerializerMethodField()
     # 로그인 사용자가 리더인지 여부
     is_leader = serializers.SerializerMethodField()
-    # 강의 간단 정보
     lectures = serializers.SerializerMethodField()
 
     class Meta:
-        model = StudyGroup
-        fields = [
-            "id",
-            "name",
-            "profile_img_url",
+        fields = StudyGroupBaseSerializer.Meta.fields + ["current_headcount", "is_leader", "lectures"]
+        read_only_fields = StudyGroupBaseSerializer.Meta.read_only_fields + [
             "current_headcount",
-            "max_headcount",
             "is_leader",
-            "start_at",
-            "end_at",
-            "status",
             "lectures",
         ]
 
