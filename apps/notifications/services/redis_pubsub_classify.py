@@ -12,7 +12,6 @@ class RedisPubSubService:
         self.redis_client = redis.Redis.from_url(
             getattr(settings,'CACHES',{}).get('default',{}).get('LOCATION')
         )
-        self.pubsub= self.redis_client.pubsub()
 
     def get_user_channel(self,user_id:int)->str:
         """사용자별 알림 채널명 생성"""
@@ -51,11 +50,5 @@ class RedisPubSubService:
         finally:
             await pubsub.close()
 
-    def close(self)->None:
-        """연결 종료"""
-        try:
-            self.pubsub.close()
-        except Exception as e:
-            logger.error(f"연결 해제중 오류 발생:{e}")
 
 notification_pubsub = RedisPubSubService()
