@@ -1,3 +1,5 @@
+from typing import cast
+
 from drf_spectacular.utils import extend_schema
 from rest_framework import parsers, status
 from rest_framework.permissions import IsAuthenticated
@@ -192,20 +194,19 @@ class MemberLeaveAPIView(APIView):
         },
     )
     def delete(self, request: Request, group_id: int) -> Response:
-        """사용자가 자신이 속한 스터디 그룹을 탈퇴하는 API"""
+        """로그인된 사용자가 자신이 속한 스터디 그룹을 탈퇴하는 API"""
         mock_group = StudyGroup(id=group_id, name="Mock Study Group")
 
-        # 요청 본문 검증 (member_id 사용)
+        # 요청 본문 검증
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        # 비즈니스 로직 실행
-        MemberService.leave_group(
-            mock_group,
-            serializer.validated_data["member_id"],
-        )
+        # 로그인된 사용자 ID (mypy 타입 힌트 보정)
+        user_id = cast(int, request.user.id)
 
-        # 성공 응답 반환
+        # 비즈니스 로직 실행
+        MemberService.leave_group(mock_group, user_id)
+
         return Response(
             {"status": 200, "message": "스터디 그룹에서 탈퇴했습니다."},
             status=status.HTTP_200_OK,
