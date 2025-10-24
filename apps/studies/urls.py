@@ -14,7 +14,6 @@ from apps.studies.views.members import DelegateLeaderAPIView
 from apps.studies.views.notes import (
     StudyNoteDetailAPIView,
     StudyNoteListCreateAPIView,
-    StudyNoteSummaryAPIView,
 )
 from apps.studies.views.reviews import ReviewCreateView
 from apps.studies.views.schedules import GroupScheduleCreateView
@@ -51,6 +50,8 @@ urlpatterns = [
     path("groups/<uuid:group_id>/", StudyGroupDetailUpdateView.as_view(), name="study-group-detail-update"),
 
     # StudyNote APIs
+    path("notes/", StudyNoteListCreateAPIView.as_view(), name="study-note-list-create"),
+    path("notes/<int:note_id>/", StudyNoteDetailAPIView.as_view(), name="study-note-detail"),
     path("groups/<uuid:group_id>/notes/", StudyNoteListCreateAPIView.as_view(), name="study-note-list-create"),
     path("groups/<uuid:group_id>/notes/<int:note_id>/", StudyNoteDetailAPIView.as_view(), name="study-note-detail"),
     path(
