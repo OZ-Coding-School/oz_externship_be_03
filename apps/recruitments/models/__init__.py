@@ -17,8 +17,3 @@ __all__ = [
     "SearchLog",
     "Tag",
 ]
-
-
-def recruitment() -> None:
-    """중복된 함수 정의 제거 및 타입 명시."""
-    return None
