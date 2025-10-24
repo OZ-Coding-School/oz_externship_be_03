@@ -1,23 +1,13 @@
-from typing import Any
-
 from rest_framework import serializers
-from rest_framework.utils.serializer_helpers import ReturnDict
 
-from apps.lecture.models import Category, CrawledLecture, LectureBookmark
-
-
-class CategorySerializer(serializers.ModelSerializer[Category]):
-    """카테고리 Serializer"""
-
-    class Meta:
-        model = Category
-        fields = ["id", "name"]
+from apps.lecture.models import CrawledLecture, LectureBookmark
+from apps.lecture.serializers.category_serializers import CategoryListSerializer
 
 
 class LectureListSerializer(serializers.ModelSerializer[CrawledLecture]):
     """강의 목록 조회용 Serializer (일반사용자)"""
 
-    categories = serializers.SerializerMethodField()
+    categories = CategoryListSerializer(many=True, read_only=True)
     is_bookmarked = serializers.SerializerMethodField()
 
     class Meta:
@@ -37,18 +27,6 @@ class LectureListSerializer(serializers.ModelSerializer[CrawledLecture]):
             "url_link",
             "is_bookmarked",
         ]
-
-    def get_categories(self, obj: CrawledLecture) -> ReturnDict[Any, Any]:
-        """강의에 속한 카테고리 목록 반환"""
-        lecture_categories = obj.lecture_categories.all()
-
-        categories = []
-        for lecture_category in lecture_categories:
-            category = lecture_category.category
-            categories.append(category)
-
-        serializer = CategorySerializer(categories, many=True)
-        return serializer.data
 
     def get_is_bookmarked(self, obj: CrawledLecture) -> bool:
         """현재 사용자의 북마크 여부"""
