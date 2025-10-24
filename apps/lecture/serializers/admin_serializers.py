@@ -1,18 +1,13 @@
 from rest_framework import serializers
 
-from apps.lecture.models import Category, CrawledLecture
-
-
-class CategorySerializer(serializers.ModelSerializer[Category]):
-    class Meta:
-        model = Category
-        fields = ["id", "name"]
+from apps.lecture.models import CrawledLecture
+from apps.lecture.serializers.category_serializers import CategoryListSerializer
 
 
 class AdminLectureListSerializer(serializers.ModelSerializer[CrawledLecture]):
     """강의 목록 조회용 Serializer (관리자)"""
 
-    categories = CategorySerializer(many=True, read_only=True)
+    categories = CategoryListSerializer(many=True, read_only=True)
 
     class Meta:
         model = CrawledLecture
@@ -32,7 +27,7 @@ class AdminLectureListSerializer(serializers.ModelSerializer[CrawledLecture]):
 class AdminLectureDetailSerializer(serializers.ModelSerializer[CrawledLecture]):
     """강의 상세 조회용 Serializer (관리자)"""
 
-    categories = CategorySerializer(many=True, read_only=True)
+    categories = CategoryListSerializer(many=True, read_only=True)
 
     class Meta:
         model = CrawledLecture
