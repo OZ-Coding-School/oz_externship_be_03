@@ -2,6 +2,7 @@ import asyncio
 import logging
 from typing import Any
 
+from asgiref.sync import async_to_sync
 from django.conf import settings
 from django.db.models.signals import post_save
 from django.dispatch import receiver
@@ -27,36 +28,18 @@ def notifications_created(sender: Any, instance: Application, created: bool, **k
         back_url_link=f"{settings.FRONTEND_DOMAIN}/studies/applications",
     )
 
-    # Redis pub/sub으로 실시간 알림 발송
+    # Redis pub/sub으로 실시간 알림 발송 - async_to_sync 사용
     try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            asyncio.create_task(
-                notification_pubsub.publish_notification(
-                    user_id=recruitment.author_id,
-                    notification_data={
-                        "id": notification.id,
-                        "type": notification.type,
-                        "content": notification.content,
-                        "back_url_link": f"{settings.FRONTEND_DOMAIN}/studies/applications",
-                        "created_at": notification.created_at.isoformat(),
-                        "is_read": notification.is_read,
-                    },
-                )
-            )
-        else:
-            asyncio.run(
-                notification_pubsub.publish_notification(
-                    user_id=recruitment.author_id,
-                    notification_data={
-                        "id": notification.id,
-                        "type": notification.type,
-                        "content": notification.content,
-                        "back_url_link": f"{settings.FRONTEND_DOMAIN}/studies/applications",
-                        "created_at": notification.created_at.isoformat(),
-                        "is_read": notification.is_read,
-                    },
-                )
-            )
+        async_to_sync(notification_pubsub.publish_notification)(
+            user_id=recruitment.author_id,
+            notification_data={
+                "id": notification.id,
+                "type": notification.type,
+                "content": notification.content,
+                "back_url_link": f"{settings.FRONTEND_DOMAIN}/studies/applications",
+                "created_at": notification.created_at.isoformat(),
+                "is_read": notification.is_read,
+            }
+        )
     except Exception as e:
-        logger.error(f"Redis pub 오류:{e}")
+        logger.error(f"Redis pub 오류: {e}")

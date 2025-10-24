@@ -1,6 +1,9 @@
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from unittest.mock import patch, AsyncMock
+from zoneinfo import ZoneInfo
+
 from django.test import TestCase
+from django.utils import timezone
 from django.contrib.auth import get_user_model
 from apps.notifications.models import Notification
 from apps.notifications.signals import notifications_created
@@ -37,8 +40,8 @@ class NotificationsCreatedSignalTest(TestCase):
             name="오즈 스터디",
             introduction="오즈 스터디 그룹",
             max_headcount=5,
-            start_at=datetime(2020, 1, 1),
-            end_at=datetime(2020, 5, 1),
+            start_at=datetime(2020, 1, 1,tzinfo=ZoneInfo("UTC")),
+            end_at=datetime(2020, 5, 1,tzinfo=ZoneInfo("UTC")),
         )
 
         self.recruitment = Recruitment.objects.create(
@@ -76,3 +79,66 @@ class NotificationsCreatedSignalTest(TestCase):
         self.assertIn(self.recruitment.title,notification.content)
         self.assertEqual(notification.type,Notification.NotificationType.APPLICATION_CREATED)
         self.assertFalse(notification.is_read)
+        self.assertIsNotNone(notification.back_url_link, "back_url_link가 설정되어야 합니다")
+        self.assertIsInstance(notification.created_at, datetime, "created_at이 datetime 객체여야 합니다")
+        self.assertEqual(notification.user_id, self.author.id, "알림 수신자가 올바르게 설정되어야 합니다")
+
+    @patch('apps.notifications.services.redis_pubsub_classify.notification_pubsub.publish_notification')
+    def test_signal_function_direct_call(self, mock_publish: AsyncMock) -> None:
+        # Application 인스턴스 생성 (DB 저장하지 않음)
+        fake_application = Application(
+            recruitment=self.recruitment,
+            user=self.applicant,
+            self_introduction="시그널 함수 직접 호출 테스트용 자기소개",
+            motivation="coverage 확보를 위한 테스트",
+            objective="테스트 완료하기",
+            available_time="테스트 시간"
+        )
+
+        # 시그널 함수 직접 호출 (created=True)
+        notifications_created(
+            sender=Application,
+            instance=fake_application,
+            created=True
+        )
+
+        # Notification 생성 확인
+        notification = Notification.objects.filter(
+            user_id=self.author.id,
+            type=Notification.NotificationType.APPLICATION_CREATED
+        ).first()
+
+        self.assertIsNotNone(notification, "시그널 직접 호출 시 알림이 생성되어야 합니다")
+
+        # mypy를 위한 타입 단언
+        assert notification is not None
+
+        self.assertEqual(notification.user_id, self.author.id)
+        self.assertIn(self.recruitment.title, notification.content)
+
+    @patch('apps.notifications.services.redis_pubsub_classify.notification_pubsub.publish_notification')
+    def test_signal_function_created_false(self, mock_publish: AsyncMock) -> None:
+        """시그널 함수 created=False 케이스 테스트"""
+        fake_application = Application(
+            recruitment=self.recruitment,
+            user=self.applicant,
+            self_introduction="created=False 테스트용",
+            motivation="수정 시나리오 테스트를 위한 내용",
+            objective="알림 미생성 확인하기",
+            available_time="테스트용 시간"
+        )
+
+        initial_count = Notification.objects.count()
+
+        # created=False로 시그널 호출
+        notifications_created(
+            sender=Application,
+            instance=fake_application,
+            created=False
+        )
+
+        final_count = Notification.objects.count()
+        self.assertEqual(initial_count, final_count, "created=False일 때는 알림이 생성되지 않아야 합니다")
+
+        # Redis publish도 호출되지 않았는지 확인
+        mock_publish.assert_not_called()
