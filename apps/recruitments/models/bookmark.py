@@ -5,7 +5,6 @@ from django.db import models
 
 from .recruitments import Recruitment
 
-
 class Bookmark(models.Model):
     uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="bookmarks")

@@ -59,7 +59,7 @@ class BookmarkRetrieveDestroyAPIView(APIView):
     parser_classes = [parsers.JSONParser]
 
     @extend_schema(tags=["Bookmarks"], summary="북마크 삭제 API")
-    def delete( self, request: Request, bookmark_uuid: str, *args: Any, **kwargs: Any) -> Response:
+    def delete(self, request: Request, bookmark_uuid: str, *args: Any, **kwargs: Any) -> Response:
         try:
             bookmark = Bookmark.objects.get(uuid=bookmark_uuid)
             bookmark.delete()
