@@ -25,16 +25,17 @@ class TagListView(APIView):
         {"id": "5", "name": "Frontend"},
     ]
 
+    # 전체 태그 목록 조회
     @extend_schema(
         summary="전체 태그 목록 조회 (Mock)",
         description="전체 태그(Mock 데이터)를 반환합니다.",
         responses={200: TagSerializer(many=True)},
     )
     def get(self, request: Request) -> Response:
-        serializer = TagSerializer(data=self.MOCK_TAGS, many=True)
-        serializer.is_valid(raise_exception=True)
+        serializer = TagSerializer(self.MOCK_TAGS, many=True)  # type: ignore[arg-type]
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+    # 새로운 태그 생성
     @extend_schema(
         summary="새로운 태그 생성 (Mock)",
         description="입력된 이름으로 새로운 태그(Mock)를 생성합니다.",
@@ -74,6 +75,7 @@ class TagDetailView(APIView):
     def _get_tag(self, tag_id: int) -> dict[str, str] | None:
         return next((t for t in self.MOCK_TAGS if int(t["id"]) == tag_id), None)
 
+    # 특정 태그 조회
     @extend_schema(
         summary="특정 태그 조회 (Mock)",
         description="특정 ID에 해당하는 태그(Mock)를 반환합니다.",
@@ -83,10 +85,10 @@ class TagDetailView(APIView):
         tag = self._get_tag(tag_id)
         if not tag:
             return Response({"detail": "해당 태그를 찾을 수 없습니다."}, status=status.HTTP_404_NOT_FOUND)
-        serializer = TagSerializer(data=tag)
-        serializer.is_valid(raise_exception=True)
+        serializer = TagSerializer(tag)  # type: ignore[arg-type]
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+    # 태그 수정
     @extend_schema(
         summary="태그 수정 (Mock)",
         description="특정 태그의 이름을 수정합니다.",
@@ -109,11 +111,12 @@ class TagDetailView(APIView):
         tag["name"] = name
         return Response(tag, status=status.HTTP_200_OK)
 
+    # 태그 삭제
     @extend_schema(
         summary="태그 삭제 (Mock)",
         description="특정 ID의 태그를 삭제합니다.",
         responses={
-            204: {"example": {"detail": "태그 삭제 완료"}},
+            200: {"example": {"detail": "태그 삭제 완료"}},
             404: {"example": {"detail": "해당 태그를 찾을 수 없습니다."}},
         },
     )
@@ -122,4 +125,4 @@ class TagDetailView(APIView):
         if not tag:
             return Response({"detail": "해당 태그를 찾을 수 없습니다."}, status=status.HTTP_404_NOT_FOUND)
 
-        return Response({"detail": f"{tag_id}번 태그 삭제 완료"}, status=status.HTTP_204_NO_CONTENT)
+        return Response({"detail": f"{tag_id}번 태그 삭제 완료"}, status=status.HTTP_200_OK)
