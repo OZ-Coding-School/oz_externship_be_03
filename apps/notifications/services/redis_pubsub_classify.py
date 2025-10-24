@@ -50,4 +50,4 @@ class RedisPubSubService:
             await pubsub.close()
 
 
-notification_pubsub:RedisPubSubService = RedisPubSubService()
+notification_pubsub: RedisPubSubService = RedisPubSubService()
