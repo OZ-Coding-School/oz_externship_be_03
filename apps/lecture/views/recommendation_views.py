@@ -1,3 +1,5 @@
+from typing import Optional
+
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
@@ -6,7 +8,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.lecture.serializers.lecture_serializers import LectureListSerializer
-from apps.lecture.services.recommendation_service import RecommendationService
+from apps.lecture.services.recommender import RecommendationService
 
 
 class RecommendationView(APIView):
@@ -18,6 +20,10 @@ class RecommendationView(APIView):
     RECOMMENDATION_COUNT = 3
 
     def get_recommendation_service(self) -> RecommendationService:
+        """
+        RecommendationService 인스턴스를 싱글턴 패턴으로 로드하거나 캐시된 인스턴스를 반환.
+        모델 로드/훈련 과정의 반복을 회피.
+        """
         if not hasattr(self, "_recommendation_service"):
             self._recommendation_service = RecommendationService()
         return self._recommendation_service
@@ -32,7 +38,10 @@ class RecommendationView(APIView):
         },
     )
     def get(self, request: Request) -> Response:
-        user_id = request.user.id
+        """
+        로그인된 사용자의 ID를 기반으로 맞춤 강의 추천 목록을 반환.
+        """
+        user_id: Optional[int] = request.user.id
         # user_id의 타입이 Optional[int] 이므로 mypy는 None 가능성 경고 발생
         # 실제로 IsAuthenticated이므로 None일 가능성은 거의 없으나
         # mypy 정적 타입 검사 무시를 위해 None 체크 코드 추가
