@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework.request import Request
@@ -12,7 +13,7 @@ from apps.recruitments.serializers.recruitment_tag import RecruitmentTagMockSeri
 
 
 class RecruitmentTagListView(APIView):
-    """Mock 기반 RecruitmentTag API"""
+    """공고별 태그 관리 (Mock)"""
 
     permission_classes = [AllowAny]
 
@@ -25,6 +26,10 @@ class RecruitmentTagListView(APIView):
         102: [{"id": 1, "recruitment": 102, "tag": "React"}],
     }
 
+    @extend_schema(
+        summary="특정 공고에 연결된 태그 목록 조회 (Mock)",
+        description="특정 구인 공고(recruitment_id)에 연결된 모든 태그를 Mock 데이터로 반환합니다.",
+    )
     def get(self, request: Request, recruitment_id: int) -> Response:
         tags = self.MOCK_TAGS.get(recruitment_id)
         if not tags:
@@ -36,6 +41,10 @@ class RecruitmentTagListView(APIView):
         serializer = RecruitmentTagMockSerializer(tags, many=True)
         return Response(serializer.data)
 
+    @extend_schema(
+        summary="특정 공고에 태그 추가 (Mock)",
+        description="입력한 태그를 특정 구인 공고(recruitment_id)에 추가합니다.",
+    )
     def post(self, request: Request, recruitment_id: int) -> Response:
         tag_name: str | None = request.data.get("tag")
         if not tag_name:
@@ -53,6 +62,10 @@ class RecruitmentTagListView(APIView):
         serializer = RecruitmentTagMockSerializer(new_tag)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
+    @extend_schema(
+        summary="특정 공고에서 태그 삭제 (Mock)",
+        description="특정 구인 공고(recruitment_id)에서 tag_id에 해당하는 태그를 삭제합니다.",
+    )
     def delete(self, request: Request, recruitment_id: int, tag_id: int) -> Response:
         tags = self.MOCK_TAGS.get(recruitment_id)
         if not tags:
