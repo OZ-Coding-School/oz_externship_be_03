@@ -1,16 +1,18 @@
-from typing import Any
-
 from rest_framework import serializers
-from rest_framework.utils.serializer_helpers import ReturnDict
 
-from apps.lecture.models import CrawledLecture
-from apps.lecture.serializers.lecture_serializers import LectureListSerializer
+from apps.lecture.models import Category, CrawledLecture
+
+
+class CategorySerializer(serializers.ModelSerializer[Category]):
+    class Meta:
+        model = Category
+        fields = ["id", "name"]
 
 
 class AdminLectureListSerializer(serializers.ModelSerializer[CrawledLecture]):
     """강의 목록 조회용 Serializer (관리자)"""
 
-    categories = serializers.SerializerMethodField()
+    categories = CategorySerializer(many=True, read_only=True)
 
     class Meta:
         model = CrawledLecture
@@ -26,14 +28,11 @@ class AdminLectureListSerializer(serializers.ModelSerializer[CrawledLecture]):
             "updated_at",
         ]
 
-    def get_categories(self, obj: CrawledLecture) -> ReturnDict[Any, Any]:
-        return LectureListSerializer().get_categories(obj)
-
 
 class AdminLectureDetailSerializer(serializers.ModelSerializer[CrawledLecture]):
     """강의 상세 조회용 Serializer (관리자)"""
 
-    categories = serializers.SerializerMethodField()
+    categories = CategorySerializer(many=True, read_only=True)
 
     class Meta:
         model = CrawledLecture
@@ -54,6 +53,3 @@ class AdminLectureDetailSerializer(serializers.ModelSerializer[CrawledLecture]):
             "created_at",
             "updated_at",
         ]
-
-    def get_categories(self, obj: CrawledLecture) -> ReturnDict[Any, Any]:
-        return LectureListSerializer().get_categories(obj)
