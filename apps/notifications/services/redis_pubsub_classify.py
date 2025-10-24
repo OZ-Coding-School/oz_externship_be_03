@@ -1,34 +1,33 @@
 import json
 import logging
-from typing import Any,Dict,Generator, AsyncGenerator
+from typing import Any, AsyncGenerator, Dict, Generator
 
 import redis.asyncio as redis
 from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
+
 class RedisPubSubService:
     def __init__(self):
-        self.redis_client = redis.Redis.from_url(
-            getattr(settings,'CACHES',{}).get('default',{}).get('LOCATION')
-        )
+        self.redis_client = redis.Redis.from_url(getattr(settings, "CACHES", {}).get("default", {}).get("LOCATION"))
 
-    def get_user_channel(self,user_id:int)->str:
+    def get_user_channel(self, user_id: int) -> str:
         """사용자별 알림 채널명 생성"""
         return f"notifications:user_{user_id}"
 
-    async def publish_notification(self,user_id:int,notification_data:Dict[str,Any]) -> None:
+    async def publish_notification(self, user_id: int, notification_data: Dict[str, Any]) -> None:
         """특정 사용자 채널에 알림 발행"""
         channel = self.get_user_channel(user_id)
-        message = json.dumps(notification_data,ensure_ascii=False,default=str)
+        message = json.dumps(notification_data, ensure_ascii=False, default=str)
 
-        try :
-            await self.redis_client.publish(channel,message)
+        try:
+            await self.redis_client.publish(channel, message)
             logger.info(f"채널{channel}에 게시된 알림:{message}")
         except Exception as e:
             logger.error(f"{channel}에 알림을 게시하지 못했습니다.{e}")
 
-    async def subscribe_user_notification(self,user_id:int)->AsyncGenerator[Dict[str,Any],None]:
+    async def subscribe_user_notification(self, user_id: int) -> AsyncGenerator[Dict[str, Any], None]:
         """사용자 알림 채널 구독 및 메시지 스트리밍"""
         channel = self.get_user_channel(user_id)
         pubsub = self.redis_client.pubsub()
@@ -42,7 +41,7 @@ class RedisPubSubService:
                     try:
                         notification_data = json.loads(message["data"])
                         yield notification_data
-                    except(json.JSONDecodeError,UnicodeDecodeError)as e:
+                    except (json.JSONDecodeError, UnicodeDecodeError) as e:
                         logger.error(f"{channel}에서 메시지를 디코딩하지 못했습니다:{e}")
 
         except Exception as e:
