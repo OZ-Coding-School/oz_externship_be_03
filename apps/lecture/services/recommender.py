@@ -87,7 +87,7 @@ class RecommendationService:
                 self._user_items_matrix = pickle.loads(cached_data[USER_ITEMS_MATRIX_CACHE_KEY])
                 return True
             except (pickle.UnpicklingError, TypeError, EOFError) as e:
-                logger.error(f"Redis deserialization error. Deleting cache: {e}")
+                logger.warning(f"Redis deserialization error. Deleting cache: {e}")
                 # 역직렬화 오류 시 캐시 삭제 및 재로드를 위해 디스크 로드로 폴백
                 cache.delete_many(cached_data.keys())
                 # cached_data가 유효하지 않으므로, 다음 단계(디스크 로드)로 넘어감
@@ -177,7 +177,7 @@ class RecommendationService:
 
         # 모델이 요청된 개수(top_n) 미만을 반환하면 폴백으로 대체
         if len(recommended_ids) < top_n:
-            logger.error(f"Fallback due to insufficient recommendation results: {len(recommended_ids)} < {top_n}")
+            logger.warning(f"Fallback due to insufficient recommendation results: {len(recommended_ids)} < {top_n}")
             return self._get_popular_lectures(user_id, top_n)
 
         # Django ORM을 사용하여 강의 정보 조회 및 카테고리 프리패치
@@ -195,7 +195,7 @@ class RecommendationService:
 
     def _get_popular_lectures(self, user_id: int, top_n: int) -> QuerySet[CrawledLecture]:
         """모델 실패 또는 콜드 스타트 시 인기순 폴백 제공 (북마크 제외)."""
-        logger.error("Fallback to popular lectures due to cold start/model failure.")
+        logger.warning("Fallback to popular lectures due to cold start/model failure.")
 
         liked_lecture_ids = LectureBookmark.objects.filter(user_id=user_id).values_list("lecture_id", flat=True)
 
