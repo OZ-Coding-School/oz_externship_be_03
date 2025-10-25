@@ -8,7 +8,8 @@ import numpy as np
 from django.core.cache import cache
 from django.db import OperationalError, ProgrammingError
 from django.db.models import Case, FloatField, Q, Sum, Value, When
-from scipy.sparse import coo_matrix
+from django.utils import timezone
+from scipy.sparse import coo_matrix, csr_matrix
 
 from apps.lecture.models import (
     CrawledLecture,
@@ -88,9 +89,9 @@ class DataLoader:
         all_interactions: defaultdict[Tuple[int, int], float] = defaultdict(float)
 
         # 1. 북마크 점수 누적 (최근 생성/수정된 항목)
-        bookmarks = LectureBookmark.objects.filter(
-            Q(created_at__gte=since) | Q(updated_at__gte=since)
-        ).values_list("user_id", "lecture_id")
+        bookmarks = LectureBookmark.objects.filter(Q(created_at__gte=since) | Q(updated_at__gte=since)).values_list(
+            "user_id", "lecture_id"
+        )
         weighted_bookmark = self.WEIGHTS.get("bookmark", 0.0)
         for user_id, lec_id in bookmarks:
             all_interactions[(user_id, lec_id)] += weighted_bookmark
@@ -100,18 +101,20 @@ class DataLoader:
             weighted_study = self.WEIGHTS.get("study_participation", 0.0)
 
             # 2-1. 최근 스터디 강의 추가된 항목만 필터링
-            recent_study_lectures = StudyLecture.objects.filter(
-                Q(created_at__gte=since) | Q(updated_at__gte=since)
-            ).values_list("study_group_id", "lecture_id").distinct()
+            recent_study_lectures = (
+                StudyLecture.objects.filter(Q(created_at__gte=since) | Q(updated_at__gte=since))
+                .values_list("study_group_id", "lecture_id")
+                .distinct()
+            )
 
             study_group_ids = [grp_id for grp_id, _ in recent_study_lectures]
 
             if study_group_ids:
                 # 2-2. 해당 스터디 그룹의 모든 멤버 조회
                 group_user_map: Dict[int, Set[int]] = defaultdict(set)
-                group_members_data = GroupMember.objects.filter(
-                    study_group_id__in=study_group_ids
-                ).values_list("study_group_id", "user_id")
+                group_members_data = GroupMember.objects.filter(study_group_id__in=study_group_ids).values_list(
+                    "study_group_id", "user_id"
+                )
                 for grp_id, user_id in group_members_data:
                     group_user_map[grp_id].add(user_id)
 
@@ -124,7 +127,7 @@ class DataLoader:
             logger.error(f"CRITICAL DB Error loading recent study participation data: {e}", exc_info=True)
 
         # 3. 검색어 기반 점수 누적 (최근 N일 로그 중, since 이후 생성된 로그만 반영)
-        cutoff_date = datetime.now() - timedelta(days=SEARCH_LOG_DAYS_LIMIT)
+        cutoff_date = timezone.now() - timedelta(days=SEARCH_LOG_DAYS_LIMIT)
 
         # 최근 N일 로그 중, since 이후 생성된 로그 필터링
         recent_logs = (
@@ -161,47 +164,75 @@ class DataLoader:
         return all_interactions
 
     def build_partial_user_item_matrix(
-            self,
-            since: datetime,
-            u_to_idx: Dict[int, int],
-            l_to_idx: Dict[int, int],
-    ) -> Optional[coo_matrix]:
+        self,
+        since: datetime,
+        u_to_idx: Dict[int, int],
+        l_to_idx: Dict[int, int],
+    ) -> Tuple[Optional[List[int]], Optional[csr_matrix], bool]:
         """
         주어진 시점(since) 이후의 상호작용만 로드하여 기존 맵을 사용하는 희소 행렬 생성.
+        업데이트 대상 사용자 ID 리스트, 행렬, 신규 강의 포함 여부를 반환.
         """
         recent_interactions = self._get_recent_interactions(since)
 
         if not recent_interactions:
             logger.info(f"No new interactions found since {since}. Skipping partial matrix build.")
-            return None
+            return None, None, False
 
-        interaction_rows: List[int] = []
-        interaction_cols: List[int] = []
-        interaction_data: List[float] = []
+        # 1. 업데이트 대상 사용자 및 신규 강의 ID 수집
+        updated_user_ids: Set[int] = set()
+        new_lecture_found: bool = False
 
-        # 기존 맵을 사용하여 인덱스 변환
+        # 2. 상호작용 데이터 수집
+        # (user_id, lec_id, score) 형태의 튜플 리스트
+        interactions_to_map: List[Tuple[int, int, float]] = []
+
         for (user_id, lec_id), score in recent_interactions.items():
             user_idx = u_to_idx.get(user_id)
             lec_idx = l_to_idx.get(lec_id)
 
-            # 기존 모델이 알고 있는 사용자/강의에 대해서만 partial fit 적용
+            # A. 기존 모델이 알고 있는 사용자/강의에 대해서만 증분 학습 대상에 포함
             if user_idx is not None and lec_idx is not None:
-                interaction_rows.append(user_idx)
-                interaction_cols.append(lec_idx)
-                interaction_data.append(float(score))
+                updated_user_ids.add(user_id)
+                interactions_to_map.append((user_id, lec_id, float(score)))
 
-        if not interaction_data:
+            # B. 신규 강의가 있는지 체크 (증분 학습은 안 되지만, 전체 학습 유도용 플래그 설정)
+            if lec_idx is None:
+                new_lecture_found = True
+
+        if not interactions_to_map:
+            if new_lecture_found:
+                logger.warning(
+                    "New interactions only involve new users/lectures. Triggering full re-train due to new lectures."
+                )
+                # 상호작용 데이터는 없지만, 신규 강의가 있으므로 재학습 플래그만 True로 반환
+                return None, None, True
+
             logger.info("New interactions only involve new users/lectures. Cannot perform partial fit.")
-            return None
+            return None, None, False
 
-        # 기존 행렬과 동일한 shape을 갖는 coo_matrix 생성
+        # 3. 업데이트 대상 사용자 ID 리스트 생성 (정렬)
+        final_user_ids: List[int] = sorted(list(updated_user_ids))
+        user_id_to_partial_idx: Dict[int, int] = {user_id: i for i, user_id in enumerate(final_user_ids)}
+
+        # 4. 최종 부분 행렬 데이터 재구성
+        final_interaction_rows: List[int] = []
+        final_interaction_cols: List[int] = []
+        final_interaction_data: List[float] = []
+
+        for user_id, lec_id, score in interactions_to_map:
+            lec_idx = l_to_idx[lec_id]
+            final_interaction_rows.append(user_id_to_partial_idx[user_id])
+            final_interaction_cols.append(lec_idx)
+            final_interaction_data.append(score)
+
+        # 최종 부분 행렬 생성: shape = (업데이트 대상 사용자 수, 전체 강의 수)
         user_item_matrix = coo_matrix(
-            (np.array(interaction_data), (np.array(interaction_rows), np.array(interaction_cols))),
-            shape=(len(u_to_idx), len(l_to_idx)),
-        )
+            (np.array(final_interaction_data), (np.array(final_interaction_rows), np.array(final_interaction_cols))),
+            shape=(len(final_user_ids), len(l_to_idx)),
+        ).tocsr()  # partial_fit_users는 CSR을 선호
 
-        return user_item_matrix
-
+        return final_user_ids, user_item_matrix, new_lecture_found
 
     def _get_all_interactions(self, users: List[int]) -> Dict[Tuple[int, int], float]:
         """
@@ -253,7 +284,7 @@ class DataLoader:
         # 3. 사용자 선호 카테고리 매칭 점수 누적 (Redis 캐시 사용)
         user_prefer_map: defaultdict[int, set[int]] = defaultdict(set)
         for user_id, cat_id in UserPreferCategory.objects.filter(user_id__in=users).values_list(
-                "user_id", "category_id"
+            "user_id", "category_id"
         ):
             user_prefer_map[user_id].add(cat_id)
 
@@ -294,7 +325,7 @@ class DataLoader:
                 all_interactions[(user_id, lec_id)] += avg_rating_map[lec_id] * weighted_rating
 
         # 5. 검색어 기반 점수 누적 (최근 N일 로그 반영)
-        cutoff_date = datetime.now() - timedelta(days=SEARCH_LOG_DAYS_LIMIT)
+        cutoff_date = timezone.now() - timedelta(days=SEARCH_LOG_DAYS_LIMIT)
 
         user_keywords: defaultdict[int, List[str]] = defaultdict(list)
         # 필터링: 최근 N일 이내의 로그만 조회
