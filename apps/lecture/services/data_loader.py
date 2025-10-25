@@ -2,407 +2,417 @@ import logging
 import pickle
 from collections import defaultdict
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Set, Tuple, cast
+from typing import (
+    DefaultDict,
+    Dict,
+    List,
+    Optional,
+    Set,
+    Tuple,
+    Union,
+    cast,
+)
 
 import numpy as np
 from django.core.cache import cache
 from django.db import OperationalError, ProgrammingError
-from django.db.models import Case, FloatField, Q, Sum, Value, When
+from django.db.models import Q
 from django.utils import timezone
-from scipy.sparse import coo_matrix, csr_matrix
+from scipy.sparse import coo_matrix
 
 from apps.lecture.models import (
     CrawledLecture,
-    CrawledLectureReview,
     LectureBookmark,
     LectureCategory,
     LectureSearchLog,
     UserPreferCategory,
 )
 from apps.lecture.services.constants import (
+    HALF_LIFE_DAYS,
+    ITEM_FEATURE_WEIGHTS,
     LECTURE_CATEGORY_MAP_CACHE_KEY,
     LECTURE_CATEGORY_MAP_TIMEOUT,
     SEARCH_LOG_DAYS_LIMIT,
+    USER_INTERACTION_WEIGHTS,
 )
-from apps.studies.models.groups import (
-    GroupMember,
-    StudyLecture,
-)
+from apps.studies.models.groups import GroupMember, StudyLecture
 
 logger = logging.getLogger(__name__)
 
+# 타입 힌팅 정의
+# None을 포함하는 Optional 타입으로 정의
+MatrixBundle = Optional[
+    Tuple[
+        coo_matrix,  # 상호작용 희소 행렬
+        Dict[int, int],  # 사용자 ID -> 인덱스 매핑
+        Dict[int, int],  # 강의 ID -> 인덱스 매핑
+        List[int],  # 모든 사용자 ID 리스트
+        List[int],  # 모든 강의 ID 리스트
+    ]
+]
+
 
 class DataLoader:
-    """
-    Django ORM 데이터를 로드하고 전처리하여 ALS 학습을 위한 희소 행렬을 생성.
-    모든 사용자 상호작용을 통합 쿼리 및 Python 후처리로 최적화하여 로드.
-    """
+    """ALS 학습을 위한 상호작용 데이터 로드 및 전처리 관리 클래스"""
 
-    def __init__(self, weights: Dict[str, float], rating_map: Dict[str, float]) -> None:
-        """DataLoader 인스턴스 초기화. 가중치, 평점 맵을 주입받음."""
-        self.WEIGHTS = weights
-        self.RATING_SCORE_MAP = rating_map
-        self._lecture_category_map: Optional[Dict[int, set[int]]] = None
-
-    def _load_lecture_category_map(self) -> Dict[int, set[int]]:
-        """모든 강의-카테고리 관계를 DB에서 로드하여 반환 (N+1 방지)."""
-        lecture_category_map: Dict[int, set[int]] = {}
-        for lec_id, cat_id in LectureCategory.objects.values_list("lecture_id", "category_id"):
-            lecture_category_map.setdefault(lec_id, set()).add(cat_id)
-        return lecture_category_map
-
-    def get_lecture_category_map(self) -> Dict[int, set[int]]:
+    def __init__(self) -> None:
         """
-        캐시된 강의-카테고리 관계 맵 반환.
-        Redis 캐시가 있으면 사용, 없으면 DB에서 로드 후 Redis에 캐싱.
+        DataLoader 초기화: 상호작용 가중치 및 현재 시각 설정
         """
-        # 1. Redis에서 캐시 데이터 로드 시도
-        cached_data = cache.get(LECTURE_CATEGORY_MAP_CACHE_KEY)
+        # 사용자 상호작용 가중치
+        self.user_weights: Dict[str, float] = USER_INTERACTION_WEIGHTS
+        # 아이템 피처 가중치
+        self.item_weights: Dict[str, float] = ITEM_FEATURE_WEIGHTS
+        # 강의-카테고리 매핑 캐시 (메모리 캐시)
+        self._lecture_category_map: Optional[Dict[int, Set[int]]] = None
+        # 데이터 로드 및 감쇠 함수의 기준 시각 (훈련 시작 시점)
+        self._now: datetime = timezone.now()
 
+    # -- 1. 유틸리티 함수 (Utility Functions)
+
+    def _get_decay_factor(self, created_at: datetime) -> float:
+        """
+        시간 기반 감쇠 계수 계산.
+        최신 상호작용에 높은 가중치 부여,
+        HALF_LIFE_DAYS를 기준으로 시간이 지날수록 점수가 0.5배씩 감소.
+
+        :param created_at: 상호작용 발생 시각 (datetime)
+        :return: 감쇠 계수 (float, 0.0 ~ 1.0)
+        """
+        time_diff: timedelta = self._now - created_at
+        # 경과 일수 계산
+        days_since: float = time_diff.total_seconds() / (60 * 60 * 24)
+        # 감쇠 공식: 0.5 ** (경과 일수 / 반감기)
+        return float(0.5 ** (days_since / HALF_LIFE_DAYS))
+
+    @staticmethod
+    def _load_lecture_category_map() -> Dict[int, Set[int]]:
+        """
+        데이터베이스에서 강의-카테고리 매핑을 직접 로드.
+
+        :return: {강의 ID: {카테고리 ID}, ...} 형태의 딕셔너리
+        """
+        lecture_category_map: DefaultDict[int, Set[int]] = defaultdict(set)
+        # LectureCategory 모델에서 (강의 ID, 카테고리 ID) 쌍을 조회하여 매핑 구축
+        values_list: List[Tuple[int, int]] = list(LectureCategory.objects.values_list("lecture_id", "category_id"))
+        for lec_id, cat_id in values_list:
+            lecture_category_map[lec_id].add(cat_id)
+        return dict(lecture_category_map)
+
+    def get_lecture_category_map(self) -> Dict[int, Set[int]]:
+        """
+        강의-카테고리 매핑을 캐시에서 로드하거나, DB에서 로드 후 캐시.
+        메모리(_lecture_category_map) -> Redis 캐시 -> DB 순서로 로드 시도.
+
+        :return: {강의 ID: {카테고리 ID}, ...} 딕셔너리
+        """
+        if self._lecture_category_map is not None:
+            return self._lecture_category_map
+
+        # 1. Redis 캐시 로드 시도
+        cached_data: Union[bytes, None] = cache.get(LECTURE_CATEGORY_MAP_CACHE_KEY)
         if cached_data is not None:
-            # set 객체를 포함하므로 pickle로 역직렬화
             try:
-                return cast(Dict[int, Set[int]], pickle.loads(cached_data))
-            except (pickle.UnpicklingError, TypeError, EOFError) as e:
-                # 캐시 데이터 손상 시 새로 로드하도록 폴백
-                logger.warning(f"Lecture category map cache corrupted. Reloading from DB. Error: {e}")
-                pass
+                # 바이트 데이터를 딕셔너리로 역직렬화 및 타입 캐스팅
+                result: Dict[int, Set[int]] = cast(Dict[int, Set[int]], pickle.loads(cached_data))
+                self._lecture_category_map = result
+                return result
+            except Exception as e:
+                # 캐시 데이터 손상 시 경고 로깅 및 캐시 삭제
+                logger.warning(f"[CACHE] Lecture category map cache corrupted. Reloading. Error: {e}")
+                cache.delete(LECTURE_CATEGORY_MAP_CACHE_KEY)
 
-        # 2. 캐시 데이터가 없거나 손상되었을 경우 DB에서 로드
-        lecture_category_map = self._load_lecture_category_map()
+        # 2. DB 로드
+        lecture_category_map: Dict[int, Set[int]] = DataLoader._load_lecture_category_map()
 
-        # 3. Redis에 캐싱
+        # 3. Redis 캐시 저장 시도
         try:
-            # set 객체를 포함하므로 pickle로 직렬화
-            serialized_data = pickle.dumps(lecture_category_map)
-            cache.set(LECTURE_CATEGORY_MAP_CACHE_KEY, serialized_data, LECTURE_CATEGORY_MAP_TIMEOUT)
+            # 새로 로드한 데이터를 직렬화하여 캐시에 저장 (TTL 적용)
+            cache.set(
+                LECTURE_CATEGORY_MAP_CACHE_KEY,
+                pickle.dumps(lecture_category_map),
+                LECTURE_CATEGORY_MAP_TIMEOUT,
+            )
         except Exception as e:
-            # 캐싱 실패 시 DB에서 로드한 데이터로 계속 진행
-            logger.error(f"Error caching lecture category map to Redis: {e}")
+            logger.error(f"[CACHE_FAIL] Error caching lecture category map: {e}")
 
+        # 메모리 캐시 업데이트 및 반환
+        self._lecture_category_map = lecture_category_map
         return lecture_category_map
 
-    def _get_recent_interactions(self, since: datetime) -> Dict[Tuple[int, int], float]:
-        """
-        주어진 시점(since) 이후에 발생했거나 업데이트된 사용자-강의 상호작용 점수만 집계.
-        """
-        all_interactions: defaultdict[Tuple[int, int], float] = defaultdict(float)
+    # -- 2. 상호작용 로드 함수 (Interaction Loading)
 
-        # 1. 북마크 점수 누적 (최근 생성/수정된 항목)
-        bookmarks = LectureBookmark.objects.filter(Q(created_at__gte=since) | Q(updated_at__gte=since)).values_list(
-            "user_id", "lecture_id"
-        )
-        weighted_bookmark = self.WEIGHTS.get("bookmark", 0.0)
-        for user_id, lec_id in bookmarks:
-            all_interactions[(user_id, lec_id)] += weighted_bookmark
-
-        # 2. 스터디 참여 점수 누적 (최근 StudyLecture 생성/수정된 항목)
-        try:
-            weighted_study = self.WEIGHTS.get("study_participation", 0.0)
-
-            # 2-1. 최근 스터디 강의 추가된 항목만 필터링
-            recent_study_lectures = (
-                StudyLecture.objects.filter(Q(created_at__gte=since) | Q(updated_at__gte=since))
-                .values_list("study_group_id", "lecture_id")
-                .distinct()
-            )
-
-            study_group_ids = [grp_id for grp_id, _ in recent_study_lectures]
-
-            if study_group_ids:
-                # 2-2. 해당 스터디 그룹의 모든 멤버 조회
-                group_user_map: Dict[int, Set[int]] = defaultdict(set)
-                group_members_data = GroupMember.objects.filter(study_group_id__in=study_group_ids).values_list(
-                    "study_group_id", "user_id"
-                )
-                for grp_id, user_id in group_members_data:
-                    group_user_map[grp_id].add(user_id)
-
-                # 2-3. 사용자-강의 상호작용에 가중치 부여
-                for grp_id, lec_id in recent_study_lectures:
-                    for user_id in group_user_map.get(grp_id, set()):
-                        all_interactions[(user_id, lec_id)] += weighted_study
-
-        except (ProgrammingError, OperationalError) as e:
-            logger.error(f"CRITICAL DB Error loading recent study participation data: {e}", exc_info=True)
-
-        # 3. 검색어 기반 점수 누적 (최근 N일 로그 중, since 이후 생성된 로그만 반영)
-        cutoff_date = timezone.now() - timedelta(days=SEARCH_LOG_DAYS_LIMIT)
-
-        # 최근 N일 로그 중, since 이후 생성된 로그 필터링
-        recent_logs = (
-            LectureSearchLog.objects.filter(created_at__gte=max(cutoff_date, since))
-            .values_list("user_id", "keyword")
-            .order_by("-created_at")
-        )
-
-        user_keywords: defaultdict[int, List[str]] = defaultdict(list)
-        processed_keywords = set()
-        for user_id, keyword in recent_logs:
-            if keyword and (user_id, keyword) not in processed_keywords:
-                user_keywords[user_id].append(keyword)
-                processed_keywords.add((user_id, keyword))
-
-        weighted_search = self.WEIGHTS.get("search", 0.0)
-
-        for user_id, keywords in user_keywords.items():
-            if not keywords:
-                continue
-
-            search_query = Q()
-            for keyword in keywords:
-                search_query |= Q(title__icontains=keyword)
-
-            # 검색어에 매칭되는 강의에 가중치 부여
-            matched_lectures = CrawledLecture.objects.filter(search_query).values_list("id", flat=True)
-
-            for lec_id in matched_lectures:
-                all_interactions[(user_id, lec_id)] += weighted_search
-
-        # NOTE: 리뷰 평점 및 선호 카테고리는 점진적 학습보다는 전체 학습에 적합하므로 제외함.
-
-        return all_interactions
-
-    def build_partial_user_item_matrix(
+    def _load_user_interactions(
         self,
-        since: datetime,
-        u_to_idx: Dict[int, int],
-        l_to_idx: Dict[int, int],
-    ) -> Tuple[Optional[List[int]], Optional[csr_matrix], bool]:
+        users: List[int],
+        last_trained_at: Optional[datetime],
+    ) -> Dict[Tuple[int, int], float]:
         """
-        주어진 시점(since) 이후의 상호작용만 로드하여 기존 맵을 사용하는 희소 행렬 생성.
-        업데이트 대상 사용자 ID 리스트, 행렬, 신규 강의 포함 여부를 반환.
+        북마크 및 스터디 참여 기반의 상호작용 점수 계산 및 로드.
+        점진 학습 (last_trained_at) 및 감쇠 함수 적용.
+
+        :param users: 대상 사용자 ID 리스트
+        :param last_trained_at: 이전 학습 시점 (점진 학습 필터)
+        :return: {(user_id, lecture_id): score} 딕셔너리
         """
-        recent_interactions = self._get_recent_interactions(since)
+        interactions: DefaultDict[Tuple[int, int], float] = defaultdict(float)
+        weighted_bookmark: float = self.user_weights.get("bookmark", 0.0)
+        weighted_study: float = self.user_weights.get("study_participation", 0.0)
 
-        if not recent_interactions:
-            logger.info(f"No new interactions found since {since}. Skipping partial matrix build.")
-            return None, None, False
+        # 쿼리 필터: 대상 유저 + 점진 학습 시점 필터링
+        query_filter: Q = Q(user_id__in=users)
+        if last_trained_at:
+            query_filter &= Q(created_at__gt=last_trained_at)
 
-        # 1. 업데이트 대상 사용자 및 신규 강의 ID 수집
-        updated_user_ids: Set[int] = set()
-        new_lecture_found: bool = False
-
-        # 2. 상호작용 데이터 수집
-        # (user_id, lec_id, score) 형태의 튜플 리스트
-        interactions_to_map: List[Tuple[int, int, float]] = []
-
-        for (user_id, lec_id), score in recent_interactions.items():
-            user_idx = u_to_idx.get(user_id)
-            lec_idx = l_to_idx.get(lec_id)
-
-            # A. 기존 모델이 알고 있는 사용자/강의에 대해서만 증분 학습 대상에 포함
-            if user_idx is not None and lec_idx is not None:
-                updated_user_ids.add(user_id)
-                interactions_to_map.append((user_id, lec_id, float(score)))
-
-            # B. 신규 강의가 있는지 체크 (증분 학습은 안 되지만, 전체 학습 유도용 플래그 설정)
-            if lec_idx is None:
-                new_lecture_found = True
-
-        if not interactions_to_map:
-            if new_lecture_found:
-                logger.warning(
-                    "New interactions only involve new users/lectures. Triggering full re-train due to new lectures."
-                )
-                # 상호작용 데이터는 없지만, 신규 강의가 있으므로 재학습 플래그만 True로 반환
-                return None, None, True
-
-            logger.info("New interactions only involve new users/lectures. Cannot perform partial fit.")
-            return None, None, False
-
-        # 3. 업데이트 대상 사용자 ID 리스트 생성 (정렬)
-        final_user_ids: List[int] = sorted(list(updated_user_ids))
-        user_id_to_partial_idx: Dict[int, int] = {user_id: i for i, user_id in enumerate(final_user_ids)}
-
-        # 4. 최종 부분 행렬 데이터 재구성
-        final_interaction_rows: List[int] = []
-        final_interaction_cols: List[int] = []
-        final_interaction_data: List[float] = []
-
-        for user_id, lec_id, score in interactions_to_map:
-            lec_idx = l_to_idx[lec_id]
-            final_interaction_rows.append(user_id_to_partial_idx[user_id])
-            final_interaction_cols.append(lec_idx)
-            final_interaction_data.append(score)
-
-        # 최종 부분 행렬 생성: shape = (업데이트 대상 사용자 수, 전체 강의 수)
-        user_item_matrix = coo_matrix(
-            (np.array(final_interaction_data), (np.array(final_interaction_rows), np.array(final_interaction_cols))),
-            shape=(len(final_user_ids), len(l_to_idx)),
-        ).tocsr()  # partial_fit_users는 CSR을 선호
-
-        return final_user_ids, user_item_matrix, new_lecture_found
-
-    def _get_all_interactions(self, users: List[int]) -> Dict[Tuple[int, int], float]:
-        """
-        전체 사용자 및 강의에 대한 상호작용 점수를 DB 쿼리 최적화하여 한 번에 집계.
-        """
-        all_interactions: defaultdict[Tuple[int, int], float] = defaultdict(float)
-
-        # 1. 북마크 점수 누적
-        bookmarks = LectureBookmark.objects.filter(user_id__in=users).values_list("user_id", "lecture_id")
-        weighted_bookmark = self.WEIGHTS.get("bookmark", 0.0)
-        for user_id, lec_id in bookmarks:
-            all_interactions[(user_id, lec_id)] += weighted_bookmark
-
-        # 2. 스터디 참여 점수 누적
-        try:
-            weighted_study = self.WEIGHTS.get("study_participation", 0.0)
-
-            # 1) 사용자가 속한 스터디 그룹 ID 리스트 구함
-            study_group_ids = list(
-                GroupMember.objects.filter(user_id__in=users).values_list("study_group_id", flat=True).distinct()
+        # 1. 북마크 데이터 로드 (감쇠 미적용)
+        if weighted_bookmark > 0:
+            bookmarks: List[Tuple[int, int]] = list(
+                LectureBookmark.objects.filter(query_filter).values_list("user_id", "lecture_id")
             )
+            for user_id, lec_id in bookmarks:
+                interactions[(user_id, lec_id)] += weighted_bookmark
 
-            if study_group_ids:
-                # 2) 해당 그룹 ID들의 스터디 강의 조회 (그룹 ID, 강의 ID 쌍)
-                study_participations = (
-                    StudyLecture.objects.filter(study_group_id__in=study_group_ids)
-                    .values_list("study_group_id", "lecture_id")
-                    .distinct()
+        # 2. 스터디 참여 데이터 로드 (감쇠 적용)
+        if weighted_study > 0:
+            try:
+                # GroupMember 필터링 (last_trained_at 이후 생성된 멤버)
+                member_filter: Q = Q(user_id__in=users)
+                if last_trained_at:
+                    member_filter &= Q(created_at__gt=last_trained_at)
+
+                study_group_ids: List[int] = list(
+                    GroupMember.objects.filter(member_filter).values_list("study_group_id", flat=True).distinct()
                 )
 
-                # 3) study_group_id -> user_id 매핑 준비 (처리 대상 user만 포함)
-                group_user_map: Dict[int, Set[int]] = defaultdict(set)
-                group_members_data = GroupMember.objects.filter(
-                    study_group_id__in=study_group_ids, user_id__in=users
-                ).values_list("study_group_id", "user_id")
-                for grp_id, user_id in group_members_data:
-                    group_user_map[grp_id].add(user_id)
+                if study_group_ids:
+                    # StudyLecture 필터링 (last_trained_at 이후 추가된 강의)
+                    lecture_filter: Q = Q(study_group_id__in=study_group_ids)
+                    if last_trained_at:
+                        lecture_filter &= Q(created_at__gt=last_trained_at)
 
-                # 4) 사용자별 강의에 가중치 부여
-                for grp_id, lec_id in study_participations:
-                    for user_id in group_user_map.get(grp_id, set()):
-                        all_interactions[(user_id, lec_id)] += weighted_study
+                    study_participations: List[Tuple[int, int, datetime]] = list(
+                        StudyLecture.objects.filter(lecture_filter).values_list(
+                            "study_group_id", "lecture_id", "created_at"
+                        )
+                    )
 
-        except (ProgrammingError, OperationalError) as e:
-            # 심각한 DB 오류 발생 시 로그 기록 후 해당 가중치 누락을 허용하고 계속 진행
-            logger.error(f"CRITICAL DB Error loading study participation data: {e}", exc_info=True)
-            pass
+                    # 그룹-유저 매핑
+                    group_user_map: DefaultDict[int, Set[int]] = defaultdict(set)
+                    group_members_data: List[Tuple[int, int]] = list(
+                        GroupMember.objects.filter(study_group_id__in=study_group_ids, user_id__in=users).values_list(
+                            "study_group_id", "user_id"
+                        )
+                    )
 
-        # 3. 사용자 선호 카테고리 매칭 점수 누적 (Redis 캐시 사용)
-        user_prefer_map: defaultdict[int, set[int]] = defaultdict(set)
-        for user_id, cat_id in UserPreferCategory.objects.filter(user_id__in=users).values_list(
-            "user_id", "category_id"
-        ):
-            user_prefer_map[user_id].add(cat_id)
+                    for grp_id, user_id in group_members_data:
+                        group_user_map[grp_id].add(user_id)
 
-        lecture_category_map = self.get_lecture_category_map()
-        weighted_category = self.WEIGHTS.get("category_match", 0.0)
+                    # 점수 부여 및 감쇠 적용
+                    for grp_id, lec_id, created_at in study_participations:
+                        decay_factor: float = self._get_decay_factor(created_at)
+                        decayed_score: float = weighted_study * decay_factor
 
-        # 상호작용이 이미 발생한 (user_id, lec_id) 쌍에 대해서만 카테고리 매칭 점수 계산
-        for user_id, lec_id in all_interactions.keys():
-            user_prefs = user_prefer_map[user_id]
-            lec_cats = lecture_category_map.get(lec_id, set())
-            matched_cats = user_prefs.intersection(lec_cats)
-            if matched_cats:
-                all_interactions[(user_id, lec_id)] += len(matched_cats) * weighted_category
+                        for user_id in group_user_map.get(grp_id, set()):
+                            interactions[(user_id, lec_id)] += decayed_score
 
-        # 4. 리뷰 평점 점수 반영 (Django ORM 집계)
-        rating_cases = [
-            When(rating=k, then=Value(v, output_field=FloatField())) for k, v in self.RATING_SCORE_MAP.items()
-        ]
+            except (ProgrammingError, OperationalError) as e:
+                logger.error(f"[DB] Error loading study participation data: {e}", exc_info=True)
 
-        # 상호작용이 있는 강의만 필터링하여 DB 부담 완화
-        relevant_lecture_ids = [lec_id for (_, lec_id) in all_interactions.keys()]
+        return dict(interactions)
 
-        # ORM 레벨에서 평점 평균을 계산하여 DB I/O 최적화
-        lecture_avg_ratings = (
-            CrawledLectureReview.objects.filter(lecture_id__in=relevant_lecture_ids)  # 관련 강의만 필터링
-            .values("lecture_id")
-            .annotate(score=Case(*rating_cases, default=Value(0.0, output_field=FloatField())))
-            .values("lecture_id")
-            .annotate(avg_rating=Sum("score") / Sum(Value(1)))
-            .values("lecture_id", "avg_rating")
-        )
+    def _load_item_features(
+        self,
+        all_interactions: Dict[Tuple[int, int], float],
+        last_trained_at: Optional[datetime],
+    ) -> Dict[Tuple[int, int], float]:
+        """
+        사용자 선호 카테고리 일치 및 강의 평점 기반 아이템 피처 점수 계산.
+        (last_trained_at은 현재 사용되지 않으나 인터페이스 통일성 유지)
 
-        avg_rating_map = {r["lecture_id"]: r["avg_rating"] for r in lecture_avg_ratings}
-        weighted_rating = self.WEIGHTS.get("review_rating", 0.0)
+        :param all_interactions: 현재까지 로드된 모든 상호작용 키 (u, l)
+        :param last_trained_at: 이전 학습 시점 (currently unused)
+        :return: {(user_id, lecture_id): feature_score} 딕셔너리
+        """
+        scores: DefaultDict[Tuple[int, int], float] = defaultdict(float)
+        keys: Set[Tuple[int, int]] = set(all_interactions.keys())
+        lec_ids: Set[int] = {lec for (_, lec) in keys}
+        user_ids: Set[int] = {u for (u, _) in keys}
 
-        for (user_id, lec_id), score in all_interactions.items():
-            if lec_id in avg_rating_map:
-                all_interactions[(user_id, lec_id)] += avg_rating_map[lec_id] * weighted_rating
+        weighted_category: float = self.item_weights.get("category_match", 0.0)
+        weighted_rating: float = self.item_weights.get("review_rating", 0.0)
 
-        # 5. 검색어 기반 점수 누적 (최근 N일 로그 반영)
-        cutoff_date = timezone.now() - timedelta(days=SEARCH_LOG_DAYS_LIMIT)
+        # 1. 사용자 선호 카테고리 일치 점수
+        if weighted_category > 0:
+            user_prefer_map: DefaultDict[int, Set[int]] = defaultdict(set)
+            user_prefers: List[Tuple[int, int]] = list(
+                UserPreferCategory.objects.filter(user_id__in=user_ids).values_list("user_id", "category_id")
+            )
+            for u, c in user_prefers:
+                user_prefer_map[u].add(c)
 
-        user_keywords: defaultdict[int, List[str]] = defaultdict(list)
-        # 필터링: 최근 N일 이내의 로그만 조회
-        recent_logs = (
-            LectureSearchLog.objects.filter(user_id__in=users, created_at__gte=cutoff_date)
-            .values_list("user_id", "keyword")
+            lecture_category_map: Dict[int, Set[int]] = self.get_lecture_category_map()
+
+            for u, lec in keys:
+                # 사용자 선호 카테고리 & 강의 카테고리 교집합
+                matched: Set[int] = user_prefer_map[u].intersection(lecture_category_map.get(lec, set()))
+                if matched:
+                    # 일치하는 카테고리 수 * 가중치
+                    scores[(u, lec)] += len(matched) * weighted_category
+
+        # 2. 강의 평균 평점 점수
+        if weighted_rating > 0:
+            avg_ratings = CrawledLecture.objects.filter(id__in=lec_ids).values("id", "average_rating")
+            # None이 아닌 유효 평점만 딕셔너리로 매핑
+            avg_map: Dict[int, float] = {
+                r["id"]: float(r["average_rating"]) for r in avg_ratings if r["average_rating"] is not None
+            }
+
+            for u, lec in keys:
+                if lec in avg_map and avg_map[lec] > 0:
+                    # 평균 평점 * 가중치
+                    scores[(u, lec)] += avg_map[lec] * weighted_rating
+
+        return dict(scores)
+
+    def _load_search_interactions(
+        self,
+        users: List[int],
+        last_trained_at: Optional[datetime],
+    ) -> Dict[Tuple[int, int], float]:
+        """
+        사용자 검색 로그를 강의 제목과 매칭하여 상호작용 점수 계산.
+        최근 검색 로그 기간 제한 (SEARCH_LOG_DAYS_LIMIT) 및 감쇠 함수 적용.
+
+        :param users: 대상 사용자 ID 리스트
+        :param last_trained_at: 이전 학습 시점 (점진 학습 필터)
+        :return: {(user_id, lecture_id): search_score} 딕셔너리
+        """
+        scores: DefaultDict[Tuple[int, int], float] = defaultdict(float)
+        weighted_search: float = self.user_weights.get("search", 0.0)
+        if weighted_search == 0:
+            return {}
+
+        # 검색 로그 조회 시작 시점 (기간 제한 적용)
+        cutoff: datetime = self._now - timedelta(days=SEARCH_LOG_DAYS_LIMIT)
+        query_filter: Q = Q(user_id__in=users, created_at__gte=cutoff)
+        if last_trained_at:
+            query_filter &= Q(created_at__gt=last_trained_at)
+
+        recent_logs: List[Tuple[int, str, datetime]] = list(
+            LectureSearchLog.objects.filter(query_filter)
+            .values_list("user_id", "keyword", "created_at")
             .order_by("-created_at")
         )
 
-        # 최신 로그 순서로 키워드를 저장 (중복 제거)
-        processed_keywords = set()
-        for user_id, keyword in recent_logs:
-            if keyword and (user_id, keyword) not in processed_keywords:
-                user_keywords[user_id].append(keyword)
-                processed_keywords.add((user_id, keyword))
+        user_keyword_map: DefaultDict[int, Dict[str, datetime]] = defaultdict(dict)
+        all_keywords: Set[str] = set()
 
-        weighted_search = self.WEIGHTS.get("search", 0.0)
+        # 최근 검색 로그에서 키워드 추출 (중복 제거, 최신 기준)
+        for user_id, keyword, created_at in recent_logs:
+            if keyword and keyword not in user_keyword_map[user_id]:
+                user_keyword_map[user_id][keyword] = created_at
+                all_keywords.add(keyword)
 
-        for user_id, keywords in user_keywords.items():
-            if not keywords:
-                continue
+        if not all_keywords:
+            return {}
 
-            search_query = Q()
-            for keyword in keywords:
-                # 강의 제목에 키워드가 포함되는지 검사
-                search_query |= Q(title__icontains=keyword)
+        # 키워드와 강의 제목 매칭을 위한 ORM 쿼리 구성 (OR 조건)
+        keyword_query: Q = Q()
+        for keyword in all_keywords:
+            # 대소문자 구분 없이 제목 포함 검색
+            keyword_query |= Q(title__icontains=keyword)
 
-            # 단일 쿼리로 해당 유저의 모든 매칭 강의 ID 조회
-            matched_lectures = CrawledLecture.objects.filter(search_query).values_list("id", flat=True)
+        matched_lectures_data: DefaultDict[int, List[str]] = defaultdict(list)
+        if keyword_query:
+            matched_lectures: List[Tuple[int, str]] = list(
+                CrawledLecture.objects.filter(keyword_query).values_list("id", "title")
+            )
+            # 실제 제목에 키워드가 포함되는지 확인
+            for lec_id, title in matched_lectures:
+                for keyword in all_keywords:
+                    if keyword.lower() in title.lower():
+                        matched_lectures_data[lec_id].append(keyword)
 
-            # 매칭된 강의에 대해 단순 가중치 부여
-            for lec_id in matched_lectures:
-                all_interactions[(user_id, lec_id)] += weighted_search
+        # 검색 점수 부여 및 감쇠 적용
+        for user_id, keyword_data in user_keyword_map.items():
+            for keyword, created_at in keyword_data.items():
+                decay_factor: float = self._get_decay_factor(created_at)
+                decayed_score: float = weighted_search * decay_factor
 
-        return all_interactions
+                for lec_id, matching_keywords in matched_lectures_data.items():
+                    if keyword in matching_keywords:
+                        # 동일 키워드가 매칭된 강의에 점수 부여
+                        scores[(user_id, lec_id)] += decayed_score
 
-    def build_user_item_matrix(self, target_user_ids: Optional[List[int]] = None) -> Tuple[
-        Optional[coo_matrix],
-        Optional[Dict[int, int]],
-        Optional[Dict[int, int]],
-        Optional[List[int]],
-        Optional[List[int]],
-    ]:
-        """ALS 학습에 필요한 사용자-강의 상호작용 희소 행렬과 인덱스 맵 생성."""
-        interaction_rows: List[int] = []
-        interaction_cols: List[int] = []
-        interaction_data: List[float] = []
+        return dict(scores)
 
-        # 상호작용 데이터가 있는 모든 사용자/강의 목록 추출
-        users = target_user_ids or list(LectureBookmark.objects.values_list("user_id", flat=True).distinct())
+    # -- 3. 행렬 구축 함수 (Matrix Building)
 
-        # LectureBookmark에서 직접 강의 ID 추출하여 조인 쿼리 방지
-        lectures = list(LectureBookmark.objects.values_list("lecture_id", flat=True).distinct())
+    def build_user_item_matrix(
+        self,
+        users: Optional[List[int]] = None,
+        last_trained_at: Optional[datetime] = None,
+    ) -> MatrixBundle:
+        """
+        모든 상호작용 피처를 병합하여 사용자-아이템 희소 행렬 (COO Matrix) 생성.
 
-        if not users or not lectures:
-            return None, None, None, None, None
+        :param users: 학습에 사용할 특정 사용자 ID 리스트 (None 시 전체 사용자)
+        :param last_trained_at: 이전 학습 시점 (점진 학습 필터링 기준)
+        :return: MatrixBundle 타입 튜플 또는 None
+        """
+        # 데이터 로드 기준 시각 재설정
+        self._now = timezone.now()
 
-        all_interactions = self._get_all_interactions(users)
+        # 전체 사용자 ID 리스트 로드 (Full training 시)
+        if users is None:
+            # 북마크를 남긴 모든 사용자 ID를 대상으로 함
+            users_list: List[int] = list(LectureBookmark.objects.values_list("user_id", flat=True).distinct())
+        else:
+            users_list = users
 
-        # 고유 ID를 0부터 시작하는 행렬 인덱스로 매핑
-        user_idx_map: Dict[int, int] = {user: i for i, user in enumerate(users)}
-        lecture_idx_map: Dict[int, int] = {lec: i for i, lec in enumerate(lectures)}
+        # 각 상호작용 피처 로드
+        initial_interactions: Dict[Tuple[int, int], float] = self._load_user_interactions(users_list, last_trained_at)
+        # 아이템 피처 로드를 위해 초기 상호작용 키를 전달
+        item_feature_scores: Dict[Tuple[int, int], float] = self._load_item_features(
+            initial_interactions, last_trained_at
+        )
+        search_scores: Dict[Tuple[int, int], float] = self._load_search_interactions(users_list, last_trained_at)
 
-        # 집계된 점수를 희소 행렬의 (행, 열, 값) 데이터로 변환
-        for (user_id, lec_id), score in all_interactions.items():
-            if user_id in user_idx_map and lec_id in lecture_idx_map:
-                interaction_rows.append(user_idx_map[user_id])
-                interaction_cols.append(lecture_idx_map[lec_id])
-                interaction_data.append(float(score))
+        # 모든 상호작용 점수 병합 (누적 합산)
+        combined: DefaultDict[Tuple[int, int], float] = defaultdict(float)
+        for data_dict in [initial_interactions, item_feature_scores, search_scores]:
+            for k, v in data_dict.items():
+                combined[k] += v
 
-        if not interaction_data:
-            return None, None, None, None, None
+        if not combined:
+            # 상호작용 데이터가 없으면 None 반환
+            logger.info("No combined interaction data found for matrix building.")
+            return None
 
-        # coo_matrix 생성
-        user_item_matrix = coo_matrix(
-            (np.array(interaction_data), (np.array(interaction_rows), np.array(interaction_cols))),
-            shape=(len(users), len(lectures)),
+        # 사용자/강의 ID를 고유 인덱스로 매핑
+        all_users: List[int] = sorted(list(set(u for u, _ in combined.keys())))
+        all_lectures: List[int] = sorted(list(set(l for _, l in combined.keys())))
+
+        u_to_idx: Dict[int, int] = {u: i for i, u in enumerate(all_users)}
+        l_to_idx: Dict[int, int] = {l: i for i, l in enumerate(all_lectures)}
+
+        # 희소 행렬 데이터 구조
+        rows: List[int] = []  # 사용자 인덱스
+        cols: List[int] = []  # 강의 인덱스
+        data: List[float] = []  # 상호작용 점수
+
+        # 희소 행렬 데이터 구성
+        for (u, l), score in combined.items():
+            rows.append(u_to_idx[u])
+            cols.append(l_to_idx[l])
+            data.append(score)
+
+        # COO Matrix (Coordinate Format) 생성
+        matrix: coo_matrix = coo_matrix(
+            (np.array(data, dtype=np.float32), (np.array(rows), np.array(cols))),
+            shape=(len(all_users), len(all_lectures)),
+            dtype=np.float32,  # 데이터 타입 명시
         )
 
-        return user_item_matrix, user_idx_map, lecture_idx_map, users, lectures
+        # 결과 튜플 반환
+        return matrix, u_to_idx, l_to_idx, all_users, all_lectures
