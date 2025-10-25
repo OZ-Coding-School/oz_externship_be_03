@@ -7,6 +7,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.lecture.models import LectureBookmark
 from apps.lecture.serializers.lecture_serializers import LectureListSerializer
 from apps.lecture.services.recommender import RecommendationService
 
@@ -53,14 +54,24 @@ class RecommendationView(APIView):
         # 런타임 시에도 user_id가 실제 int인지 보증하는 검증 역할 겸함
         assert isinstance(user_id, int)
 
-        recommendation_service = self.get_recommendation_service()
-        lectures_queryset = recommendation_service.recommend_lectures_for_user(user_id, self.RECOMMENDATION_COUNT)
-        serializer = self.serializer_class(lectures_queryset, many=True, context={"request": request})
+        user_bookmarked_ids = set(LectureBookmark.objects.filter(user_id=user_id).values_list("lecture_id", flat=True))
 
-        return Response(
-            {
-                "detail": "맞춤 강의 추천 조회가 완료되었습니다.",
-                "data": {"recommendations": serializer.data},
+        recommendation_service = self.get_recommendation_service()
+        lectures_queryset = recommendation_service.recommend_lectures(user_id, self.RECOMMENDATION_COUNT)
+
+        lectures_queryset = lectures_queryset.prefetch_related(
+            "lecturecategory_set__category",
+        ).select_related()
+
+        serializer = self.serializer_class(
+            lectures_queryset,
+            many=True,
+            context={
+                "request": request,
+                "bookmarked_ids": user_bookmarked_ids,
             },
+        )
+        return Response(
+            serializer.data,
             status=status.HTTP_200_OK,
         )
