@@ -7,20 +7,12 @@ import joblib  # type: ignore
 import numpy as np
 from django.conf import settings
 from django.utils import timezone
-
-logger = logging.getLogger(__name__)
-
-try:
-    import implicit.als as implicit_als  # type: ignore
-
-    AlternatingLeastSquares = implicit_als.AlternatingLeastSquares
-    logger.info("Using implicit.als.AlternatingLeastSquares factory function.")
-except ImportError:
-    logger.error("Failed to import implicit.als. Cannot run ModelTrainer.")
-    AlternatingLeastSquares = None
+from implicit.als import AlternatingLeastSquares  # type: ignore
 
 from apps.lecture.services.constants import ALS_PARAMS
 from apps.lecture.services.data_loader import DataLoader
+
+logger = logging.getLogger(__name__)
 
 MODEL_DIR = settings.MODEL_STORAGE_PATH
 MODEL_PATH = os.path.join(MODEL_DIR, "als_model.npz")
@@ -39,9 +31,6 @@ class ModelTrainer:
         self.params = ALS_PARAMS
         os.makedirs(self.MODEL_DIR, exist_ok=True)
 
-        if AlternatingLeastSquares is None:
-            raise RuntimeError("Implicit ALS library could not be loaded. Please check your installation.")
-
     def train_and_save_full_model(self) -> bool:
         logger.info("--- Full Model Training Started ---")
         matrix, u_to_i, l_to_i, users, lectures = self.data_loader.build_user_item_matrix()
@@ -57,6 +46,15 @@ class ModelTrainer:
             iterations=self.params.iterations,
             calculate_training_loss=self.params.calculate_training_loss,
         )
+
+        # GPU 미지원 시 경고 로깅
+        # 반환된 모델의 모듈 경로를 확인하여 CPU 모델인지 판단
+        if model.__class__.__module__ == "implicit.cpu.als":
+            logger.warning(
+                "GPU not detected or implicit library installed without CUDA support. "
+                "Falling back to CPU training. Consider installing the GPU version for faster training."
+            )
+
         model.fit(matrix.T.tocsr())
 
         if not self._save_model_and_mappings(model, u_to_i, l_to_i, users, lectures):
