@@ -5,7 +5,6 @@ from datetime import date, datetime
 from typing import Any, Dict, Mapping, Optional, Tuple, cast
 from unittest.mock import patch
 
-import pytest
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import IntegrityError
 from django.urls import reverse
@@ -28,8 +27,6 @@ from apps.users.services.user_signup_service import (
     status_from_active,
 )
 from apps.users.views.user_signup_views import UserSignupView
-
-pytestmark = pytest.mark.django_db
 
 
 # ---------------------------------------------------------------------
@@ -464,10 +461,10 @@ class SignupServiceTests(IsolatedRedisTestClient):
             v_phone.side_effect = ValidationError("휴대폰 형식 오류")
             v_birth.side_effect = ValidationError("생년월일 형식 오류")
 
-            with pytest.raises(ValidationError) as ei:
+            with self.assertRaises(ValidationError) as ei:
                 svc.sign_up(self.payload_base())
 
-            err = ei.value
+            err = ei.exception
             assert isinstance(err.detail, dict)
             d = cast(Dict[str, Any], err.detail)
             assert d.keys() >= {"nickname", "name", "phone_number", "birthday"}
@@ -478,7 +475,7 @@ class SignupServiceTests(IsolatedRedisTestClient):
 
             with patch("apps.users.services.user_signup_service.User.objects.create_user") as create_user_2:
                 v_nick.side_effect = ValidationError("닉네임 형식 오류")
-                with pytest.raises(ValidationError):
+                with self.assertRaises(ValidationError):
                     svc.sign_up(self.payload_base())
                 create_user_2.assert_not_called()
 
@@ -502,10 +499,10 @@ class SignupServiceTests(IsolatedRedisTestClient):
             ):
                 create_user.side_effect = IntegrityError(msg)
 
-                with pytest.raises(APIException) as ei:
+                with self.assertRaises(APIException) as ei:
                     svc.sign_up(self.payload_base())
 
-                exc = ei.value
+                exc = ei.exception
                 assert getattr(exc, "status_code", None) == 409
                 assert isinstance(exc.detail, dict)
                 d = cast(Mapping[str, Any], exc.detail)
