@@ -7,18 +7,19 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.validators import validate_email as django_validate_email
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import serializers, status
+from rest_framework.authentication import BaseAuthentication
 from rest_framework.permissions import AllowAny
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.users.serializers.auth_serializers import (
-    LoginSerializer,
-    TokenObtainOutSerializer,
-    TokenRefreshInSerializer,
-    TokenRefreshOutSerializer,
+    LoginRequestSerializer,
+    LoginResponseSerializer,
+    TokenRefreshRequestSerializer,
+    TokenRefreshResponseSerializer,
 )
-from apps.users.services.auth_token_services import (
+from apps.users.services.auth_services import (
     authenticate_and_issue_tokens,
     refresh_access_token,
 )
@@ -86,21 +87,22 @@ def _is_jwt_like(token: str) -> bool:
 def _validate_refresh_payload(payload: Dict[str, Any]) -> None:
     refresh = payload.get("refresh")
     if not isinstance(refresh, str) or not refresh.strip():
-        raise serializers.ValidationError({"refresh": ["refresh 토큰을 입력해주세요."]})
+        raise serializers.ValidationError({"error": "refresh 토큰을 입력해주세요."})
     if not _is_jwt_like(refresh):
-        raise serializers.ValidationError({"refresh": ["refresh 토큰 형식이 올바르지 않습니다."]})
+        raise serializers.ValidationError({"error": "refresh 토큰 형식이 올바르지 않습니다."})
     payload["refresh"] = refresh.strip()
 
 
 # ==============================
 # 뷰
 # ==============================
-class TokenObtainView(APIView):
+class LoginView(APIView):
     """
     POST /auth/login
     body: { "email": "...", "password": "..." }
     """
 
+    authentication_classes: tuple[type[BaseAuthentication], ...] = ()
     permission_classes = [AllowAny]
 
     @extend_schema(
@@ -109,12 +111,12 @@ class TokenObtainView(APIView):
         description=(
             "access/refresh 토큰을 발급\n" f"- refresh 토큰은 ** 쿠키(`{AUTH_REFRESH_COOKIE_NAME}`)**에 저장\n"
         ),
-        request=LoginSerializer,
-        responses={200: TokenObtainOutSerializer},
+        request=LoginRequestSerializer,
+        responses={201: LoginResponseSerializer},
     )
-    def post(self, request: Request, *args: Any, **kwargs: Any) -> Response:
+    def post(self, request: Request) -> Response:
         # 1) 스키마 체크
-        in_ser = LoginSerializer(data=request.data)
+        in_ser = LoginRequestSerializer(data=request.data)
         in_ser.is_valid(raise_exception=True)
         payload: Dict[str, Any] = dict(in_ser.validated_data)
 
@@ -123,7 +125,7 @@ class TokenObtainView(APIView):
 
         # 3) 서비스 호출
         try:
-            user, tokens = authenticate_and_issue_tokens(
+            tokens = authenticate_and_issue_tokens(
                 email=payload["email"],
                 password=payload["password"],
             )
@@ -134,20 +136,12 @@ class TokenObtainView(APIView):
             )
 
         # 4) 응답 및 리프레시 쿠키 저장
-        out_ser = TokenObtainOutSerializer(
-            data={
-                "user": {
-                    "email": getattr(user, "email"),
-                    "nickname": getattr(user, "nickname"),
-                },
-                "access": tokens["access"],
-            }
-        )
+        out_ser = LoginResponseSerializer(data={"access": tokens["access"]})
         out_ser.is_valid(raise_exception=True)
 
         resp = Response(
             {"detail": "토큰이 발급되었습니다.", "data": out_ser.data},
-            status=status.HTTP_200_OK,
+            status=status.HTTP_201_CREATED,
         )
         _set_refresh_cookie(resp, tokens["refresh"])
         return resp
@@ -165,38 +159,33 @@ class TokenRefreshView(APIView):
         tags=["Auth"],
         summary="access 토큰 재발급",
         description=(
-            "리프레시 토큰은 **HttpOnly 쿠키**에서 읽어 재발급\n"
-            f"- 쿠키 키: `{AUTH_REFRESH_COOKIE_NAME}`\n"
-            "- 만약 쿠키가 없다면, 요청 본문 `refresh` 필드 참조"
+            "리프레시 토큰은 **HttpOnly 쿠키**에서 읽어 재발급\n" f"- 쿠키 키: `{AUTH_REFRESH_COOKIE_NAME}`\n"
         ),
         parameters=[
             OpenApiParameter(
                 name=AUTH_REFRESH_COOKIE_NAME,
                 location=OpenApiParameter.COOKIE,
-                required=False,
+                required=True,
                 description="리프레시 토큰이 저장된 HttpOnly 쿠키",
             ),
         ],
-        request=TokenRefreshInSerializer,
-        responses={200: TokenRefreshOutSerializer},
+        request=None,
+        responses={200: TokenRefreshResponseSerializer},
     )
-    def post(self, request: Request, *args: Any, **kwargs: Any) -> Response:
-        # 1) 쿠키에서 리프레시 토큰 획득
-        cookie_refresh = request.COOKIES.get(AUTH_REFRESH_COOKIE_NAME)
+    def post(self, request: Request) -> Response:
+        # 1) 쿠키에서만 리프레시 토큰 획득
+        refresh_token_value: Optional[str] = request.COOKIES.get(AUTH_REFRESH_COOKIE_NAME)
 
-        # 2) 쿠키가 없으면 본문에서 획득
-        body_refresh: Optional[str] = None
-        if not cookie_refresh:
-            in_ser = TokenRefreshInSerializer(data=request.data)
-            in_ser.is_valid(raise_exception=True)
-            payload: Dict[str, Any] = dict(in_ser.validated_data)
-            _validate_refresh_payload(payload)
-            body_refresh = payload["refresh"]
-
-        refresh_token_value = cookie_refresh or body_refresh
         if not refresh_token_value:
             return Response(
                 {"error": "리프레시 토큰이 필요합니다."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # 2) 형식 검사(JWT-like)
+        if not _is_jwt_like(refresh_token_value):
+            return Response(
+                {"error": "refresh 토큰 형식이 올바르지 않습니다."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -204,13 +193,13 @@ class TokenRefreshView(APIView):
             new_access = refresh_access_token(refresh_token=refresh_token_value)
         except PermissionError:
             return Response(
-                {"error": "유효하지 않은 refresh 토큰입니다."},
+                {"error": "유효하지 않은 리프레시 토큰입니다."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        out_ser = TokenRefreshOutSerializer(data={"access": new_access})
+        out_ser = TokenRefreshResponseSerializer(data={"access": new_access})
         out_ser.is_valid(raise_exception=True)
         return Response(
-            {"detail": "access 토큰이 재발급되었습니다.", "data": out_ser.data},
+            {"detail": "액세스 토큰이 재발급되었습니다.", "data": out_ser.data},
             status=status.HTTP_200_OK,
         )

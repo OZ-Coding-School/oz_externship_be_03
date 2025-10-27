@@ -20,11 +20,9 @@ def _issue_tokens(user: UserModel) -> Dict[str, str]:
 # -------------------------------------------------------------------
 # 인증 + 토큰 발급
 # -------------------------------------------------------------------
-def authenticate_and_issue_tokens(*, email: str, password: str) -> Tuple[UserModel, Dict[str, str]]:
+def authenticate_and_issue_tokens(*, email: str, password: str) -> Dict[str, str]:
     """
     - 기본: 이메일 기반 인증
-    - 실패 시: nickname으로 사용자 찾은 뒤 username 기반 인증 재시도
-    - 성공 시 (user, tokens) 반환 / 실패 시 PermissionError
     """
     identifier = (email or "").strip()
 
@@ -38,7 +36,7 @@ def authenticate_and_issue_tokens(*, email: str, password: str) -> Tuple[UserMod
     if not getattr(user, "is_active", True):
         raise PermissionError("비활성화된 계정입니다.")
 
-    return user, _issue_tokens(user)
+    return _issue_tokens(user)
 
 
 # -------------------------------------------------------------------
