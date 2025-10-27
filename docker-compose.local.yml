@@ -74,6 +74,39 @@ services:
       retries: 5
       start_period: 5s
 
+  celery-worker:
+    build:
+      context: .
+    container_name: celery-worker
+    command: celery -A config.celery worker --loglevel=info
+    volumes:
+      - .:/oz_externship
+    env_file:
+      - envs/.local.env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - ws
+
+  celery-beat:
+    build:
+      context: .
+    container_name: celery-beat
+    command: celery -A config.celery beat --loglevel=info
+    volumes:
+      - .:/oz_externship
+    env_file:
+      - envs/.local.env
+    depends_on:
+      - celery-worker
+      - redis
+    networks:
+      - ws
+
+
 networks:
   ws:
     driver: bridge

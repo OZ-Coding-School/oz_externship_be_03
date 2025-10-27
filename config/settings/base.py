@@ -268,6 +268,12 @@ CELERY_BEAT_SCHEDULE = {
         "args": (),
         "kwargs": {"batch_size": 1000},
     },
+    # REQ-STDY-010: 스터디 그룹 상태 자동 업데이트
+    "update-studygroup-status-daily": {
+        "task": "apps.studies.tasks.update_studygroup_status_daily",
+        "schedule": crontab(minute=1, hour=0),  # 매일 00:01 KST
+        "options": {"expires": 60 * 60},
+    },
 }
 
 # 리프레쉬 토큰 쿠키 설정
