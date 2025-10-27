@@ -1,6 +1,7 @@
 import os
 from datetime import timedelta
 from pathlib import Path
+from typing import cast
 
 from dotenv import load_dotenv
 
@@ -272,7 +273,7 @@ CELERY_BEAT_SCHEDULE = {
 # 리프레쉬 토큰 쿠키 설정
 AUTH_REFRESH_COOKIE_NAME = "refresh_token"
 AUTH_REFRESH_COOKIE_PATH = "/"
-AUTH_REFRESH_COOKIE_MAX_AGE = 7 * 24 * 60 * 60
+AUTH_REFRESH_COOKIE_MAX_AGE = int(cast(timedelta, SIMPLE_JWT["REFRESH_TOKEN_LIFETIME"]).total_seconds())
 AUTH_REFRESH_COOKIE_SECURE = True
 AUTH_REFRESH_COOKIE_HTTPONLY = True
 AUTH_REFRESH_COOKIE_SAMESITE = "None"
