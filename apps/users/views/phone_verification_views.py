@@ -18,6 +18,7 @@ from apps.users.serializers.phone_verification_serializers import (
     SendCodeSerializer,
 )
 from apps.users.services.phone_verification_services import confirm_code, send_code
+from apps.users.views.email_verification_views import AUTH_CLASSES_DEFAULT
 
 # -------------------------------
 # 공통 부분
@@ -127,9 +128,9 @@ class BasePhoneConfirmCodeView(APIView):
     description="회원가입 목적으로 Twilio Verify를 통해 휴대폰으로 인증코드를 전송합니다. 로그인이 필요하지 않습니다.",
 )
 class SignupSendCodeView(BasePhoneSendCodeView):
+    permission_classes = [AllowAny]
     PURPOSE = PhoneVerificationPurpose.SIGNUP
     authentication_classes = cast(Tuple[Type[BaseAuthentication], ...], ())
-    permission_classes = [AllowAny]
 
 
 @phone_confirm_schema(
@@ -152,8 +153,9 @@ class SignupConfirmCodeView(BasePhoneConfirmCodeView):
     description="이메일 찾기 목적으로 Twilio Verify를 통해 휴대폰으로 인증코드를 전송합니다. 로그인이 필요하지 않습니다.",
 )
 class FindEmailSendCodeView(BasePhoneSendCodeView):
-    PURPOSE = PhoneVerificationPurpose.FIND_EMAIL
     permission_classes = [AllowAny]
+    PURPOSE = PhoneVerificationPurpose.FIND_EMAIL
+    authentication_classes = cast(Tuple[Type[BaseAuthentication], ...], ())
 
 
 @phone_confirm_schema(
@@ -163,6 +165,7 @@ class FindEmailSendCodeView(BasePhoneSendCodeView):
 class FindEmailConfirmCodeView(BasePhoneConfirmCodeView):
     permission_classes = [AllowAny]
     PURPOSE = PhoneVerificationPurpose.FIND_EMAIL
+    authentication_classes = cast(Tuple[Type[BaseAuthentication], ...], ())
 
 
 # -------------------------------
@@ -177,6 +180,7 @@ class FindEmailConfirmCodeView(BasePhoneConfirmCodeView):
 class ChangePhoneSendCodeView(BasePhoneSendCodeView):
     PURPOSE = PhoneVerificationPurpose.CHANGE_PHONE
     permission_classes = [IsAuthenticated]
+    authentication_classes = AUTH_CLASSES_DEFAULT
 
 
 @phone_confirm_schema(
@@ -184,5 +188,6 @@ class ChangePhoneSendCodeView(BasePhoneSendCodeView):
     description="휴대폰 번호 변경 목적으로 Twilio Verify를 통해 휴대폰으로 인증코드를 확인합니다. 로그인이 필요합니다.",
 )
 class ChangePhoneConfirmCodeView(BasePhoneConfirmCodeView):
-    permission_classes = [IsAuthenticated]
     PURPOSE = PhoneVerificationPurpose.CHANGE_PHONE
+    permission_classes = [IsAuthenticated]
+    authentication_classes = AUTH_CLASSES_DEFAULT
