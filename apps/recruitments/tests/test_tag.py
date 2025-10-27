@@ -13,7 +13,7 @@ class TestTagMockView(TestCase):
 
     # 전체 태그 목록 조회 (페이지네이션 대응)
     def test_get_tags(self) -> None:
-        response: Any = self.client.get("/recruitment-tags/")  # 경로 수정
+        response: Any = self.client.get("/api/v1/recruitments/recruitment-tags/")  # 경로 수정
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         # 페이지네이션 구조 검증
         self.assertIn("results", response.data)
@@ -24,19 +24,19 @@ class TestTagMockView(TestCase):
     # 태그 생성 성공
     def test_post_tag_success(self) -> None:
         data: dict[str, str] = {"name": "FastAPI"}
-        response: Any = self.client.post("/recruitment-tags/", data)  # 경로 수정
+        response: Any = self.client.post("/api/v1/recruitments/recruitment-tags/", data)  # 경로 수정
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["name"], "FastAPI")
         self.assertIn("id", response.data)
 
     # 태그 이름 누락 → 400
     def test_post_tag_missing_name(self) -> None:
-        response: Any = self.client.post("/recruitment-tags/", {})  # 경로 수정
+        response: Any = self.client.post("/api/v1/recruitments/recruitment-tags/", {})  # 경로 수정
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("태그 이름은 필수", str(response.data))
 
     # 중복된 태그 → 400
     def test_post_duplicate_tag(self) -> None:
-        response: Any = self.client.post("/recruitment-tags/", {"name": "Python"})  # 경로 수정
+        response: Any = self.client.post("/api/v1/recruitments/recruitment-tags/", {"name": "Python"})  # 경로 수정
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("이미 존재", str(response.data))
