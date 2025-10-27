@@ -128,7 +128,7 @@ class ModelTrainer:
             return False
 
     def load_model_and_mappings(self) -> ModelBundleReturn:
-        """ 모델 번들 파일 로드, 불완전시 모두 None 반환"""
+        """모델 번들 파일 로드, 불완전시 모두 None 반환"""
         if not os.path.exists(MODEL_BUNDLE_PATH):
             return None, None, None, None, None, None, None
         try:
@@ -189,7 +189,7 @@ class ModelTrainer:
             return self._safe_dump_model(obj)
 
     def partial_fit_model_and_save(self) -> bool:
-        """ 점진학습: 기존 모델/매핑 기반 신규 행렬 합산, shape 변화시 전체 학습 폴백"""
+        """점진학습: 기존 모델/매핑 기반 신규 행렬 합산, shape 변화시 전체 학습 폴백"""
         logger.info("[ALS][PARTIAL] Partial Model Training Started.")
         model_bundle: ModelBundleReturn = self.load_model_and_mappings()
         (
