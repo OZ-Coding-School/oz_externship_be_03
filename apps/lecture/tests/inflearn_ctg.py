@@ -1,12 +1,14 @@
-from apps.lecture.crawlers.inflearn_ctg import InflearnCategoryCrawler
 from unittest import TestCase
+
+from apps.lecture.crawlers.inflearn_ctg import InflearnCategoryCrawler
+
 
 class InflearnCategoryCrawlerTest(TestCase):
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.crawler = InflearnCategoryCrawler()
 
-    def test_crawl_success(self):
+    def test_crawl_success(self) -> None:
         """기본 동작 및 데이터 형식 테스트"""
         result = self.crawler.crawl()
 
@@ -31,13 +33,13 @@ class InflearnCategoryCrawlerTest(TestCase):
             # 5. "name" 키만 있어야 함 (다른 키 없음)
             self.assertEqual(len(item.keys()), 1, '"name" 키만 있어야 함')
 
-    def test_crawl_removes_duplicates(self):
+    def test_crawl_removes_duplicates(self) -> None:
         """중복 제거 테스트"""
         result = self.crawler.crawl()
         names = [c["name"] for c in result]
         self.assertEqual(len(names), len(set(names)))
 
-    def test_crawl_sorts_results(self):
+    def test_crawl_sorts_results(self) -> None:
         """정렬 테스트"""
         result = self.crawler.crawl()
         names = [c["name"] for c in result]
