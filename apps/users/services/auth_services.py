@@ -45,7 +45,6 @@ def authenticate_and_issue_tokens(*, email: str, password: str) -> Dict[str, str
 def refresh_access_token(*, refresh_token: str) -> str:
     """
     SimpleJWT refresh로 access 토큰 재발급
-    - stubs 제약으로 mypy 우회(cast/ignore) 사용
     """
     try:
         token = RefreshToken(cast(Any, refresh_token))
