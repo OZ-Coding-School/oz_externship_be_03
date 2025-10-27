@@ -1,5 +1,15 @@
 from django.urls import path
 
+from apps.users.views.email_verification_views import (
+    ChangeEmailConfirmCodeView,
+    ChangeEmailSendCodeView,
+    ResetPasswordEmailConfirmCodeView,
+    ResetPasswordEmailSendCodeView,
+    RestoreUserEmailConfirmCodeView,
+    RestoreUserEmailSendCodeView,
+    SignupEmailConfirmCodeView,
+    SignupEmailSendCodeView,
+)
 from apps.users.views.phone_verification_views import (
     ChangePhoneConfirmCodeView,
     ChangePhoneSendCodeView,
@@ -25,5 +35,41 @@ urlpatterns = [
         "phone-verifications/phone-change/confirm-code",
         ChangePhoneConfirmCodeView.as_view(),
         name="change_phone_confirm_code",
+    ),
+    path("email-verifications/signup/send-code", SignupEmailSendCodeView.as_view(), name="email_signup_send_code"),
+    path(
+        "email-verifications/signup/confirm-code",
+        SignupEmailConfirmCodeView.as_view(),
+        name="email_signup_confirm_code",
+    ),
+    path(
+        "email-verifications/password-reset/send-code",
+        ResetPasswordEmailSendCodeView.as_view(),
+        name="email_reset_password_send_code",
+    ),
+    path(
+        "email-verifications/password-reset/confirm-code",
+        ResetPasswordEmailConfirmCodeView.as_view(),
+        name="email_reset_password_confirm_code",
+    ),
+    path(
+        "email-verifications/restore-user/send-code",
+        RestoreUserEmailSendCodeView.as_view(),
+        name="email_restore_user_send_code",
+    ),
+    path(
+        "email-verifications/restore-user/confirm-code",
+        RestoreUserEmailConfirmCodeView.as_view(),
+        name="email_restore_user_confirm_code",
+    ),
+    path(
+        "email-verifications/email_change/send-code",
+        ChangeEmailSendCodeView.as_view(),
+        name="email_change_email_send_code",
+    ),
+    path(
+        "email-verifications/email_change/confirm-code",
+        ChangeEmailConfirmCodeView.as_view(),
+        name="email_change_email_confirm_code",
     ),
 ]

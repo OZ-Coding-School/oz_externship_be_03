@@ -28,9 +28,16 @@ class EmailVerificationPurpose(TextChoices):
     SIGNUP = "signup", "회원가입"
     RESET_PASSWORD = "reset_password", "비밀번호재설정"
     RESTORE_USER = "restore_user", "탈퇴계정복구"
+    CHANGE_EMAIL = "change_email", "이메일변경"
 
 
 class PhoneVerificationPurpose(TextChoices):
     SIGNUP = "signup", "회원가입"
     FIND_EMAIL = "find_email", "이메일찾기"
     CHANGE_PHONE = "change_phone", "번호변경"
+
+
+class Role(TextChoices):
+    ADMIN = "admin", "관리자"
+    STAFF = "staff", "스태프"
+    USER = "user", "일반회원"
