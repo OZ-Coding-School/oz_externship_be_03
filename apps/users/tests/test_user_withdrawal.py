@@ -104,7 +104,7 @@ class UserAccountRecoveryTests(IsolatedRedisTestClient):
     """
 
     def setUp(self) -> None:
-        self.url = reverse("users:user_account_recovery")
+        self.url = reverse("users:user_recovery_account")
         self.user = User.objects.create_user(
             email="recover@example.com",
             name="복구테스터",
