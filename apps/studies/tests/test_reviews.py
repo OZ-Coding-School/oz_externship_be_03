@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import datetime as dt
 import uuid
 from datetime import timedelta
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Optional
 
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import AbstractBaseUser
 from django.db import IntegrityError
 from django.test import TestCase
 from django.urls import reverse
@@ -12,7 +14,7 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.lecture.models.review import RatingEnum
-from apps.studies.models.groups import StudyGroup, StudyGroupStatus
+from apps.studies.models.groups import GroupMember, StudyGroup, StudyGroupStatus
 from apps.studies.models.reviews import Review
 
 User = get_user_model()
@@ -212,4 +214,48 @@ class ReviewCreateAPITests(_BaseFixtures):
             {"star_rating": 5, "content": "없음"},
             format="json",
         )
+        self.assertEqual(res.status_code, 404)
+
+
+# 2)API 리뷰생성
+class ReviewListAPITests(_BaseFixtures):
+    def _url(self, group: StudyGroup) -> str:
+        return reverse("studies:group-review-list", kwargs={"group_id": group.pk})
+
+    def _add_member(self, group: StudyGroup, user: Any) -> None:
+        GroupMember.objects.create(study_group=group, user=user)
+
+    def _create_review(
+        self,
+        *,
+        group: StudyGroup,
+        author: Any,
+        rating: RatingEnum,
+        content: str,
+        created_at: Optional[dt.datetime] = None,
+    ) -> Review:
+        r = Review.objects.create(
+            user=author,
+            study_group=group,
+            star_rating=rating,
+            content=content,
+        )
+        if created_at is not None:
+            Review.objects.filter(pk=r.pk).update(created_at=created_at, updated_at=created_at)
+            r.refresh_from_db()
+        return r
+
+    def test_unauthenticated_returns_401(self) -> None:  # 비로그인 접근 401 반환
+        res = self.client.get(self._url(self.study_group))
+        self.assertEqual(res.status_code, 401)
+
+    def test_forbidden_if_not_member_returns_403(self) -> None:  # 로그인했지만 그룹멤버가 아니면 403반환
+        self.client.force_authenticate(user=self.user)
+        res = self.client.get(self._url(self.study_group))
+        self.assertEqual(res.status_code, 403)
+        self.assertIn("detail", res.data)
+
+    def test_group_not_found_404(self) -> None:  # 존재하지 않는 group_id 호출 404 반환
+        self.client.force_authenticate(user=self.user)
+        res = self.client.get(reverse("studies:group-review-list", kwargs={"group_id": 999}))
         self.assertEqual(res.status_code, 404)

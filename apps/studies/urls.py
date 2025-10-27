@@ -9,7 +9,7 @@ from apps.studies.views.members import (
     MemberKickAPIView,
     MemberLeaveAPIView,
 )
-from apps.studies.views.reviews import ReviewCreateView
+from apps.studies.views.reviews import GroupReviewListView, ReviewCreateView
 
 app_name = "studies"
 

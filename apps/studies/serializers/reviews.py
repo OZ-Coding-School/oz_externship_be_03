@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Any, Dict, cast
+from hashlib import blake2b
+from typing import Any, Dict, Optional, cast
 
 from rest_framework import serializers
 from rest_framework.request import Request
@@ -57,3 +58,23 @@ class ReviewCreateSerializer(serializers.ModelSerializer[Review]):
 
     def create(self, validated_data: Dict[str, Any]) -> Review:
         return Review.objects.create(user=self.context["request"].user, **validated_data)
+
+
+def _anon_tag(user_id: int, group_id: int) -> str:
+    h = blake2b(f"{user_id}:{group_id}".encode("utf-8"), digest_size=3)
+    return f"익명#{h.hexdigest()}"
+
+
+class ReviewListItemSerializer(serializers.Serializer[Any]):
+    id = serializers.IntegerField()
+    rating = StarRatingField(read_only=True, source="star_rating")
+    content = serializers.CharField()
+    created_at = serializers.DateTimeField()
+    updated_at = serializers.DateTimeField()
+    author = serializers.SerializerMethodField()
+
+    def get_author(self, obj: Any) -> Dict[str, Any]:
+        request = self.context.get("request")
+        is_mine: bool = bool(request and getattr(request, "user", None) and obj.user_id == request.user.id)
+        display: str = "나" if is_mine else _anon_tag(obj.user_id, obj.study_group.id)
+        return {"is_mine": is_mine, "display": display}
