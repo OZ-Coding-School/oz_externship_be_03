@@ -34,16 +34,6 @@ def _ensure_twilio_verify_ready() -> None:
     if not TWILIO_VERIFY_SERVICE_SID:
         raise RuntimeError("Twilio Verify 서비스 SID가 설정되지 않았습니다.")
 
-
-def _normalize_kr_phone(raw: str) -> str:
-    """
-    입력: '010XXXXXXXX' (validate_korean_phone로 검증)
-    출력: '+8210XXXXXXXX' (E.164)
-    """
-    validate_korean_phone(raw)
-    return f"+82{raw[1:]}"
-
-
 def _pending_key(subject: str, purpose: str, sid: str) -> str:
     return f"verify:phone:pending:{subject}:{purpose}:{sid}"
 
@@ -84,7 +74,7 @@ def send_code(*, purpose: PhoneVerificationPurpose, phone_number: str) -> Respon
         )
 
     _ensure_twilio_verify_ready()
-    to = _normalize_kr_phone(phone_number)
+    to = normalize_kr_phone(phone_number)
 
     # 레이트 리밋: 60초 이내 중복 전송 방지
     rate_key = _rate_key(to)
@@ -131,7 +121,7 @@ def confirm_code(
         )
 
     _ensure_twilio_verify_ready()
-    to = _normalize_kr_phone(phone_number)
+    to = normalize_kr_phone(phone_number)
 
     # 잠금 확인
     lock_key_global = _global_lock_key(to)
