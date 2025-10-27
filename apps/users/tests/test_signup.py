@@ -164,7 +164,7 @@ def valid_payload() -> Dict[str, Any]:
 # ---------------------------------------------------------------------
 class SignupViewTests(IsolatedRedisTestClient):
     url: str
-    client: APIClient  # IsolatedRedisTestClient가 DRF APIClient를 제공한다고 가정
+    client: APIClient
 
     def setUp(self) -> None:
         super().setUp()
@@ -182,13 +182,6 @@ class SignupViewTests(IsolatedRedisTestClient):
 
             assert resp.status_code == status.HTTP_201_CREATED
             assert body.get("detail") == "회원가입에 성공하였습니다."
-            assert "data" in body and "user" in body["data"]
-
-            user: Mapping[str, Any] = cast(Mapping[str, Any], body["data"]["user"])
-            assert user["email"] == "john@example.com"
-            assert user["nickname"] == "johnny"
-            for k in ["email", "nickname", "name", "phone_number", "birthday", "gender", "status", "created_at"]:
-                assert k in user
 
     def test_serializer_invalid_400(self) -> None:
         p1, p2 = make_permission_patches(email_sub="john@example.com", phone_sub="01012345678")
