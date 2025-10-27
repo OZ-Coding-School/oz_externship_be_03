@@ -6,7 +6,9 @@ from apps.recruitments.views.bookmark import (
 )
 
 urlpatterns = [
-    path("", BookmarkListCreateAPIView.as_view(), name="bookmark-list-create"),
+    path("", BookmarkListCreateAPIView.as_view(), name="recruitments-bookmark-list-create"),
     # uuid 기준으로 상세 조회/삭제
-    path("<uuid:bookmark_uuid>/", BookmarkRetrieveDestroyAPIView.as_view(), name="bookmark-detail-destroy"),
+    path(
+        "<uuid:bookmark_uuid>/", BookmarkRetrieveDestroyAPIView.as_view(), name="recruitments-bookmark-detail-destroy"
+    ),
 ]
