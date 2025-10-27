@@ -184,7 +184,7 @@ class SSEViewsTest(IsolatedRedisTestClient):
     def test_sse_url_pattern(self) -> None:
         """SSE URL 패턴 테스트"""
         url = reverse("notifications:sse_stream", args=[123])
-        self.assertEqual(url, "/notifications/sse/123/")
+        self.assertEqual(url, "/api/v1/notifications/sse/123/")
 
     async def test_sse_multiple_notifications(self) -> None:
         """다중 알림 스트리밍 테스트"""
