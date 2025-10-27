@@ -12,7 +12,7 @@ async def notification_stream(request: HttpRequest, user_id: int) -> StreamingHt
         return StreamingHttpResponse(
             'data: {"error":"로그인이 필요합니다"}\\n\\n', content_type="text/event-stream", status=401
         )
-    
+
     if request.user.id != user_id:
         return StreamingHttpResponse(
             'data: {"error":"인증되지 않은 사용자"}\n\n', content_type="text/event-stream", status=403
