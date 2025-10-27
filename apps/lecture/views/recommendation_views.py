@@ -9,7 +9,9 @@ from rest_framework.views import APIView
 
 from apps.lecture.models import LectureBookmark
 from apps.lecture.serializers.lecture_serializers import LectureListSerializer
-from apps.lecture.services.recommender import RecommendationService
+from apps.lecture.services.recommendation_service.recommender import (
+    RecommendationService,
+)
 
 
 class RecommendationView(APIView):
