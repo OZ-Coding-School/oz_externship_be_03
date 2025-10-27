@@ -27,7 +27,6 @@ class UserProfileSerializer(serializers.ModelSerializer[Any]):
             "name",
             "phone_number",
             "birthday",
-            "profile_image_url",
             "created_at",
         ]
         read_only_fields = fields
