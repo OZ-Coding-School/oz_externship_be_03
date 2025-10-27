@@ -8,8 +8,8 @@ from rest_framework.response import Response
 from twilio.rest import Client  # type: ignore
 
 from apps.users.enums import PhoneVerificationPurpose
+from apps.users.utils.phone_normalize import normalize_kr_phone
 from apps.users.utils.verify_token import issue_verify_token
-from apps.users.validators import validate_korean_phone
 from config.settings.base import (
     ATTEMPT_LOCK_SECONDS,
     GLOBAL_LOCK_SECONDS,
@@ -33,6 +33,7 @@ def _purpose_whitelist(purpose: str) -> bool:
 def _ensure_twilio_verify_ready() -> None:
     if not TWILIO_VERIFY_SERVICE_SID:
         raise RuntimeError("Twilio Verify 서비스 SID가 설정되지 않았습니다.")
+
 
 def _pending_key(subject: str, purpose: str, sid: str) -> str:
     return f"verify:phone:pending:{subject}:{purpose}:{sid}"
