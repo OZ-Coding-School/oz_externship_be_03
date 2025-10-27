@@ -1,4 +1,10 @@
+from typing import TYPE_CHECKING
+
 from django.db import models
+from django.db.models import ManyToManyField
+
+if TYPE_CHECKING:
+    from apps.lecture.models.category import Category
 
 from apps.core.models import UUIDBaseModel
 
@@ -24,6 +30,10 @@ class CrawledLecture(UUIDBaseModel):
     discount_price = models.BigIntegerField(default=0, null=False)
     url_link = models.CharField(max_length=500, null=False)
     thumbnail_img_url = models.CharField(max_length=500, null=True, blank=True)
+
+    categories: "ManyToManyField[Category,Category]" = models.ManyToManyField(
+        "Category", through="LectureCategory", related_name="crawled_lecture_categories"
+    )
 
     class Meta:
         db_table = "crawled_lectures"
