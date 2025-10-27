@@ -1,6 +1,5 @@
 from rest_framework import serializers
 
-
 from apps.recruitments.models.images import RecruitmentImages
 
 
@@ -13,4 +12,4 @@ class ImagesSerializer(serializers.ModelSerializer[RecruitmentImages]):
 
     class Meta:
         model = RecruitmentImages
-        fields = '__all__'
+        fields = "__all__"

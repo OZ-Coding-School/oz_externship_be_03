@@ -1,6 +1,6 @@
-from typing import Any
-from datetime import timedelta
 import uuid
+from datetime import timedelta
+from typing import Any
 
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema
@@ -10,7 +10,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.recruitments.models import RecruitmentAttachment
+from apps.recruitments.models.attachment import RecruitmentAttachment
 from apps.recruitments.serializers.attachment import AttachmentSerializer
 
 
@@ -19,6 +19,7 @@ class AttachmentListCreateAPIView(APIView):
     GET  /api/v1/recruitments/<int:recruitment_id>/attachments/
     POST /api/v1/recruitments/<int:recruitment_id>/attachments/
     """
+
     serializer_class = AttachmentSerializer
     permission_classes = [AllowAny]
     parser_classes = [parsers.JSONParser, parsers.MultiPartParser]
@@ -98,6 +99,7 @@ class AttachmentRetrieveDestroyAPIView(APIView):
     GET    /api/v1/attachments/<int:attachment_id>/
     DELETE /api/v1/attachments/<int:attachment_id>/
     """
+
     serializer_class = AttachmentSerializer
     permission_classes = [AllowAny]
     parser_classes = [parsers.JSONParser, parsers.MultiPartParser]

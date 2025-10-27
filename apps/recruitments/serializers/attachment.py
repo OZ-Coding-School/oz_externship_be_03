@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from apps.recruitments.models import RecruitmentAttachment
+from apps.recruitments.models.attachment import RecruitmentAttachment
 
 
 class AttachmentSerializer(serializers.ModelSerializer[RecruitmentAttachment]):
@@ -11,6 +11,7 @@ class AttachmentSerializer(serializers.ModelSerializer[RecruitmentAttachment]):
     created_at = serializers.DateTimeField(read_only=True)
     updated_at = serializers.DateTimeField(read_only=True)
 
+
 class Meta:
-        model = RecruitmentAttachment
-        fields = '__all__'
+    model = RecruitmentAttachment
+    fields = "__all__"

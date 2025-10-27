@@ -1,6 +1,6 @@
-from typing import Any
-from datetime import timedelta
 import uuid
+from datetime import timedelta
+from typing import Any
 
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema
@@ -19,6 +19,7 @@ class ImageListCreateAPIView(APIView):
     GET  /api/v1/recruitments/<int:recruitment_id>/images/
     POST /api/v1/recruitments/<int:recruitment_id>/images/
     """
+
     serializer_class = ImagesSerializer
     permission_classes = [AllowAny]
     parser_classes = [parsers.JSONParser, parsers.MultiPartParser]
@@ -74,7 +75,7 @@ class ImageListCreateAPIView(APIView):
         serializer = self.serializer_class(data=data)
         serializer.is_valid(raise_exception=True)
 
-        created = RecruitmentImage(
+        created = RecruitmentImages(
             id=uuid.uuid4().int % 100000,
             recruitment_id=recruitment_id,
             img_url=serializer.validated_data["img_url"],
@@ -89,6 +90,7 @@ class ImageRetrieveDestroyAPIView(APIView):
     GET    /api/v1/images/<int:image_id>/
     DELETE /api/v1/images/<int:image_id>/
     """
+
     serializer_class = ImagesSerializer
     permission_classes = [AllowAny]
     parser_classes = [parsers.JSONParser, parsers.MultiPartParser]

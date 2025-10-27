@@ -1,4 +1,5 @@
 from django.urls import path
+
 from apps.recruitments.views.images import (
     ImageListCreateAPIView,
     ImageRetrieveDestroyAPIView,
@@ -11,7 +12,6 @@ urlpatterns = [
         ImageListCreateAPIView.as_view(),
         name="recruitment-images-list-create",
     ),
-
     # 이미지 개별 조회 및 삭제
     path(
         "images/<int:image_id>/",
