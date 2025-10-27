@@ -249,3 +249,22 @@ GLOBAL_LOCK_SECONDS = 3600
 VERIFY_TOKEN_SECRET = os.getenv("VERIFY_TOKEN_SECRET", default=SECRET_KEY)
 VERIFY_TOKEN_ALGO = "HS256"
 VERIFY_TOKEN_EXPIRES_SECONDS = 10 * 60
+
+# Celery 필수 설정
+CELERY_BROKER_URL = f"redis://{REDIS_HOST}:6379/1"  # 환경에 맞게 수정
+CELERY_RESULT_BACKEND = f"redis://{REDIS_HOST}:6379/2"  # 선택
+CELERY_TIMEZONE = "Asia/Seoul"
+CELERY_ENABLE_UTC = False
+
+# 매일 00:10에 due_date 지난 유저 삭제
+from celery.schedules import crontab  # type: ignore[import-untyped]
+
+CELERY_BEAT_SCHEDULE = {
+    "delete-withdrawn-users-daily": {
+        "task": "apps.users.tasks.delete_withdrawn_users",
+        "schedule": crontab(minute=10, hour=0),  # 매일 00:10 KST
+        "options": {"expires": 60 * 60},  # 1시간 뒤 만료(중복 방지용)
+        "args": (),
+        "kwargs": {"batch_size": 1000},
+    },
+}

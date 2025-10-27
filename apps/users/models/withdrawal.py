@@ -53,6 +53,10 @@ class Withdrawal(BaseModel):
 
     class Meta:
         db_table = "withdrawals"
+        indexes = [
+            models.Index(fields=["due_date"], name="idx_withdrawals_due_date"),
+            models.Index(fields=["user_id"], name="idx_withdrawals_user_id"),
+        ]
 
     def reason_label(self) -> str:
         return str(dict(Reason.choices).get(self.reason, self.reason))
