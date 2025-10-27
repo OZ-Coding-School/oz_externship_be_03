@@ -42,11 +42,12 @@ class TagListView(APIView):
         """전체 태그(Mock) 목록 조회 (페이지네이션 포함)"""
         paginator = self.Pagination()
 
-        # paginate_queryset()은 None을 반환할 수도 있어 안전한 처리 필요
+        # paginate_queryset()은 QuerySet을 기대하지만, Mock 데이터(list)를 사용하므로 type ignore
         page: list[dict[str, str]] | None = paginator.paginate_queryset(self.MOCK_TAGS, request)  # type: ignore[arg-type]
         if page is None:
-            page = self.MOCK_TAGS  # fallback (페이지네이션 비활성 시)
+            page = self.MOCK_TAGS
 
+        # TagSerializer도 Model 인스턴스를 기대하지만 Mock dict를 사용하므로 type ignore
         serializer = TagSerializer(page, many=True)  # type: ignore[arg-type]
         return paginator.get_paginated_response(serializer.data)
 
