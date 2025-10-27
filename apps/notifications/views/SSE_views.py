@@ -1,15 +1,18 @@
-import asyncio
 import json
 from typing import AsyncGenerator
 
-from django.contrib.auth.decorators import login_required
 from django.http import HttpRequest, StreamingHttpResponse
 
 from apps.notifications.services.redis_pubsub_classify import notification_pubsub
 
 
-@login_required
 async def notification_stream(request: HttpRequest, user_id: int) -> StreamingHttpResponse:
+    # 인증 체크
+    if not request.user.is_authenticated:
+        return StreamingHttpResponse(
+            'data: {"error":"로그인이 필요합니다"}\\n\\n', content_type="text/event-stream", status=401
+        )
+    
     if request.user.id != user_id:
         return StreamingHttpResponse(
             'data: {"error":"인증되지 않은 사용자"}\n\n', content_type="text/event-stream", status=403
