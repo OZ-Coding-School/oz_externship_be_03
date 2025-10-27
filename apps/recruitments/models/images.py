@@ -4,7 +4,7 @@ from apps.core.models import BaseModel
 from apps.recruitments.models.recruitments import Recruitment
 
 
-class RecruitmentImage(BaseModel):
+class RecruitmentImages(BaseModel):
     recruitment = models.ForeignKey(Recruitment, on_delete=models.CASCADE, related_name="images")
     img_url = models.URLField()
 
