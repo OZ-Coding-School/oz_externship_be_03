@@ -1,3 +1,4 @@
+import re
 from datetime import timedelta
 from typing import Any, Iterable
 
@@ -81,13 +82,18 @@ class StudyGroupListSerializer(StudyGroupBaseSerializer):
     # 로그인 사용자가 리더인지 여부
     is_leader = serializers.SerializerMethodField()
     lectures = serializers.SerializerMethodField()
+    review_count = serializers.SerializerMethodField()
+    star_rating_average = serializers.SerializerMethodField()
+    is_reviewed = serializers.SerializerMethodField()
 
     class Meta(StudyGroupBaseSerializer.Meta):
-        fields = StudyGroupBaseSerializer.Meta.fields + ["current_headcount", "is_leader", "lectures"]
-        read_only_fields = StudyGroupBaseSerializer.Meta.read_only_fields + [
+        fields = StudyGroupBaseSerializer.Meta.fields + [
             "current_headcount",
             "is_leader",
             "lectures",
+            "review_count",
+            "star_rating_average",
+            "is_reviewed",
         ]
 
     def get_current_headcount(self, obj: StudyGroup) -> int:
@@ -109,6 +115,38 @@ class StudyGroupListSerializer(StudyGroupBaseSerializer):
             }
             for study_lecture in obj.lectures.all()
         ]
+
+    def get_review_count(self, obj: StudyGroup) -> int | None:
+        if obj.status != "ENDED":
+            return None
+        return len(obj.reviews.all())
+
+    def get_star_rating_average(self, obj: StudyGroup) -> float | None:
+        if obj.status != "ENDED":
+            return None
+        reviews = obj.reviews.all()
+        review_count = reviews.count()
+        if review_count == 0:
+            return 0.0
+
+        total = 0
+        for review in reviews:
+            # 예: "4_OUT_OF_5_STARS" → 4 추출
+            match = re.match(r"(\d+)_OUT_OF_5_STARS", review.star_rating)
+            if match:
+                rating_value = int(match.group(1))
+                total += rating_value
+
+        avg = total / review_count
+        return round(avg, 1)
+
+    def get_is_reviewed(self, obj: StudyGroup) -> bool | None:
+        if obj.status != "ENDED":
+            return None
+        request = self.context.get("request")  # 요청 객체 가져오기
+        if not request:
+            return False
+        return obj.reviews.filter(user=request.user).exists()
 
 
 # Spec API용 시리얼라이저
