@@ -32,16 +32,16 @@ class PhoneVerifiedPermission(BasePermission):
     def has_permission(self, request: Request, view: APIView) -> bool:
         purpose: Optional[PhoneVerificationPurpose] = getattr(view, "purpose", self.purpose)
         if not purpose:
-            self.message = "인증 목적이 지정되지 않았습니다."
+            self.message = "휴대폰 인증 목적이 지정되지 않았습니다."
             return False
 
         # 헤더 우선, 본문 대체 허용
         token = request.headers.get(self.header_name)
         if not token:
-            token = request.data.get("verify_token")
+            token = request.data.get("phone_verify_token")
 
         if not token:
-            self.message = "검증 토큰이 필요합니다."
+            self.message = "휴대폰 검증 토큰이 필요합니다."
             return False
 
         phone_number = request.data.get("phone_number") or request.query_params.get("phone_number")
@@ -49,16 +49,13 @@ class PhoneVerifiedPermission(BasePermission):
             self.message = "전화번호가 필요합니다."
             return False
 
-        try:
-            claims = verify_and_consume(
-                token, expected_purpose=purpose, expected_sub=phone_number  # 목적 강제  # 주체 강제
-            )
-            # 뷰 로직에서 참조 가능하도록 저장(옵션)
-            setattr(request, "phone_verify_claims", claims)
-            return True
-        except ValueError as e:
-            self.message = str(e) or self.message
+        claims = verify_and_consume(token, expected_purpose=purpose, expected_sub=phone_number)
+        if isinstance(claims, Response):
+            self.message = str(claims.data.get("error", self.message))
             return False
+
+        setattr(request, "phone_verify_claims", claims)
+        return True
 
 
 class EmailVerifiedPermission(BasePermission):
@@ -82,13 +79,13 @@ class EmailVerifiedPermission(BasePermission):
     def has_permission(self, request: Request, view: APIView) -> bool:
         purpose: Optional[EmailVerificationPurpose] = getattr(view, "purpose", self.purpose)
         if not purpose:
-            self.message = "인증 목적이 지정되지 않았습니다."
+            self.message = "이메일 인증 목적이 지정되지 않았습니다."
             return False
 
         # 헤더 우선, 본문 대체 허용
-        token = request.headers.get(self.header_name) or request.data.get("verify_token")
+        token = request.headers.get(self.header_name) or request.data.get("email_verify_token")
         if not token:
-            self.message = "검증 토큰이 필요합니다."
+            self.message = "이메일 검증 토큰이 필요합니다."
             return False
 
         email = request.data.get("email") or request.query_params.get("email")

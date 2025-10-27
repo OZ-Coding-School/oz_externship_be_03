@@ -22,38 +22,12 @@ class SignupPayload(TypedDict):
     role: Role
 
 
-class UserPublicSerializer(serializers.Serializer[Dict[str, Any]]):
-    """응답 본문에 포함될 공개용 사용자 정보"""
-
-    email = serializers.EmailField()
-    nickname = serializers.CharField()
-    name = serializers.CharField()
-    phone_number = serializers.CharField(allow_null=True, required=False)
-    birthday = serializers.DateField(allow_null=True, required=False)
-    gender = serializers.CharField(allow_null=True, required=False)
-    status = serializers.CharField()
-    created_at = serializers.DateTimeField(allow_null=True, required=False)
-
-
-class SignupDataSerializer(serializers.Serializer[Dict[str, Any]]):
-    """응답 data 페이로드"""
-
-    user = UserPublicSerializer(read_only=True)
-
-
 class SignupResponseSerializer(serializers.Serializer[Mapping[str, Any] | Any]):
     """
     응답 detail, data 페이로드
     """
 
     detail = serializers.CharField(read_only=True)
-    payload = SignupDataSerializer(read_only=True)
-
-    def to_representation(self, instance: Mapping[str, Any] | Any) -> Dict[str, Any]:
-        rep = super().to_representation(instance)
-        if "payload" in rep:
-            rep["data"] = rep.pop("payload")
-        return rep
 
 
 class UserSignupSerializer(serializers.ModelSerializer[User]):
