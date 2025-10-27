@@ -13,6 +13,7 @@ from rest_framework.response import Response
 from apps.users.enums import EmailVerificationPurpose, PhoneVerificationPurpose
 from apps.users.utils.verify_token import (
     REDIS_JTI_PREFIX,
+    _jti_key,
     issue_verify_token,
     verify_and_consume,
 )
@@ -47,8 +48,8 @@ class VerifyTokenUtilsTests(TestCase):
         self.assertIn("jti", payload)
         self.assertIn("exp", payload)
 
-        jti_key = f"{REDIS_JTI_PREFIX}{payload['jti']}"
-        self.assertEqual(cache.get(jti_key), "1")
+        jti_key = _jti_key(payload["purpose"], payload["jti"])
+        self.assertEqual(cache.get(jti_key), 1)
 
     # ------------------------------------------------------------------
     # verify_and_consume()
@@ -171,8 +172,8 @@ class VerifyTokenUtilsTests(TestCase):
                 purpose=PhoneVerificationPurpose.FIND_EMAIL,
             )
             payload = _decode_no_verify(token)
-            jti_key = f"{REDIS_JTI_PREFIX}{payload['jti']}"
-            self.assertEqual(cache.get(jti_key), "1")
+            jti_key = _jti_key(payload["purpose"], payload["jti"])
+            self.assertEqual(cache.get(jti_key), 1)
 
         # 2) TTL + 1초 경과 시점으로 이동
         late_time = 10_000 + expire_seconds + 1

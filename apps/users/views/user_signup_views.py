@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Protocol, cast
 
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import status
 from rest_framework.authentication import BaseAuthentication
 from rest_framework.exceptions import APIException
@@ -11,12 +12,11 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.users.enums import EmailVerificationPurpose
 from apps.users.models.user import User as UserModel
 from apps.users.permissions import EmailVerifiedPermission, PhoneVerifiedPermission
 from apps.users.serializers.user_signup_serializers import (
     SignupPayload,
-    SignupResponseSerializer,
-    UserPublicSerializer,
     UserSignupSerializer,
 )
 from apps.users.services.user_signup_service import (
@@ -83,7 +83,7 @@ class UserSignupView(APIView):
     authentication_classes: tuple[type[BaseAuthentication], ...] = ()
 
     permission_classes = [EmailVerifiedPermission, PhoneVerifiedPermission]
-    purpose = "signup"
+    purpose = EmailVerificationPurpose.SIGNUP
 
     SERVICE_CLASS: type[SignupServiceProto] = DefaultSignupService
 
@@ -92,10 +92,26 @@ class UserSignupView(APIView):
         tags=["Users"],
         request=UserSignupSerializer,
         responses={
-            201: SignupResponseSerializer,
+            201,
         },
         summary="사용자 회원가입 API",
         description="이메일/휴대폰 인증 완료 후 계정 생성.",
+        parameters=[
+            OpenApiParameter(
+                name="X-Email-Verify-Token",
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.HEADER,
+                required=True,
+                description="이메일 검증 토큰(헤더)",
+            ),
+            OpenApiParameter(
+                name="X-Phone-Verify-Token",
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.HEADER,
+                required=True,
+                description="휴대폰 검증 토큰(헤더)",
+            ),
+        ],
     )
     def post(self, request: Request) -> Response:
         # 1) 요청 스키마 검증 (400)
@@ -152,10 +168,8 @@ class UserSignupView(APIView):
 
             return error(message, status_code=code, errors=formatted)
 
-        # 4) 성공 (201) — 스키마 전용 Serializer에 dict 주입
-        user_out = UserPublicSerializer(to_public_user(user)).data
+        # 4) 성공 (201)
         return ok(
             "회원가입에 성공하였습니다.",
-            data={"user": user_out},
             status_code=status.HTTP_201_CREATED,
         )

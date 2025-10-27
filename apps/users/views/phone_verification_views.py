@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from typing import Callable
+from typing import Callable, Tuple, Type, cast
 
 from drf_spectacular.utils import F, extend_schema, inline_serializer
 from rest_framework import serializers, status
+from rest_framework.authentication import BaseAuthentication
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -127,6 +128,7 @@ class BasePhoneConfirmCodeView(APIView):
 )
 class SignupSendCodeView(BasePhoneSendCodeView):
     PURPOSE = PhoneVerificationPurpose.SIGNUP
+    authentication_classes = cast(Tuple[Type[BaseAuthentication], ...], ())
     permission_classes = [AllowAny]
 
 
@@ -137,6 +139,7 @@ class SignupSendCodeView(BasePhoneSendCodeView):
 class SignupConfirmCodeView(BasePhoneConfirmCodeView):
     permission_classes = [AllowAny]
     PURPOSE = PhoneVerificationPurpose.SIGNUP
+    authentication_classes = cast(Tuple[Type[BaseAuthentication], ...], ())
 
 
 # -------------------------------
