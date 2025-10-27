@@ -18,7 +18,7 @@ class InflearnCategoryCrawler(BaseCrawler):
         response = self.get_json(url, params)
 
         # 응답 검증 (None 체크 → 상태코드 체크)
-        if not response or response.get("statusCode") != "200":
+        if not response or response.get("statusCode") not in ["200", 200, "OK"]:
             logger.error("카테고리 데이터를 가져올 수 없습니다")
             return []
 
