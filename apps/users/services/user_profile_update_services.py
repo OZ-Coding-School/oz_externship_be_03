@@ -32,7 +32,7 @@ def update_user_profile(
     # 닉네임 중복(본인 제외)
     if nickname is not None and nickname != user.nickname:
         # 프로젝트 제공 매니저 사용
-        if User.objects.exists_nickname(nickname):  # type: ignore[attr-defined]
+        if User.objects.exists_nickname(nickname):
             raise ValidationError({"error": "이미 사용 중인 닉네임입니다."})
 
     if phone_number is not None:
