@@ -1,3 +1,5 @@
+import uuid
+
 from django.conf import settings
 from django.db import models
 
@@ -6,6 +8,7 @@ from .recruitments import Recruitment
 
 class Bookmark(models.Model):
     pk = models.CompositePrimaryKey("user_id", "recruitment_id")
+    uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)  # 외부 식별용 ID
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="bookmarks")
     recruitment = models.ForeignKey(Recruitment, on_delete=models.CASCADE, related_name="bookmarks")
     created_at = models.DateTimeField(auto_now_add=True)
