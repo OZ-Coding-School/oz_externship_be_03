@@ -42,9 +42,8 @@ def delete_withdrawn_users(*, batch_size: int = 1000) -> int:
         chunk = user_ids[start : start + batch_size]
         if not chunk:
             break
-        with transaction.atomic():
-            deleted, _ = User.objects.filter(id__in=chunk).delete()
-            # delete()는 (삭제된 총 행 수, per-model 분포 dict) 반환
+        deleted, _ = User.objects.filter(id__in=chunk).delete()
+        # delete()는 (삭제된 총 행 수, per-model 분포 dict) 반환
         processed_total += len(chunk)
 
     return processed_total
