@@ -16,22 +16,26 @@ def default_close_at() -> datetime:
 
 
 class Recruitment(BaseModel):
-    uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)  # 고유 ID
-    study_group = models.ForeignKey(
-        StudyGroup, on_delete=models.CASCADE, related_name="recruitments", null=True
-    )  # 스터디
-    author = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="recruitments"
-    )  # 작성자
-    title = models.CharField(max_length=50)  # 제목
-    content = models.TextField()  # 내용
-    estimated_fee = models.IntegerField()  # 예상 회비
-    expected_headcount = models.PositiveSmallIntegerField(
-        validators=[MinValueValidator(1), MaxValueValidator(10)]
-    )  # 모집 인원
-    views_count = models.PositiveIntegerField(default=0)  # 조회수
-    close_at = models.DateTimeField(default=default_close_at)  # 마감일
-    is_closed = models.BooleanField(default=False)  # 마감 여부
+    """스터디 모집 공고"""
+
+    uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
+    study_group = models.ForeignKey(StudyGroup, on_delete=models.CASCADE, related_name="recruitments", null=True)
+    author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="recruitments")
+    title = models.CharField(max_length=50)
+    content = models.TextField()
+    estimated_fee = models.IntegerField()
+    expected_headcount = models.PositiveSmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(10)])
+    views_count = models.PositiveIntegerField(default=0)
+    close_at = models.DateTimeField(default=default_close_at)
+    is_closed = models.BooleanField(default=False)
+
+    #  피드백 반영: Tag 관계 추가 (문자열 참조로 순환참조 방지)
+    tags = models.ManyToManyField(
+        "recruitments.Tag",  # 문자열 참조
+        through="recruitments.RecruitmentTag",  # 문자열 참조
+        related_name="recruitments",
+        blank=True,
+    )
 
     def __str__(self) -> str:
         return self.title
