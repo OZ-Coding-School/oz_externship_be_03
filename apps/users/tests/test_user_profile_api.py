@@ -19,7 +19,7 @@ class MeAPITest(APITestCase):
             name="홍길동",
             phone_number="01012345678",
             birthday="1998-01-23",
-            gender="M",           # gender 필드 추가
+            gender="M",  # gender 필드 추가
             is_active=True,
         )
 
@@ -54,7 +54,4 @@ class MeAPITest(APITestCase):
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, 401)
-        self.assertEqual(
-            response.data["detail"],
-            "자격 인증데이터(authentication credentials)가 제공되지 않았습니다."
-        )
+        self.assertEqual(response.data["detail"], "자격 인증데이터(authentication credentials)가 제공되지 않았습니다.")
