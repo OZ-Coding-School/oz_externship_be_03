@@ -9,6 +9,7 @@ from django.dispatch import receiver
 
 from apps.notifications.models import Notification
 from apps.notifications.services.redis_pubsub_classify import notification_pubsub
+from apps.notifications.tasks import send_to_pubsub
 from apps.recruitments.models.application import Application
 
 logger = logging.getLogger(__name__)
@@ -28,18 +29,5 @@ def notifications_created(sender: Any, instance: Application, created: bool, **k
         back_url_link=f"{settings.FRONTEND_DOMAIN}/studies/applications",
     )
 
-    # Redis pub/sub으로 실시간 알림 발송 - async_to_sync 사용
-    try:
-        async_to_sync(notification_pubsub.publish_notification)(
-            user_id=recruitment.author_id,
-            notification_data={
-                "id": notification.id,
-                "type": notification.type,
-                "content": notification.content,
-                "back_url_link": f"{settings.FRONTEND_DOMAIN}/studies/applications",
-                "created_at": notification.created_at.isoformat(),
-                "is_read": notification.is_read,
-            },
-        )
-    except Exception as e:
-        logger.error(f"Redis pub 오류: {e}")
+    send_to_pubsub.delay(notification.id)
+
