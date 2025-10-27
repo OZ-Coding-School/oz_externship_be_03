@@ -1,6 +1,6 @@
 from django.urls import path
 
-from apps.users.views.auth_views import TokenObtainView, TokenRefreshView
+from apps.users.views.auth_views import LoginView, TokenRefreshView
 from apps.users.views.email_verification_views import (
     ChangeEmailConfirmCodeView,
     ChangeEmailSendCodeView,
@@ -75,6 +75,6 @@ urlpatterns = [
         ChangeEmailConfirmCodeView.as_view(),
         name="email_change_email_confirm_code",
     ),
-    path("auth/login", TokenObtainView.as_view(), name="login"),
-    path("auth/refresh", TokenRefreshView.as_view(), name="token_refresh"),
+    path("auth/login", LoginView.as_view(), name="auth_login"),
+    path("auth/refresh", TokenRefreshView.as_view(), name="auth_refresh"),
 ]
