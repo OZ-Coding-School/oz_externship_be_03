@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 
 from celery import shared_task  # type: ignore[import-untyped]
@@ -16,4 +17,6 @@ def update_studygroup_status_daily() -> None:
 
     ended = StudyGroup.objects.filter(end_at__lt=midnight, status="ONGOING")
     count = ended.update(status="ENDED")
-    print(f"[Scheduler] {count} study groups marked as ENDED.")
+    logger = logging.getLogger(__name__)
+
+    logger.info(f"[Scheduler] {count} study groups marked as ENDED.")

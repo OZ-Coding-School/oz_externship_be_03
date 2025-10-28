@@ -74,11 +74,13 @@ services:
       retries: 5
       start_period: 5s
 
-  celery-worker:
+  celery:
     build:
       context: .
-    container_name: celery-worker
-    command: celery -A config.celery worker --loglevel=info
+    container_name: celery
+    command: >
+      sh -c "celery -A config.celery worker --loglevel=info &
+             celery -A config.celery beat --loglevel=info"
     volumes:
       - .:/oz_externship
     env_file:
@@ -91,20 +93,6 @@ services:
     networks:
       - ws
 
-  celery-beat:
-    build:
-      context: .
-    container_name: celery-beat
-    command: celery -A config.celery beat --loglevel=info
-    volumes:
-      - .:/oz_externship
-    env_file:
-      - envs/.local.env
-    depends_on:
-      - celery-worker
-      - redis
-    networks:
-      - ws
 
 
 networks:
