@@ -1,8 +1,6 @@
-from __future__ import annotations
-
-from django.shortcuts import get_object_or_404
 from django.test import TestCase
 from django.utils import timezone
+from django.http import Http404
 
 from apps.users.enums import Role, UserStatus
 from apps.users.models import User, Withdrawal
@@ -44,32 +42,36 @@ class AdminUserServiceTest(TestCase):
         self.assertIn(self.admin, result)
         self.assertIn(self.user, result)
 
-    def test_get_user_detail(self) -> None:
-        """단일 유저 상세 조회"""
-        result = AdminUserService.get_user_detail(self.user.id)
+    def test_get_user(self) -> None:
+        """단일 유저 조회"""
+        result = AdminUserService.get_user(self.user.id)
         self.assertEqual(result.email, self.user.email)
 
     def test_update_user_info(self) -> None:
         """유저 정보 수정"""
-        data: dict[str, str] = {"name": "Updated Name"}
-        updated = AdminUserService.update_user_info(self.user.id, data)
+        user = AdminUserService.get_user(self.user.id)
+        data = {"name": "Updated Name"}
+        updated = AdminUserService.update_user_info(user, data)
         self.assertEqual(updated.name, "Updated Name")
 
     def test_change_user_role_admin(self) -> None:
         """권한 변경: ADMIN"""
-        updated = AdminUserService.change_user_role(self.user.id, Role.ADMIN.value)
+        user = AdminUserService.get_user(self.user.id)
+        updated = AdminUserService.change_user_role(user, Role.ADMIN.value)
         self.assertTrue(updated.is_superuser)
         self.assertTrue(updated.is_staff)
 
     def test_change_user_role_staff(self) -> None:
         """권한 변경: STAFF"""
-        updated = AdminUserService.change_user_role(self.user.id, Role.STAFF.value)
+        user = AdminUserService.get_user(self.user.id)
+        updated = AdminUserService.change_user_role(user, Role.STAFF.value)
         self.assertFalse(updated.is_superuser)
         self.assertTrue(updated.is_staff)
 
     def test_change_user_role_user(self) -> None:
         """권한 변경: USER"""
-        updated = AdminUserService.change_user_role(self.user.id, Role.USER.value)
+        user = AdminUserService.get_user(self.user.id)
+        updated = AdminUserService.change_user_role(user, Role.USER.value)
         self.assertFalse(updated.is_superuser)
         self.assertFalse(updated.is_staff)
 
@@ -94,24 +96,26 @@ class AdminUserServiceTest(TestCase):
         self.assertEqual(status, UserStatus.INACTIVE)
 
     # ⚠️ 예외 케이스 -------------------------
-    def test_get_user_detail_not_found(self) -> None:
+    def test_get_user_not_found(self) -> None:
         """존재하지 않는 유저 조회 시 예외 발생"""
-        with self.assertRaises(Exception):
-            AdminUserService.get_user_detail(999999)
+        with self.assertRaises(Http404):
+            AdminUserService.get_user(999999)
 
     def test_update_user_info_invalid_field(self) -> None:
         """존재하지 않는 필드 수정 시 무시"""
-        data: dict[str, str] = {"nonexistent_field": "test"}
-        updated = AdminUserService.update_user_info(self.user.id, data)
-        # unknown 필드는 무시되지만 user 인스턴스는 반환됨
+        user = AdminUserService.get_user(self.user.id)
+        data = {"nonexistent_field": "test"}
+        updated = AdminUserService.update_user_info(user, data)
         self.assertTrue(hasattr(updated, "email"))
 
     def test_change_user_role_invalid(self) -> None:
         """잘못된 권한 입력 시 ValueError 발생"""
+        user = AdminUserService.get_user(self.user.id)
         with self.assertRaises(ValueError):
-            AdminUserService.change_user_role(self.user.id, "INVALID_ROLE")
+            AdminUserService.change_user_role(user, "INVALID_ROLE")
 
     def test_delete_user_not_found(self) -> None:
         """존재하지 않는 유저 삭제 시 예외 발생"""
-        with self.assertRaises(Exception):
-            AdminUserService.delete_user(999999)
+        with self.assertRaises(Http404):
+            user = AdminUserService.get_user(999999)
+            AdminUserService.delete_user(user)

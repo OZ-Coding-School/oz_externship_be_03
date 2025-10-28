@@ -81,16 +81,12 @@ class AdminUserUpdateView(APIView):
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        try:
-            user = AdminUserService.update_user_info(user_id, serializer.validated_data)
-        except Http404:
-            return Response(
-                {"error": "회원 정보를 찾을 수 없습니다."},
-                status=status.HTTP_404_NOT_FOUND,
-            )
+        user = AdminUserService.get_user(user_id)
+        updated_user = AdminUserService.update_user_info(user, serializer.validated_data)
 
-        response_data = AdminUserDetailSerializer(user).data
+        response_data = AdminUserDetailSerializer(updated_user).data
         return Response(response_data, status=status.HTTP_200_OK)
+
 
 
 # 관리자: 회원 삭제
@@ -102,12 +98,19 @@ class AdminUserUpdateView(APIView):
 class AdminUserDeleteView(APIView):
     permission_classes = [IsAdminUser]
 
-    def delete(self, request: Request, user_id: int) -> Response:  # ✅ 타입 명시
-        """회원 삭제 (superuser만 가능)"""
+    def delete(self, request: Request, user_id: int) -> Response:
         if not request.user.is_superuser:
             raise PermissionDenied("슈퍼유저만 회원을 삭제할 수 있습니다.")
 
-        AdminUserService.delete_user(user_id)
+        try:
+            user = AdminUserService.get_user(user_id)
+        except Http404:
+            return Response(
+                {"error": "회원 정보를 찾을 수 없습니다."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        AdminUserService.delete_user(user)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -122,12 +125,13 @@ class AdminUserRoleUpdateView(APIView):
     permission_classes = [IsAdminUser]
 
     def patch(self, request: Request, user_id: int, *args: Any, **kwargs: Any) -> Response:
-        """회원 권한(role) 변경 (관리자 전용)"""
         serializer = AdminUserRoleUpdateRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        role: str = serializer.validated_data["role"]
-        user = AdminUserService.change_user_role(user_id, role)
+        role = serializer.validated_data["role"]
 
-        response_serializer = AdminUserRoleUpdateResponseSerializer(user)
+        user = AdminUserService.get_user(user_id)
+        updated_user = AdminUserService.change_user_role(user, role)
+
+        response_serializer = AdminUserRoleUpdateResponseSerializer(updated_user)
         return Response(response_serializer.data, status=status.HTTP_200_OK)

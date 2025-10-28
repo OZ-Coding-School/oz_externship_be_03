@@ -26,8 +26,10 @@ class AdminUserService:
     @staticmethod
     def update_user_info(user: User, update_data: Dict[str, Any]) -> User:
         for field, value in update_data.items():
-            setattr(user, field, value)
+            if hasattr(user, field):
+                setattr(user, field, value)
         user.save()
+        return user
 
     @staticmethod
     def change_user_role(user: User, new_role: str) -> User:
@@ -41,15 +43,25 @@ class AdminUserService:
                 raise ValueError(f"지원하지 않는 권한입니다. 사용 가능한 값: {[r.name for r in Role]}")
 
         # 권한 변경 로직
-        user.is_superuser = (new_role == Role.ADMIN)
-        user.is_staff = (new_role in [Role.ADMIN, Role.STAFF])
+        if new_role == Role.ADMIN:
+            user.is_superuser = True
+            user.is_staff = True
+        elif new_role == Role.STAFF:
+            user.is_superuser = False
+            user.is_staff = True
+        elif new_role == Role.USER:
+            user.is_superuser = False
+            user.is_staff = False
+        else:
+            raise ValueError(f"지원하지 않는 권한입니다: {new_role}")
+
         user.save()
         return user
 
     # 회원 삭제
 
     @staticmethod
-    def delete_user(user:User) -> None:
+    def delete_user(user: User) -> None:
         user.delete()
 
     # 회원 상태 계산
