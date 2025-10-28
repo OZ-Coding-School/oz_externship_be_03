@@ -92,7 +92,8 @@ class TestSSEViews(IsolatedRedisTestClient):
         self.assertEqual(response.status_code, 401)
         self.assertEqual(response["Content-Type"], "text/event-stream")
 
-    async def test_notificaiton_stream_wrong_user(self) -> None:
+    async def test_notification_stream_wrong_user(self) -> None:
+        """userid 다를시 error 테스트"""
         request = HttpRequest()
         request.user = self.other_user
 

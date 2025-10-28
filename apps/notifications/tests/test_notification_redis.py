@@ -42,6 +42,7 @@ class TestRedisPubSubService(IsolatedRedisTestClient):
         }
 
     async def test_redis_connection(self) -> None:
+        """redis 연결 테스트"""
         ping_result = await self.pubsub_service.redis_client.ping()
         self.assertTrue(ping_result)
 
@@ -81,6 +82,7 @@ class TestRedisPubSubService(IsolatedRedisTestClient):
         await pubsub.close()
 
     async def test_redis_pub_error_case(self) -> None:
+        """알림 발행 에러 테스트"""
         redis_client = self.pubsub_service.redis_client
 
         try:
@@ -98,6 +100,7 @@ class TestRedisPubSubService(IsolatedRedisTestClient):
             self.pubsub_service.redis_client = redis_client
 
     async def test_redis_subscribe(self) -> None:
+        """알림 구독 테스트"""
         user_id = self.author.id
 
         async def publish_after_delay() -> None:
@@ -118,6 +121,7 @@ class TestRedisPubSubService(IsolatedRedisTestClient):
         self.assertEqual(received_count, 1)
 
     async def test_redis_subscribe_error_case(self) -> None:
+        """알림 구독 에러 테스트"""
         redis_client = self.pubsub_service.redis_client
 
         try:
