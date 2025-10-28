@@ -84,6 +84,22 @@ jobs:
               sh -c "python manage.py migrate && \
                 python manage.py collectstatic --noinput && \
                 gunicorn --workers 3 --bind 0.0.0.0:8000 config.wsgi:application"
+             
+            sleep 5  # Celery가 DB migrate 이후 시작되도록 약간 대기
+
+            docker stop celery || true
+            docker rm celery || true
+            docker rmi ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPO }}:django-dev || true
+            docker pull ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPO }}:django-dev
+
+            docker run -d \
+              --name celery \
+              --network ws \
+              -v logs-volume:/oz_externship/logs \
+              --env-file ${{ secrets.ENV_FILE_NAME }} \
+              ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPO }}:django-dev \
+              sh -c "celery -A config.celery worker --loglevel=info & \
+                     celery -A config.celery beat --scheduler django_celery_beat.schedulers:DatabaseScheduler --loglevel=info"
                         
             docker stop ${{ secrets.NGINX_CONTAINER_NAME }} || true
             docker rm ${{ secrets.NGINX_CONTAINER_NAME }} || true

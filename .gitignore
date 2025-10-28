@@ -10,3 +10,7 @@ htmlcov/
 media/
 static/
 staticfiles/
+
+# Celery Beat scheduler state file
+# 로컬/서버별 주기적 작업 상태가 달라 Git에 올리면 충돌 발생
+celerybeat-schedule
