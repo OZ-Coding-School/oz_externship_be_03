@@ -18,54 +18,38 @@ class AdminUserService:
     # 회원 상세 조회
 
     @staticmethod
-    def get_user_detail(user_id: int) -> User:
+    def get_user(user_id: int) -> User:
         return get_object_or_404(User, id=user_id)
 
     # 회원 정보 수정
 
     @staticmethod
-    def update_user_info(user_id: int, update_data: Dict[str, Any]) -> User:
-        user = get_object_or_404(User, id=user_id)
+    def update_user_info(user: User, update_data: Dict[str, Any]) -> User:
         for field, value in update_data.items():
             setattr(user, field, value)
         user.save()
-        return user
-
-    # 회원 권한 변경 (Role Enum 기반)
 
     @staticmethod
-    def change_user_role(user_id: int, new_role: str) -> User:
-
-        user = get_object_or_404(User, id=user_id)
-
-        # 문자열로 들어올 수 있으므로 Enum으로 안전 변환
+    def change_user_role(user: User, new_role: str) -> User:
+        """
+        사용 가능한 Role Enum 값: ADMIN, STAFF, USER
+        """
         if isinstance(new_role, str):
             try:
-                new_role = Role[new_role.upper()]  # "staff" / "STAFF" 둘 다 허용
+                new_role = Role[new_role.upper()]
             except KeyError:
-                raise ValueError(f"지원하지 않는 권한입니다: {new_role}")
+                raise ValueError(f"지원하지 않는 권한입니다. 사용 가능한 값: {[r.name for r in Role]}")
 
-        # 권한에 따른 필드 설정
-        if new_role == Role.ADMIN:
-            user.is_superuser = True
-            user.is_staff = True
-        elif new_role == Role.STAFF:
-            user.is_superuser = False
-            user.is_staff = True
-        elif new_role == Role.USER:
-            user.is_superuser = False
-            user.is_staff = False
-        else:
-            raise ValueError(f"지원하지 않는 권한입니다: {new_role}")
-
+        # 권한 변경 로직
+        user.is_superuser = (new_role == Role.ADMIN)
+        user.is_staff = (new_role in [Role.ADMIN, Role.STAFF])
         user.save()
         return user
 
     # 회원 삭제
 
     @staticmethod
-    def delete_user(user_id: int) -> None:
-        user = get_object_or_404(User, id=user_id)
+    def delete_user(user:User) -> None:
         user.delete()
 
     # 회원 상태 계산
@@ -73,7 +57,7 @@ class AdminUserService:
     @staticmethod
     def get_user_status(user: User) -> UserStatus:
         """
-        외원 상태 조회
+        회원 상태 조회
         ACTLVE - 활성
         INACTIVE - 비활성
         WITHDRAWAL_PEDING - 탈퇴요청

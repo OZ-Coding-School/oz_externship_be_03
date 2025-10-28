@@ -47,10 +47,10 @@ class AdminUserDetailView(APIView):
 
     def get(self, request: Request, user_id: int, *args: Any, **kwargs: Any) -> Response:
         try:
-            user = AdminUserService.get_user_detail(user_id)
+            user = AdminUserService.get_user(user_id)
         except Http404:
             return Response(
-                {"detail": "회원 정보를 찾을 수 없습니다."},
+                {"error": "회원 정보를 찾을 수 없습니다."},
                 status=status.HTTP_404_NOT_FOUND,
             )
 
@@ -73,7 +73,7 @@ class AdminUserUpdateView(APIView):
         invalid_fields = set(request.data.keys()) - allowed_fields
         if invalid_fields:
             return Response(
-                {"detail": f"잘못된 필드가 포함되어 있습니다: {', '.join(invalid_fields)}"},
+                {"error": f"잘못된 필드가 포함되어 있습니다: {', '.join(invalid_fields)}"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -85,7 +85,7 @@ class AdminUserUpdateView(APIView):
             user = AdminUserService.update_user_info(user_id, serializer.validated_data)
         except Http404:
             return Response(
-                {"detail": "회원 정보를 찾을 수 없습니다."},
+                {"error": "회원 정보를 찾을 수 없습니다."},
                 status=status.HTTP_404_NOT_FOUND,
             )
 
