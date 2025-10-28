@@ -88,7 +88,6 @@ class AdminUserUpdateView(APIView):
         return Response(response_data, status=status.HTTP_200_OK)
 
 
-
 # 관리자: 회원 삭제
 @extend_schema(
     tags=["Admin"],

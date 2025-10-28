@@ -1,6 +1,6 @@
+from django.http import Http404
 from django.test import TestCase
 from django.utils import timezone
-from django.http import Http404
 
 from apps.users.enums import Role, UserStatus
 from apps.users.models import User, Withdrawal
