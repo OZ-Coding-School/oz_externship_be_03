@@ -16,6 +16,17 @@ class InflearnCategoryCrawler(BaseCrawler):
         url = f"{self.base_url}/client/api/v1/course-category"
         params = {"lang": "ko"}
         response = self.get_json(url, params)
+        # IT 관련 카테고리만 수집 slug
+        valid_ctg_slugs = [
+            "artificial-intelligence",
+            "Applied-ai",
+            "it-programming",
+            "game-dev-all",
+            "data-science",
+            "it",
+            "hardware",
+            "design",
+        ]
 
         # 응답 검증 (None 체크 → 상태코드 체크)
         if not response or response.get("statusCode") not in ["200", 200, "OK"]:
@@ -26,25 +37,28 @@ class InflearnCategoryCrawler(BaseCrawler):
         data = response.get("data", [])
 
         # ========== 데이터 가공 시작 ==========
-        # 중복 제거를 위한 set 준비
-        ctg_set: set[str] = set()
+        # 중복 제거를 위한 set 준비 (튜플로 저장)
+        ctg_set: set[tuple[str, str]] = set()
 
         # 계층 구조를 순회하며 평평하게 변환
         for item in data:
-            if item.get("title"):
-                ctg_set.add(item["title"].strip())
+            # 대분류: IT 카테고리 필터링
+            if item.get("title") and item.get("slug"):
+                if not item["slug"] in valid_ctg_slugs:
+                    continue
+                ctg_set.add((item["title"].strip(), item["slug"].strip()))
+                # 중분류 (대분류가 IT로 걸러진 상태)
+                for child in item.get("children", []):
+                    if child.get("title") and child.get("slug"):
+                        ctg_set.add((child["title"].strip(), child["slug"].strip()))
+                        # 소분류(스킬)
+                        for skill in child.get("skills", []):
+                            if skill.get("title") and skill.get("slug"):
+                                ctg_set.add((skill["title"].strip(), skill["slug"].strip()))
 
-            for child in item.get("children", []):
-                if child.get("title"):
-                    ctg_set.add(child["title"].strip())
-
-                for skill in child.get("skills", []):
-                    if skill.get("title"):
-                        ctg_set.add(skill["title"].strip())
-
-        # 정렬 후 딕셔너리 리스트로 변환 (DB/API 저장 형식)
-        ctg = [{"name": name} for name in sorted(ctg_set)]
+        # 정렬된 튜플들을 딕셔너리 리스트로 변환 (DB/API 저장 형식)
+        result = [{"title": title, "slug": slug} for title, slug in sorted(ctg_set)]
         # ====================================
 
-        logger.info(f"총 {len(ctg)}개 카테고리 수집 완료")
-        return ctg
+        logger.info(f"총 {len(result)}개 카테고리 수집 완료")
+        return result

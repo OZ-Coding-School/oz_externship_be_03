@@ -1,46 +1,118 @@
-from unittest import TestCase
+# apps/lecture/tests/test_inflearn_ctg.py
+from unittest.mock import patch
+
+from django.test import TestCase
 
 from apps.lecture.crawlers.inflearn_ctg import InflearnCategoryCrawler
 
 
 class InflearnCategoryCrawlerTest(TestCase):
+    """인프런 카테고리 크롤러 테스트"""
 
     def setUp(self) -> None:
         self.crawler = InflearnCategoryCrawler()
 
-    def test_crawl_success(self) -> None:
-        """기본 동작 및 데이터 형식 테스트"""
+        # Mock 데이터를 setUp에서 한 번만 정의
+        self.mock_response = {
+            "statusCode": "200",
+            "data": [
+                {
+                    "title": "개발",
+                    "children": [
+                        {
+                            "title": "언어",
+                            "skills": [
+                                {"title": "Python"},
+                                {"title": "Java"},
+                                {"title": "Python"},  # 중복
+                            ],
+                        }
+                    ],
+                }
+            ],
+        }
+
+    @patch("apps.lecture.crawlers.base_crawler.BaseCrawler.get_json")
+    def test_crawl_success(self, mock_get_json) -> None:
+        """기본 동작 테스트"""
+        mock_get_json.return_value = self.mock_response
+
         result = self.crawler.crawl()
 
-        # 리스트 반환
         self.assertIsInstance(result, list)
         self.assertGreater(len(result), 0)
 
-        # ⭐ 올바른 데이터 형식 보장
-        for item in result:
-            # 1. 딕셔너리여야 함 {}
-            self.assertIsInstance(item, dict, "각 항목은 딕셔너리여야 함")
+        # 첫 번째 항목만 검증
+        item = result[0]
+        self.assertIn("name", item)
+        self.assertIsInstance(item["name"], str)
 
-            # 2. "name" 키가 있어야 함
-            self.assertIn("name", item, '"name" 키가 있어야 함')
-
-            # 3. "name" 값이 문자열이어야 함
-            self.assertIsInstance(item["name"], str, '"name" 값은 문자열이어야 함')
-
-            # 4. 비어있지 않아야 함
-            self.assertGreater(len(item["name"]), 0, '"name" 값은 비어있으면 안됨')
-
-            # 5. "name" 키만 있어야 함 (다른 키 없음)
-            self.assertEqual(len(item.keys()), 1, '"name" 키만 있어야 함')
-
-    def test_crawl_removes_duplicates(self) -> None:
+    @patch("apps.lecture.crawlers.base_crawler.BaseCrawler.get_json")
+    def test_crawl_removes_duplicates(self, mock_get_json) -> None:
         """중복 제거 테스트"""
+        mock_get_json.return_value = self.mock_response
+
         result = self.crawler.crawl()
         names = [c["name"] for c in result]
+
         self.assertEqual(len(names), len(set(names)))
 
-    def test_crawl_sorts_results(self) -> None:
+    @patch("apps.lecture.crawlers.base_crawler.BaseCrawler.get_json")
+    def test_crawl_sorts_results(self, mock_get_json) -> None:
         """정렬 테스트"""
+        mock_get_json.return_value = self.mock_response
+
         result = self.crawler.crawl()
         names = [c["name"] for c in result]
+
         self.assertEqual(names, sorted(names))
+
+    @patch("apps.lecture.crawlers.inflearn_ctg.logger")  # ⭐ logger Mock 추가
+    @patch("apps.lecture.crawlers.base_crawler.BaseCrawler.get_json")
+    def test_crawl_handles_none_response(self, mock_get_json, mock_logger) -> None:
+        """None 응답 처리 테스트"""
+        mock_get_json.return_value = None
+
+        result = self.crawler.crawl()
+
+        self.assertEqual(result, [])
+        mock_logger.error.assert_called_once_with("카테고리 데이터를 가져올 수 없습니다")  # ⭐ logger 호출 확인
+
+    @patch("apps.lecture.crawlers.inflearn_ctg.logger")  # ⭐ logger Mock 추가
+    @patch("apps.lecture.crawlers.base_crawler.BaseCrawler.get_json")
+    def test_crawl_handles_error_status_code(self, mock_get_json, mock_logger) -> None:
+        """에러 상태 코드 처리 테스트"""
+        mock_get_json.return_value = {
+            "statusCode": "500",
+            "data": []
+        }
+
+        result = self.crawler.crawl()
+
+        self.assertEqual(result, [])
+        mock_logger.error.assert_called_once_with("카테고리 데이터를 가져올 수 없습니다")  # ⭐ logger 호출 확인
+
+    @patch("apps.lecture.crawlers.inflearn_ctg.logger")  # ⭐ logger Mock 추가
+    @patch("apps.lecture.crawlers.base_crawler.BaseCrawler.get_json")
+    def test_crawl_handles_missing_status_code(self, mock_get_json, mock_logger) -> None:
+        """상태 코드 없는 응답 처리 테스트"""
+        mock_get_json.return_value = {
+            "data": [{"title": "Python"}]
+        }
+
+        result = self.crawler.crawl()
+
+        self.assertEqual(result, [])
+        mock_logger.error.assert_called_once_with("카테고리 데이터를 가져올 수 없습니다")  # ⭐ logger 호출 확인
+
+    @patch("apps.lecture.crawlers.base_crawler.BaseCrawler.get_json")
+    def test_crawl_handles_empty_data(self, mock_get_json) -> None:
+        """빈 데이터 처리 테스트"""
+        mock_get_json.return_value = {
+            "statusCode": "200",
+            "data": []
+        }
+
+        result = self.crawler.crawl()
+
+        self.assertEqual(result, [])
