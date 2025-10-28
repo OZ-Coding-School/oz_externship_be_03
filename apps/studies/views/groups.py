@@ -105,9 +105,6 @@ class StudyGroupListCreateView(APIView):
                 "end_at": group.end_at,
                 "status": group.status,
                 "lectures": StudyGroupLectureSerializer(study_lectures[group.name], many=True).data,
-                "review_count": (i * 7 % 9) + 2,
-                "star_rating_average": ((i * 7) % 51) / 10,
-                "is_reviewed": ((i * 3 + 1) % 2) == 0,
             }
             response_data.append(data)
 
