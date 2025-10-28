@@ -6,14 +6,14 @@ from django.core.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import extend_schema
 from rest_framework import parsers, status
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.studies.models.groups import StudyGroup
 from apps.studies.models.notes import StudyNote
-from apps.studies.permissions import IsGroupMember
+from apps.studies.permissions import IsGroupMember, IsStudyNoteAuthor
 from apps.studies.serializers.notes import (
     StudyNoteCreateSerializer,
     StudyNoteDetailSerializer,
@@ -82,6 +82,7 @@ class StudyNoteDetailAPIView(APIView):
     """
 
     permission_classes = [AllowAny]
+    # permission_classes = [IsAuthenticated, IsStudyNoteAuthor]
     parser_classes = [parsers.JSONParser, parsers.MultiPartParser]  # s3 구현 후 삭제할 것
 
     @extend_schema(summary="스터디 노트 단일 조회 API")
