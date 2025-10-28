@@ -58,4 +58,4 @@ class BaseCrawler(ABC):
     # 파생 크롤러가 반드시 구현 자유롭게
     @abstractmethod
     def crawl(self, *args: Any, **kwargs: Any) -> Any:
-        pass # pragma: no cover
+        pass  # pragma: no cover

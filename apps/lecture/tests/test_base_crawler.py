@@ -1,4 +1,5 @@
 # apps/lecture/tests/test_base_crawler.py
+from typing import Any, Dict
 from unittest.mock import Mock, patch
 
 import requests
@@ -11,7 +12,7 @@ from apps.lecture.crawlers.base_crawler import BaseCrawler
 class TestCrawler(BaseCrawler):
     """테스트용 크롤러"""
 
-    def crawl(self, *args, **kwargs):
+    def crawl(self, *args: Any, **kwargs: Any) -> Dict[str, str]:
         """추상 메서드 구현"""
         return {"test": "data"}
 
@@ -21,10 +22,7 @@ class BaseCrawlerTest(TestCase):
 
     def setUp(self) -> None:
         self.crawler = TestCrawler(base_url="https://api.example.com")
-        self.crawler_with_auth = TestCrawler(
-            base_url="https://api.example.com",
-            auth_cookie="session_id=abc123"
-        )
+        self.crawler_with_auth = TestCrawler(base_url="https://api.example.com", auth_cookie="session_id=abc123")
 
     def test_init_without_auth(self) -> None:
         """인증 없이 초기화 테스트"""
@@ -40,7 +38,7 @@ class BaseCrawlerTest(TestCase):
 
     @patch("apps.lecture.crawlers.base_crawler.time.sleep")
     @patch("apps.lecture.crawlers.base_crawler.requests.Session.get")
-    def test_make_request_success(self, mock_get, mock_sleep) -> None:
+    def test_make_request_success(self, mock_get: Mock, mock_sleep: Mock) -> None:
         """정상 요청 테스트"""
         # Mock 응답 설정
         mock_response = Mock()
@@ -52,13 +50,14 @@ class BaseCrawlerTest(TestCase):
 
         # 검증
         self.assertIsNotNone(response)
-        self.assertEqual(response.status_code, 200)
+        if response is not None:  # Type narrowing
+            self.assertEqual(response.status_code, 200)
         mock_get.assert_called_once()
         mock_sleep.assert_called_once_with(3)
 
     @patch("apps.lecture.crawlers.base_crawler.logger")
     @patch("apps.lecture.crawlers.base_crawler.requests.Session.get")
-    def test_make_request_http_error(self, mock_get, mock_logger) -> None:
+    def test_make_request_http_error(self, mock_get: Mock, mock_logger: Mock) -> None:
         """HTTP 에러 처리 테스트"""
         # Mock 에러 설정
         mock_get.side_effect = requests.exceptions.HTTPError("404 Not Found")
@@ -72,7 +71,7 @@ class BaseCrawlerTest(TestCase):
 
     @patch("apps.lecture.crawlers.base_crawler.logger")
     @patch("apps.lecture.crawlers.base_crawler.requests.Session.get")
-    def test_make_request_timeout(self, mock_get, mock_logger) -> None:
+    def test_make_request_timeout(self, mock_get: Mock, mock_logger: Mock) -> None:
         """타임아웃 처리 테스트"""
         # Mock 타임아웃 설정
         mock_get.side_effect = requests.exceptions.Timeout("Timeout")
@@ -86,7 +85,7 @@ class BaseCrawlerTest(TestCase):
 
     @patch("apps.lecture.crawlers.base_crawler.logger")
     @patch("apps.lecture.crawlers.base_crawler.requests.Session.get")
-    def test_make_request_connection_error(self, mock_get, mock_logger) -> None:
+    def test_make_request_connection_error(self, mock_get: Mock, mock_logger: Mock) -> None:
         """연결 에러 처리 테스트"""
         # Mock 연결 에러 설정
         mock_get.side_effect = requests.exceptions.ConnectionError("Connection failed")
@@ -99,7 +98,7 @@ class BaseCrawlerTest(TestCase):
         mock_logger.error.assert_called_once()
 
     @patch("apps.lecture.crawlers.base_crawler.BaseCrawler._make_request")
-    def test_get_json_success(self, mock_make_request) -> None:
+    def test_get_json_success(self, mock_make_request: Mock) -> None:
         """JSON 파싱 성공 테스트"""
         # Mock 응답 설정
         mock_response = Mock()
@@ -111,11 +110,12 @@ class BaseCrawlerTest(TestCase):
 
         # 검증
         self.assertIsNotNone(result)
-        self.assertEqual(result["status"], "ok")
-        self.assertEqual(result["data"], [1, 2, 3])
+        if result is not None:  # Type narrowing
+            self.assertEqual(result["status"], "ok")
+            self.assertEqual(result["data"], [1, 2, 3])
 
     @patch("apps.lecture.crawlers.base_crawler.BaseCrawler._make_request")
-    def test_get_json_none_response(self, mock_make_request) -> None:
+    def test_get_json_none_response(self, mock_make_request: Mock) -> None:
         """None 응답 처리 테스트"""
         mock_make_request.return_value = None
 
@@ -125,7 +125,7 @@ class BaseCrawlerTest(TestCase):
 
     @patch("apps.lecture.crawlers.base_crawler.logger")
     @patch("apps.lecture.crawlers.base_crawler.BaseCrawler._make_request")
-    def test_get_json_parse_error(self, mock_make_request, mock_logger) -> None:
+    def test_get_json_parse_error(self, mock_make_request: Mock, mock_logger: Mock) -> None:
         """JSON 파싱 에러 테스트"""
         # Mock 응답 설정 (JSON 파싱 실패)
         mock_response = Mock()
@@ -143,7 +143,7 @@ class BaseCrawlerTest(TestCase):
 
     @patch("apps.lecture.crawlers.base_crawler.logger")
     @patch("apps.lecture.crawlers.base_crawler.BaseCrawler._make_request")
-    def test_get_json_unexpected_error(self, mock_make_request, mock_logger) -> None:
+    def test_get_json_unexpected_error(self, mock_make_request: Mock, mock_logger: Mock) -> None:
         """예상치 못한 에러 처리 테스트"""
         # Mock 응답 설정 (예상치 못한 에러)
         mock_response = Mock()

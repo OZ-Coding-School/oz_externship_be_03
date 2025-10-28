@@ -1,5 +1,5 @@
 # apps/lecture/tests/test_inflearn_ctg.py
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from django.test import TestCase
 
@@ -33,7 +33,7 @@ class InflearnCategoryCrawlerTest(TestCase):
         }
 
     @patch("apps.lecture.crawlers.base_crawler.BaseCrawler.get_json")
-    def test_crawl_success(self, mock_get_json) -> None:
+    def test_crawl_success(self, mock_get_json: Mock) -> None:
         """기본 동작 테스트"""
         mock_get_json.return_value = self.mock_response
 
@@ -48,7 +48,7 @@ class InflearnCategoryCrawlerTest(TestCase):
         self.assertIsInstance(item["name"], str)
 
     @patch("apps.lecture.crawlers.base_crawler.BaseCrawler.get_json")
-    def test_crawl_removes_duplicates(self, mock_get_json) -> None:
+    def test_crawl_removes_duplicates(self, mock_get_json: Mock) -> None:
         """중복 제거 테스트"""
         mock_get_json.return_value = self.mock_response
 
@@ -58,7 +58,7 @@ class InflearnCategoryCrawlerTest(TestCase):
         self.assertEqual(len(names), len(set(names)))
 
     @patch("apps.lecture.crawlers.base_crawler.BaseCrawler.get_json")
-    def test_crawl_sorts_results(self, mock_get_json) -> None:
+    def test_crawl_sorts_results(self, mock_get_json: Mock) -> None:
         """정렬 테스트"""
         mock_get_json.return_value = self.mock_response
 
@@ -67,51 +67,43 @@ class InflearnCategoryCrawlerTest(TestCase):
 
         self.assertEqual(names, sorted(names))
 
-    @patch("apps.lecture.crawlers.inflearn_ctg.logger")  # ⭐ logger Mock 추가
+    @patch("apps.lecture.crawlers.inflearn_ctg.logger")
     @patch("apps.lecture.crawlers.base_crawler.BaseCrawler.get_json")
-    def test_crawl_handles_none_response(self, mock_get_json, mock_logger) -> None:
+    def test_crawl_handles_none_response(self, mock_get_json: Mock, mock_logger: Mock) -> None:
         """None 응답 처리 테스트"""
         mock_get_json.return_value = None
 
         result = self.crawler.crawl()
 
         self.assertEqual(result, [])
-        mock_logger.error.assert_called_once_with("카테고리 데이터를 가져올 수 없습니다")  # ⭐ logger 호출 확인
+        mock_logger.error.assert_called_once_with("카테고리 데이터를 가져올 수 없습니다")
 
-    @patch("apps.lecture.crawlers.inflearn_ctg.logger")  # ⭐ logger Mock 추가
+    @patch("apps.lecture.crawlers.inflearn_ctg.logger")
     @patch("apps.lecture.crawlers.base_crawler.BaseCrawler.get_json")
-    def test_crawl_handles_error_status_code(self, mock_get_json, mock_logger) -> None:
+    def test_crawl_handles_error_status_code(self, mock_get_json: Mock, mock_logger: Mock) -> None:
         """에러 상태 코드 처리 테스트"""
-        mock_get_json.return_value = {
-            "statusCode": "500",
-            "data": []
-        }
+        mock_get_json.return_value = {"statusCode": "500", "data": []}
 
         result = self.crawler.crawl()
 
         self.assertEqual(result, [])
-        mock_logger.error.assert_called_once_with("카테고리 데이터를 가져올 수 없습니다")  # ⭐ logger 호출 확인
+        mock_logger.error.assert_called_once_with("카테고리 데이터를 가져올 수 없습니다")
 
-    @patch("apps.lecture.crawlers.inflearn_ctg.logger")  # ⭐ logger Mock 추가
+    @patch("apps.lecture.crawlers.inflearn_ctg.logger")
     @patch("apps.lecture.crawlers.base_crawler.BaseCrawler.get_json")
-    def test_crawl_handles_missing_status_code(self, mock_get_json, mock_logger) -> None:
+    def test_crawl_handles_missing_status_code(self, mock_get_json: Mock, mock_logger: Mock) -> None:
         """상태 코드 없는 응답 처리 테스트"""
-        mock_get_json.return_value = {
-            "data": [{"title": "Python"}]
-        }
+        mock_get_json.return_value = {"data": [{"title": "Python"}]}
 
         result = self.crawler.crawl()
 
         self.assertEqual(result, [])
-        mock_logger.error.assert_called_once_with("카테고리 데이터를 가져올 수 없습니다")  # ⭐ logger 호출 확인
+        mock_logger.error.assert_called_once_with("카테고리 데이터를 가져올 수 없습니다")
 
     @patch("apps.lecture.crawlers.base_crawler.BaseCrawler.get_json")
-    def test_crawl_handles_empty_data(self, mock_get_json) -> None:
+    def test_crawl_handles_empty_data(self, mock_get_json: Mock) -> None:
         """빈 데이터 처리 테스트"""
-        mock_get_json.return_value = {
-            "statusCode": "200",
-            "data": []
-        }
+        mock_get_json.return_value = {"statusCode": "200", "data": []}
 
         result = self.crawler.crawl()
 
