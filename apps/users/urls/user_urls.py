@@ -1,8 +1,8 @@
 from django.urls import URLPattern, URLResolver, path
 
-from apps.users.views.user_profile_views import MeView, UserDupNicknameView, UserProfileUpdateView, UserChangePasswordView
+from apps.users.views.user_profile_views import MeView, UserDupNicknameView, UserProfileUpdateView, UserChangePasswordView, UserWithdrawalAPIView, UserAccountRecoveryAPIView
 from apps.users.views.user_signup_views import UserSignupView
-from apps.users.views.user_withdrawals_views import UserWithdrawalAPIView, UserAccountRecoveryAPIView
+from apps.users.views.password_reset_views import PasswordResetView
 
 urlpatterns: list[URLPattern | URLResolver] = [
     path("users/", UserSignupView.as_view(), name="signup"),  # /api/v1/users/
@@ -18,4 +18,7 @@ urlpatterns: list[URLPattern | URLResolver] = [
     path("users", UserSignupView.as_view(), name="signup"),  # /api/v1/users/
     path("users/me", MeView.as_view(), name="me"),  # /api/v1/users/me/
     path("users/dup-nickname", UserDupNicknameView.as_view(), name="dup_nickname"),
+
+    # recovery
+    path("users/reset-password", PasswordResetView.as_view(), name="user_reset_password"),
 ]
