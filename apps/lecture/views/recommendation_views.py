@@ -62,7 +62,7 @@ class RecommendationView(APIView):
         lectures_queryset = recommendation_service.recommend_lectures(user_id, self.RECOMMENDATION_COUNT)
 
         lectures_queryset = lectures_queryset.prefetch_related(
-            "lecturecategory_set__category",
+            "lecture_categories__category",
         ).select_related()
 
         serializer = self.serializer_class(
