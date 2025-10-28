@@ -32,15 +32,14 @@ class TestRedisPubSubService(IsolatedRedisTestClient):
             birthday=date(1995,1,11),
             gender=Gender.MALE,
         )
-        self.applicant = User.objects.create(
-            email="test1@test.com",
-            password="pass123",
-            nickname="test1",
-            name="지원자",
-            phone_number="010-1111-2223",
-            birthday=date(1995,1,12),
-            gender=Gender.MALE,
-        )
+
+        self.test_notification = {
+            "id": 1,
+            "type": Notification.NotificationType.APPLICATION_CREATED,
+            "content" : "테스트입니다.",
+            "created_at" : datetime.now(timezone.utc).isoformat(),
+            "is_read" : False,
+        }
 
     async def test_redis_connection(self):
         ping_result = await self.pubsub_service.redis_client.ping()
@@ -57,14 +56,7 @@ class TestRedisPubSubService(IsolatedRedisTestClient):
         """알림 발행 테스트"""
         user_id = self.author.id
 
-        test_notification = {
-            "id": 1,
-            "type": Notification.NotificationType.APPLICATION_CREATED,
-            "content" : "테스트입니다.",
-            "created_at" : datetime.now(timezone.utc).isoformat(),
-            "is_read" : False,
-        }
-        print(f"발행할 알림 데이터:{test_notification}")
+        print(f"발행할 알림 데이터:{self.test_notification}")
 
         pubsub = self.pubsub_service.redis_client.pubsub()
         channel = self.pubsub_service.get_user_channel(user_id)
@@ -74,7 +66,7 @@ class TestRedisPubSubService(IsolatedRedisTestClient):
 
         await asyncio.sleep(0.1)
 
-        await self.pubsub_service.publish_notification(user_id, test_notification)
+        await self.pubsub_service.publish_notification(user_id, self.test_notification)
         print("알림 발행 완료")
         message = await pubsub.get_message(timeout=1)
         print(f"message:{message}")
@@ -124,14 +116,8 @@ class TestRedisPubSubService(IsolatedRedisTestClient):
 
         async def publish_after_delay():
             await asyncio.sleep(0.2)
-            test_notification = {
-                "id": 1,
-                "type": Notification.NotificationType.APPLICATION_CREATED,
-                "content" : "테스트입니다.",
-                "created_at" : datetime.now(timezone.utc).isoformat(),
-                "is_read" : False,
-            }
-            await self.pubsub_service.publish_notification(user_id,test_notification)
+
+            await self.pubsub_service.publish_notification(user_id,self.test_notification)
 
         publish_task = asyncio.create_task(publish_after_delay())
 
