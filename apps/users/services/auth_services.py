@@ -1,9 +1,12 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Optional, Tuple, cast
+from typing import Any, Dict, Optional, cast
 
 from django.contrib.auth import authenticate
-from rest_framework_simplejwt.exceptions import TokenError
+from rest_framework_simplejwt.exceptions import (
+    ExpiredTokenError,
+    TokenError,
+)
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.users.models.user import User as UserModel
@@ -49,5 +52,7 @@ def refresh_access_token(*, refresh_token: str) -> str:
     try:
         token = RefreshToken(cast(Any, refresh_token))
         return str(token.access_token)
+    except ExpiredTokenError as e:
+        raise PermissionError("만료된 refresh 토큰입니다.") from e
     except TokenError as e:
         raise PermissionError("유효하지 않은 refresh 토큰입니다.") from e
