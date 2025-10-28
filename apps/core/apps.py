@@ -21,4 +21,5 @@ class CoreConfig(AppConfig):
             task_path="apps.users.tasks.delete_withdrawn_users",
             hour="0",
             minute="10",
+            batch_size=1000,
         )
