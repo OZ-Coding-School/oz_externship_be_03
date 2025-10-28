@@ -117,3 +117,43 @@ class StudyGroupLectureSerializer:
         self.data = [
             {"id": sl.lecture.id, "title": sl.lecture.title, "instructor": sl.lecture.instructor} for sl in data
         ]
+
+
+# Spec API용 시리얼라이저
+class StudyGroupMemberSerializer:
+    def __init__(self, data: Iterable[Any], many: bool = False) -> None:
+        self.data = [{"id": sl.user.id, "nickname": sl.user.nickname, "is_leader": sl.is_leader} for sl in data]
+
+
+class StudyGroupDetailSerializer(StudyGroupBaseSerializer):
+    current_headcount = serializers.SerializerMethodField()
+    members = serializers.SerializerMethodField()
+    lectures = serializers.SerializerMethodField()
+
+    class Meta(StudyGroupBaseSerializer.Meta):
+        fields = StudyGroupBaseSerializer.Meta.fields + ["current_headcount", "members", "lectures"]
+
+    def get_current_headcount(self, obj: StudyGroup) -> int:
+        return len(obj.members.all())
+
+    def get_members(self, obj: StudyGroup) -> list[dict[str, int | str]]:
+        return [
+            {
+                "id": group_member.user.id,
+                "nickname": group_member.user.nickname,
+                "is_leader": group_member.is_leader,
+            }
+            for group_member in obj.members.all()
+        ]
+
+    def get_lectures(self, obj: StudyGroup) -> list[dict[str, int | str | None]]:
+        return [
+            {
+                "id": study_lecture.lecture.id,
+                "thumbnail_img_url": study_lecture.lecture.thumbnail_img_url,
+                "title": study_lecture.lecture.title,
+                "instructor": study_lecture.lecture.instructor,
+                "url_link": study_lecture.lecture.url_link,
+            }
+            for study_lecture in obj.lectures.all()
+        ]

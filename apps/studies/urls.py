@@ -1,6 +1,9 @@
 from django.urls import path
 
-from apps.studies.views.groups import StudyGroupListCreateView
+from apps.studies.views.groups import (
+    StudyGroupDetailUpdateView,
+    StudyGroupListCreateView,
+)
 from apps.studies.views.members import (
     DelegateLeaderAPIView,
     MemberKickAPIView,
@@ -33,4 +36,5 @@ urlpatterns = [
         name="study-member-kick",
     ),
     path("groups/", StudyGroupListCreateView.as_view(), name="study-group-list-create"),
+    path("groups/<uuid:group_id>/", StudyGroupDetailUpdateView.as_view(), name="study-group-detail-update"),
 ]
