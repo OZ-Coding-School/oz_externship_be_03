@@ -213,6 +213,6 @@ class StudyGroupDetailUpdateView(APIView):
             200: StudyGroupDetailSerializer(many=True),
         },
     )
-    def get(self, request: Request) -> Response:
+    def get(self, request: Request, *args, **kwargs) -> Response:
         response_data = self.get_object()
         return Response(response_data, status=status.HTTP_200_OK)
