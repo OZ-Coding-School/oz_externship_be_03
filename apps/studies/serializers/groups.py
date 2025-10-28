@@ -87,9 +87,6 @@ class StudyGroupListSerializer(StudyGroupBaseSerializer):
             "current_headcount",
             "is_leader",
             "lectures",
-            "review_count",
-            "star_rating_average",
-            "is_reviewed",
         ]
 
     def get_current_headcount(self, obj: StudyGroup) -> int:
