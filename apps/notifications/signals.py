@@ -30,4 +30,3 @@ def notifications_created(sender: Any, instance: Application, created: bool, **k
     )
 
     send_to_pubsub.delay(notification.id)
-
