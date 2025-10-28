@@ -7,7 +7,7 @@ from django.views import View
 from rest_framework.permissions import BasePermission
 from rest_framework.request import Request
 
-from apps.studies.models.groups import GroupMember
+from apps.studies.models.groups import GroupMember, StudyGroup
 
 
 # 리더 여부 권한 확인
@@ -25,16 +25,19 @@ class IsGroupMember(BasePermission):
     def has_permission(self, request: HttpRequest, view: Any) -> bool:
         user = getattr(request, "user", None)
         if not user or not user.is_authenticated:
-            return False
+            return False  # 401
 
         group_id = view.kwargs.get("group_id")
         if group_id is None:
-            return True
+            return True  # 이 퍼미션은 group_id 라우트에만 의미
 
         try:
             gid = int(group_id)
         except (TypeError, ValueError):
-            return False
+            return False  # 잘못된 id 형태 → 403
+
+        if not StudyGroup.objects.filter(pk=gid).exists():
+            return True
 
         return GroupMember.objects.filter(
             study_group_id=gid,
