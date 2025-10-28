@@ -19,7 +19,7 @@ class MeAPITest(APITestCase):
             name="홍길동",
             phone_number="01012345678",
             birthday="1998-01-23",
-            gender="M",  # gender 필드 추가
+            gender="M",
             is_active=True,
         )
 
@@ -34,16 +34,16 @@ class MeAPITest(APITestCase):
         """
         로그인한 사용자가 /api/v1/me 조회 성공
         """
-        url = reverse("users:me")  # urls.py에서 name='me'이고, app_name='users'인 경우
+        url = reverse("users:me")
         response = self.client.get(url)
 
         # 검증
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data["data"]["email"], self.user.email)
-        self.assertEqual(response.data["data"]["nickname"], self.user.nickname)
-        self.assertEqual(response.data["data"]["name"], self.user.name)
-        self.assertIn("profile_img_url", response.data["data"])  # 필드 존재 확인
-        self.assertIn("created_at", response.data["data"])
+        self.assertEqual(response.data["email"], self.user.email)
+        self.assertEqual(response.data["nickname"], self.user.nickname)
+        self.assertEqual(response.data["name"], self.user.name)
+        self.assertIn("profile_img_url", response.data)  # 필드 존재 확인
+        self.assertIn("created_at", response.data)
 
     def test_me_unauthorized(self) -> None:
         """
@@ -54,4 +54,7 @@ class MeAPITest(APITestCase):
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, 401)
-        self.assertEqual(response.data["detail"], "자격 인증데이터(authentication credentials)가 제공되지 않았습니다.")
+        self.assertEqual(
+            response.data["detail"],
+            "자격 인증데이터(authentication credentials)가 제공되지 않았습니다."
+        )
