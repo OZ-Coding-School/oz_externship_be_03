@@ -22,71 +22,38 @@ from apps.lecture.serializers import (
 
 
 class LectureListView(APIView):
-    """강의 플랫폼(Udemy, Inflearn)의 강의 목록을 검색, 필터링, 정렬하여 조회하는 API입니다."""
-
     serializer_class = LectureListSerializer
     permission_classes = [AllowAny]
 
     @extend_schema(
         operation_id="v1_lecture_list",
         tags=["Lectures"],
-        summary="강의 목록 조회 API",
+        summary="강의 목록을 검색, 필터링, 정렬하여 조회하는 API입니다.",
         responses={200: LectureListSerializer(many=True)},
     )
     def get(self, request: Request) -> Response:
-        mock_data = {
-            "count": 150,
-            "next": "http://example.com/api/v1/lectures/?page=2",
-            "previous": None,
-            "results": [
-                {
-                    "id": i,
-                    "uuid": "550e8400-e29b-41d4-a716-446655440000",
-                    "title": f"Django 완벽 가이드 {i}",
-                    "instructor": "Meoyoug",
-                    "thumbnail_img_url": "https://example.com/image.jpg",
-                    "categories": [
-                        {"id": 1, "name": "백엔드"},
-                        {"id": 5, "name": "Django"},
-                    ],
-                    "difficulty": "HARD",
-                    "original_price": 100000,
-                    "discount_price": 50000,
-                    "platform": "inflearn",
-                    "average_rating": 4.85,
-                    "url_link": "https://www.inflearn.com/course/%EC%8B%A4%EC%A0%84-django-%EC%9E%85%EB%AC%B8",
-                    "is_bookmarked": i % 2 == 0,
-                }
-                for i in range(1, 11)
-            ],
-        }
+        queryset = CrawledLecture.objects.prefetch_related("lecture_categories__category").all()
 
-        return Response(mock_data, status=status.HTTP_200_OK)
+        if request.user.is_authenticated:
+            queryset = queryset.prefetch_related(
+                Prefetch(
+                    "bookmarks", queryset=LectureBookmark.objects.filter(user=request.user), to_attr="user_bookmarks"
+                )
+            )
 
-    # TODO: 완성되면 spec용 api 제거후 주석 해제
-    # def get(self, request: Request) -> Response:
-    #     queryset = CrawledLecture.objects.prefetch_related("lecture_categories__category").all()
-    #
-    #     if request.user.is_authenticated:
-    #         queryset = queryset.prefetch_related(
-    #             Prefetch(
-    #                 "bookmarks", queryset=LectureBookmark.objects.filter(user=request.user), to_attr="user_bookmarks"
-    #             )
-    #         )
-    #
-    #     # 필터
-    #     filterset = LectureFilter(request.query_params, queryset=queryset, request=request)
-    #     queryset = filterset.qs
-    #
-    #     # 검색 로그 저장
-    #     search_keyword = request.query_params.get("search")
-    #     if search_keyword and request.user.is_authenticated:
-    #         LectureSearchLog.objects.create(user=request.user, keyword=search_keyword)
-    #
-    #     paginator = PageNumberPagination()
-    #     page = paginator.paginate_queryset(queryset, request)
-    #     serializer = LectureListSerializer(page, many=True, context={"request": request})
-    #     return paginator.get_paginated_response(serializer.data)
+        # 필터
+        filterset = LectureFilter(request.query_params, queryset=queryset, request=request)
+        queryset = filterset.qs
+
+        # 검색 로그 저장
+        search_keyword = request.query_params.get("search")
+        if search_keyword and request.user.is_authenticated:
+            LectureSearchLog.objects.create(user=request.user, keyword=search_keyword)
+
+        paginator = PageNumberPagination()
+        page = paginator.paginate_queryset(queryset, request)
+        serializer = LectureListSerializer(page, many=True, context={"request": request})
+        return paginator.get_paginated_response(serializer.data)
 
 
 class LectureReviewListView(APIView):

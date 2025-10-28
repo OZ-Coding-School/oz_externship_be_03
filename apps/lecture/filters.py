@@ -15,11 +15,6 @@ class LectureFilter(filters.FilterSet):
     # 카테고리 필터링
     category = filters.CharFilter(field_name="lecture_categories__category__name", label="카테고리명")
 
-    # 플랫폼 필터링
-    platform = filters.ChoiceFilter(
-        choices=[("UDEMY", "Udemy"), ("INFLEARN", "Inflearn")], method="filter_platform", label="플랫폼"
-    )
-
     # 정렬 기능
     ordering = filters.OrderingFilter(
         fields=(
@@ -44,9 +39,3 @@ class LectureFilter(filters.FilterSet):
             return queryset
 
         return queryset.filter(Q(title__icontains=value) | Q(instructor__icontains=value)).distinct()
-
-    def filter_platform(self, queryset: Any, name: str, value: str) -> Any:
-        """플랫폼 필터"""
-        if not value:
-            return queryset
-        return queryset.filter(platform=value.upper())
