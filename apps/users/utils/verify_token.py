@@ -8,7 +8,7 @@ from typing import Any, Optional
 import jwt
 from django.conf import settings
 from django.core.cache import cache
-from rest_framework import status
+from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.response import Response
 
 from apps.users.enums import EmailVerificationPurpose, PhoneVerificationPurpose
@@ -90,10 +90,8 @@ def verify_and_consume(
 
     try:
         decoded: dict[str, Any] = jwt.decode(token, secret, algorithms=[algo])
-    except jwt.ExpiredSignatureError:
-        return Response({"error": "검증 토큰이 유효하지 않거나 만료되었습니다."}, status=status.HTTP_401_UNAUTHORIZED)
-    except jwt.InvalidTokenError:
-        return Response({"error": "검증 토큰이 유효하지 않거나 만료되었습니다."}, status=status.HTTP_401_UNAUTHORIZED)
+    except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
+        raise AuthenticationFailed({"error": "검증 토큰이 유효하지 않거나 만료되었습니다."})
 
     claims: dict[str, Any] = {
         "sub": str(decoded.get("sub", "")),
@@ -104,22 +102,22 @@ def verify_and_consume(
         "iat": int(decoded.get("iat", 0)) if decoded.get("iat") else None,
     }
 
-    # purpose 일치
+    # purpose 일치 확인
     if not _safe_eq(claims["purpose"], _serialize_purpose(expected_purpose)):
-        return Response({"error": "검증 토큰이 유효하지 않거나 만료되었습니다."}, status=status.HTTP_401_UNAUTHORIZED)
+        raise AuthenticationFailed({"error": "검증 토큰이 유효하지 않거나 만료되었습니다."})
 
     # sub 일치 확인
     if expected_sub is not None and not _safe_eq(claims["sub"], expected_sub):
-        return Response({"error": "검증 토큰이 유효하지 않거나 만료되었습니다."}, status=status.HTTP_401_UNAUTHORIZED)
+        raise AuthenticationFailed({"error": "검증 토큰이 유효하지 않거나 만료되었습니다."})
 
     key = _jti_key(claims["purpose"], claims["jti"])
 
     if not cache.get(key):
-        return Response({"error": "검증 토큰이 유효하지 않거나 만료되었습니다."}, status=status.HTTP_401_UNAUTHORIZED)
+        raise AuthenticationFailed({"error": "검증 토큰이 유효하지 않거나 만료되었습니다."})
 
     # 재사용 방지: 이미 사용된 jti면 실패
     if not cache.add(_used_key(claims["jti"]), 1, timeout=60):
-        return Response({"error": "검증 토큰이 유효하지 않거나 만료되었습니다."}, status=status.HTTP_401_UNAUTHORIZED)
+        raise AuthenticationFailed({"error": "검증 토큰이 유효하지 않거나 만료되었습니다."})
 
     # 소비 완료
     cache.delete(key)

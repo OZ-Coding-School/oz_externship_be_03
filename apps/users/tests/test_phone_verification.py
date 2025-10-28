@@ -13,9 +13,9 @@ from apps.users.enums import PhoneVerificationPurpose
 from apps.users.services.phone_verification_services import (
     _global_lock_key,
     _lock_key,
-    _normalize_kr_phone,
     _pending_key,
 )
+from apps.users.utils.phone_normalize import normalize_kr_phone
 
 User = get_user_model()
 
@@ -61,13 +61,13 @@ class BasePhoneVerificationTests(IsolatedRedisTestClient):
 
     # ---------- 헬퍼 ----------
     def seed_pending(self) -> None:
-        to = _normalize_kr_phone(self.valid_confirm_data["phone_number"])
+        to = normalize_kr_phone(self.valid_confirm_data["phone_number"])
         key = _pending_key(
             subject=to,
             purpose=self.PURPOSE,
             sid=self.valid_confirm_data["request_id"],
         )
-        cache.set(key, _normalize_kr_phone(self.PHONE), timeout=600)
+        cache.set(key, normalize_kr_phone(self.PHONE), timeout=600)
 
     # ---------- 공통 테스트 ----------
     @patch("apps.users.services.phone_verification_services._twilio")
@@ -142,7 +142,7 @@ class BasePhoneVerificationTests(IsolatedRedisTestClient):
         """락이 걸린 번호/목적에 대해 429"""
         self.auth()
         mock_twilio.verify.v2.services.return_value.verification_checks.create.return_value.status = "approved"
-        to = _normalize_kr_phone(self.PHONE)
+        to = normalize_kr_phone(self.PHONE)
         cache.set(_global_lock_key(to), "1", timeout=60)
         cache.set(_lock_key(to, self.PURPOSE), "1", timeout=60)
 

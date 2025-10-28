@@ -11,6 +11,7 @@ from django.core.cache import cache
 from django.test import override_settings
 from django.urls import path, reverse
 from rest_framework import status
+from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.test import APIClient, APITestCase
@@ -533,15 +534,14 @@ class TestEmailVerifiedPermission(APITestCase):
     @patch("apps.users.permissions.verify_and_consume")
     def test_denied_when_verify_returns_error_response(self, mock_verify: Any) -> None:
         """verify_and_consume가 에러 Response를 돌리면 403"""
-        error_resp = Response({"error": "토큰이 유효하지 않습니다."}, status=status.HTTP_401_UNAUTHORIZED)
-        mock_verify.return_value = error_resp
+        mock_verify.side_effect = AuthenticationFailed({"error": "토큰이 유효하지 않습니다."})
 
         headers = {"HTTP_X_EMAIL_VERIFY_TOKEN": "HDR-TOKEN"}
         payload = {"email": "u@example.com", "verify_token": "BODY-TOKEN"}
         resp = self._post_json(self.good_url, payload, headers=headers)
 
         self.assertEqual(resp.status_code, 403, resp.content)
-        self.assertIn("토큰이 유효하지 않습니다.", resp.data.get("detail", ""))
+        self.assertIn("토큰이 유효하지 않습니다.", resp.data.get("error", ""))
 
         called_args, called_kwargs = mock_verify.call_args
         self.assertEqual(called_args[0], "HDR-TOKEN")

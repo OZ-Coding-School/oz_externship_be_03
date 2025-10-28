@@ -34,6 +34,11 @@ class UserProfileSerializer(serializers.ModelSerializer[Any]):
 
 
 class UserProfileUpdateSerializer(serializers.ModelSerializer[Any]):
+    """
+    사용자 정보 수정 요청 시리얼라이저
+    - 수정 후 사용자 정보를 반환
+    """
+
     verify_token = serializers.CharField(write_only=True, required=False)
     nickname = serializers.CharField(
         required=False,
@@ -51,6 +56,26 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer[Any]):
         model = User
         fields = ("nickname", "profile_img_url", "phone_number", "verify_token")
         extra_kwargs = {"profile_img_url": {"required": False}}
+
+
+class UserProfileUpdateResponseSerializer(serializers.ModelSerializer[Any]):
+    """
+    사용자 정보 수정 응답 시리얼라이저
+    - 수정 후 사용자 정보를 반환
+    """
+
+    class Meta:
+        model = User
+        fields = (
+            "id",
+            "email",
+            "nickname",
+            "name",
+            "phone_number",
+            "birthday",
+            "profile_img_url",
+            "created_at",
+        )
 
 
 class UserProfilePasswordUpdateSerializer(serializers.Serializer[Dict[str, Any]]):

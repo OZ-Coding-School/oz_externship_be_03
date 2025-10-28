@@ -1,5 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.urls import reverse
+from rest_framework.exceptions import NotAuthenticated
 from rest_framework.test import APITestCase
 from rest_framework_simplejwt.tokens import RefreshToken
 
@@ -54,4 +55,4 @@ class MeAPITest(APITestCase):
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, 401)
-        self.assertEqual(response.data["detail"], "자격 인증데이터(authentication credentials)가 제공되지 않았습니다.")
+        self.assertEqual(response.data["detail"], str(NotAuthenticated.default_detail))
