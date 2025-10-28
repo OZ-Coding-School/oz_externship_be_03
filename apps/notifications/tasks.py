@@ -1,17 +1,15 @@
 import logging
 
 from asgiref.sync import async_to_sync
-from celery import shared_task
+from celery import shared_task # type: ignore
 
 from apps.notifications.models import Notification
 from apps.notifications.services.redis_pubsub_classify import notification_pubsub
-from apps.recruitments.models import Recruitment
-from config import settings
 
 logger = logging.getLogger(__name__)
 
 
-@shared_task
+@shared_task # type: ignore[misc]
 def send_to_pubsub(notification_id: int) -> None:
     try:
         notification = Notification.objects.select_related("user").get(id=notification_id)

@@ -41,7 +41,7 @@ class TestRedisPubSubService(IsolatedRedisTestClient):
             "is_read": False,
         }
 
-    async def test_redis_connection(self):
+    async def test_redis_connection(self) -> None:
         ping_result = await self.pubsub_service.redis_client.ping()
         self.assertTrue(ping_result)
         print("연결완료")
@@ -51,7 +51,7 @@ class TestRedisPubSubService(IsolatedRedisTestClient):
         expected = f"notifications:user_{user_id}"
         self.assertEqual(channel, expected)
 
-    async def test_redis_publish(self):
+    async def test_redis_publish(self) -> None:
         """알림 발행 테스트"""
         user_id = self.author.id
 
@@ -81,7 +81,7 @@ class TestRedisPubSubService(IsolatedRedisTestClient):
 
         await pubsub.close()
 
-    async def test_redis_pub_error_case(self):
+    async def test_redis_pub_error_case(self) -> None:
         redis_client = self.pubsub_service.redis_client
 
         try:
@@ -98,10 +98,10 @@ class TestRedisPubSubService(IsolatedRedisTestClient):
         finally:
             self.pubsub_service.redis_client = redis_client
 
-    async def test_redis_subscribe(self):
+    async def test_redis_subscribe(self) -> None:
         user_id = self.author.id
 
-        async def publish_after_delay():
+        async def publish_after_delay() -> None:
             await asyncio.sleep(0.2)
 
             await self.pubsub_service.publish_notification(user_id, self.test_notification)
@@ -118,7 +118,7 @@ class TestRedisPubSubService(IsolatedRedisTestClient):
         await publish_task
         self.assertEqual(received_count, 1)
 
-    async def test_redis_subscribe_error_case(self):
+    async def test_redis_subscribe_error_case(self) -> None:
         redis_client = self.pubsub_service.redis_client
 
         try:

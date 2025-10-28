@@ -15,7 +15,7 @@ User = get_user_model()
 
 class TestSSEViews(IsolatedRedisTestClient):
 
-    def setUp(self):
+    def setUp(self)-> None:
         super().setUp()
 
         from datetime import datetime
@@ -48,7 +48,7 @@ class TestSSEViews(IsolatedRedisTestClient):
             "back_url_link": "test/",
         }
 
-    async def test_notification_stream(self):
+    async def test_notification_stream(self)-> None:
         """SSE 스트림 테스트"""
         request = HttpRequest()
         request.user = self.user
@@ -60,17 +60,18 @@ class TestSSEViews(IsolatedRedisTestClient):
         self.assertEqual(response["Cache-Control"], "no-cache")
         self.assertEqual(response["Connection"], "keep-alive")
 
-        async def publish_notification():
+        async def publish_notification() -> None:
             await asyncio.sleep(0.2)
             await notification_pubsub.publish_notification(self.user.id, self.test_notification)
 
         publish_task = asyncio.create_task(publish_notification())
 
         stream_content = []
-        async for chunk in response.streaming_content:
-            stream_content.append(chunk.decode("utf-8"))
-            if len(stream_content) >= 2:
-                break
+        if hasattr(response.streaming_content,'__aiter__'):
+            async for chunk in response.streaming_content: # type: ignore
+                stream_content.append(chunk.decode("utf-8"))
+                if len(stream_content) >= 2:
+                    break
 
         await publish_task
 
@@ -78,7 +79,7 @@ class TestSSEViews(IsolatedRedisTestClient):
         self.assertIn('"content": "테스트입니다."', stream_content[1])
         self.assertIn('"type": "APPLICATIONS_CREATED"', stream_content[1])
 
-    async def test_notification_stream_unauthenticated_user(self):
+    async def test_notification_stream_unauthenticated_user(self) -> None:
         """미인증 유저 테스트"""
         request = HttpRequest()
         request.user = type("User", (), {"is_authenticated": False})()
@@ -88,7 +89,7 @@ class TestSSEViews(IsolatedRedisTestClient):
         self.assertEqual(response.status_code, 401)
         self.assertEqual(response["Content-Type"], "text/event-stream")
 
-    async def test_notificaiton_stream_wrong_user(self):
+    async def test_notificaiton_stream_wrong_user(self) -> None:
         request = HttpRequest()
         request.user = self.other_user
 
