@@ -140,7 +140,7 @@ class UserProfileUpdateTests(IsolatedRedisTestClient):
         )
         resp = self.client.patch(self.url, {"phone_number": "01012345678", "verify_token": wrong}, format="json")
         self.assertEqual(resp.status_code, status.HTTP_401_UNAUTHORIZED)
-        self.assertIn("detail", resp.json())
+        self.assertIn("error", resp.json())
 
     def test_change_phone_success_and_token_consumed(self) -> None:
         """

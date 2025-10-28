@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 import os
-from typing import Any, cast
+from typing import Any
 from unittest.mock import patch
 
 import jwt
 from django.core.cache import cache
 from django.test import TestCase, override_settings
-from rest_framework import status
-from rest_framework.response import Response
+from rest_framework.exceptions import AuthenticationFailed
 
 from apps.users.enums import EmailVerificationPurpose, PhoneVerificationPurpose
 from apps.users.utils.verify_token import (
@@ -60,7 +59,7 @@ class VerifyTokenUtilsTests(TestCase):
             purpose=PhoneVerificationPurpose.CHANGE_PHONE,
         )
 
-        # 1회차: 성공
+        # 1회차: 성공 → dict 반환
         result = verify_and_consume(
             token,
             expected_purpose=PhoneVerificationPurpose.CHANGE_PHONE,
@@ -70,17 +69,15 @@ class VerifyTokenUtilsTests(TestCase):
         self.assertEqual(result["sub"], "01099999999")
         self.assertEqual(result["purpose"], PhoneVerificationPurpose.CHANGE_PHONE)
 
-        # 2회차: 재사용 불가
-        result2 = verify_and_consume(
-            token,
-            expected_purpose=PhoneVerificationPurpose.CHANGE_PHONE,
-            expected_sub="01099999999",
-        )
-        self.assertIsInstance(result2, Response)
-        resp2 = cast(Response, result2)
-        self.assertEqual(resp2.status_code, status.HTTP_401_UNAUTHORIZED)
+        # 2회차: 재사용 불가 → AuthenticationFailed raise
+        with self.assertRaises(AuthenticationFailed):
+            verify_and_consume(
+                token,
+                expected_purpose=PhoneVerificationPurpose.CHANGE_PHONE,
+                expected_sub="01099999999",
+            )
 
-    def test_verify_wrong_purpose_returns_401(self) -> None:
+    def test_verify_wrong_purpose_raises_401(self) -> None:
         """토큰 목적이 다른 경우"""
         token = issue_verify_token(
             sub="user@example.com",
@@ -88,17 +85,15 @@ class VerifyTokenUtilsTests(TestCase):
             purpose=EmailVerificationPurpose.SIGNUP,
         )
 
-        # 잘못된 목적 기대
-        result = verify_and_consume(
-            token,
-            expected_purpose=EmailVerificationPurpose.RESET_PASSWORD,
-            expected_sub="user@example.com",
-        )
-        self.assertIsInstance(result, Response)
-        resp = cast(Response, result)
-        self.assertEqual(resp.status_code, status.HTTP_401_UNAUTHORIZED)
+        # 잘못된 목적 기대 → AuthenticationFailed
+        with self.assertRaises(AuthenticationFailed):
+            verify_and_consume(
+                token,
+                expected_purpose=EmailVerificationPurpose.RESET_PASSWORD,
+                expected_sub="user@example.com",
+            )
 
-    def test_verify_wrong_sub_returns_401(self) -> None:
+    def test_verify_wrong_sub_raises_401(self) -> None:
         """sub 불일치"""
         token = issue_verify_token(
             sub="user@example.com",
@@ -106,19 +101,17 @@ class VerifyTokenUtilsTests(TestCase):
             purpose=EmailVerificationPurpose.RESET_PASSWORD,
         )
 
-        result = verify_and_consume(
-            token,
-            expected_purpose=EmailVerificationPurpose.RESET_PASSWORD,
-            expected_sub="other@example.com",
-        )
-        self.assertIsInstance(result, Response)
-        resp = cast(Response, result)
-        self.assertEqual(resp.status_code, status.HTTP_401_UNAUTHORIZED)
+        with self.assertRaises(AuthenticationFailed):
+            verify_and_consume(
+                token,
+                expected_purpose=EmailVerificationPurpose.RESET_PASSWORD,
+                expected_sub="other@example.com",
+            )
 
-    def test_verify_expired_token_returns_401(self) -> None:
+    def test_verify_expired_token_raises_401(self) -> None:
         """
         발급(now=1000), 만료=1001
-        검증(now=1002) -> ExpiredSignatureError 발생
+        검증(now=1002) -> ExpiredSignatureError → AuthenticationFailed
         """
         with patch("apps.users.utils.verify_token.time.time", return_value=1000):
             token = issue_verify_token(
@@ -128,26 +121,21 @@ class VerifyTokenUtilsTests(TestCase):
             )
 
         with patch("apps.users.utils.verify_token.time.time", return_value=1002):
-            result = verify_and_consume(
-                token,
-                expected_purpose=PhoneVerificationPurpose.SIGNUP,
-                expected_sub="01033334444",
-            )
+            with self.assertRaises(AuthenticationFailed):
+                verify_and_consume(
+                    token,
+                    expected_purpose=PhoneVerificationPurpose.SIGNUP,
+                    expected_sub="01033334444",
+                )
 
-        self.assertIsInstance(result, Response)
-        resp = cast(Response, result)
-        self.assertEqual(resp.status_code, status.HTTP_401_UNAUTHORIZED)
-
-    def test_verify_invalid_token_returns_401(self) -> None:
+    def test_verify_invalid_token_raises_401(self) -> None:
         """JWT 형식이 아닌 문자열"""
-        result = verify_and_consume(
-            token="not-a-jwt",
-            expected_purpose=PhoneVerificationPurpose.SIGNUP,
-            expected_sub="01011112222",
-        )
-        self.assertIsInstance(result, Response)
-        resp = cast(Response, result)
-        self.assertEqual(resp.status_code, status.HTTP_401_UNAUTHORIZED)
+        with self.assertRaises(AuthenticationFailed):
+            verify_and_consume(
+                token="not-a-jwt",
+                expected_purpose=PhoneVerificationPurpose.SIGNUP,
+                expected_sub="01011112222",
+            )
 
     @override_settings(
         CACHES={

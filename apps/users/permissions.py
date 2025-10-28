@@ -49,10 +49,11 @@ class PhoneVerifiedPermission(BasePermission):
             self.message = "전화번호가 필요합니다."
             return False
 
-        claims = verify_and_consume(token, expected_purpose=purpose, expected_sub=phone_number)
-        if isinstance(claims, Response):
-            self.message = str(claims.data.get("error", self.message))
-            return False
+        claims = verify_and_consume(
+            token,
+            expected_purpose=purpose,
+            expected_sub=phone_number,
+        )
 
         setattr(request, "phone_verify_claims", claims)
         return True
@@ -96,9 +97,6 @@ class EmailVerifiedPermission(BasePermission):
         result: Union[dict[str, Any], Response] = verify_and_consume(
             token, expected_purpose=purpose, expected_sub=email
         )
-        if isinstance(result, Response):
-            self.message = str(result.data.get("error", self.message))
-            return False
 
         setattr(request, "email_verify_claims", result)
         return True

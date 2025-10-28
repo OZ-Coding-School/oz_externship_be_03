@@ -39,16 +39,11 @@ def update_user_profile(
         if not verify_token:
             raise ValidationError({"error": "휴대폰 번호 변경에는 verify_token이 필요합니다."})
 
-        # verify_and_consume: 실패 시 Response(401)를 돌려줌 → 401로 매핑
-        result = verify_and_consume(
+        verify_and_consume(
             verify_token,
             expected_purpose=PhoneVerificationPurpose.CHANGE_PHONE,
             expected_sub=phone_number,
         )
-        from rest_framework.response import Response
-
-        if isinstance(result, Response):
-            raise AuthenticationFailed(result.data.get("error", "검증 토큰이 유효하지 않거나 만료되었습니다."))
 
         # 본인 제외 중복
         if User.objects.filter(is_active=True, phone_number=phone_number).exclude(pk=user.pk).exists():
