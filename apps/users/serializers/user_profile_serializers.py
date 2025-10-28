@@ -27,7 +27,7 @@ class UserProfileSerializer(serializers.ModelSerializer[Any]):
             "name",
             "phone_number",
             "birthday",
-            "profile_image_url",
+            "profile_img_url",  # 모델 필드 이름과 일치
             "created_at",
         ]
         read_only_fields = fields
@@ -49,8 +49,8 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer[Any]):
 
     class Meta:
         model = User
-        fields = ("nickname", "profile_image_url", "phone_number", "verify_token")
-        extra_kwargs = {"profile_image_url": {"required": False}}
+        fields = ("nickname", "profile_img_url", "phone_number", "verify_token")
+        extra_kwargs = {"profile_img_url": {"required": False}}
 
 
 class UserProfilePasswordUpdateSerializer(serializers.Serializer[Dict[str, Any]]):
