@@ -1,10 +1,11 @@
 # apps/chat/tests/test_chat_consumers.py
+import asyncio
+
 from channels.testing import (  # type: ignore[import-untyped]
     AsgiTestCase,
     WebsocketCommunicator,
 )
 from django.contrib.auth import get_user_model
-import asyncio
 
 from apps.chat.consumers import ChatConsumer
 from apps.chat.models.chat_message import ChatMessage
