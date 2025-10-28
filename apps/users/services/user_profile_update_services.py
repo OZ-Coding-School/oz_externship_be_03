@@ -53,23 +53,9 @@ def update_user_profile(
         if User.objects.filter(is_active=True, phone_number=phone_number).exclude(pk=user.pk).exists():
             raise ValidationError({"error": "이미 사용 중인 휴대폰 번호입니다."})
 
-        with transaction.atomic():
-            if nickname is not None:
-                user.nickname = nickname
-            if profile_img_url is not None:
-                user.profile_img_url = profile_img_url
-            user.phone_number = phone_number
-            user.save(update_fields=["nickname", "profile_img_url", "phone_number"])
-        return user
-
-    # 휴대폰 제외 일반 필드만 - 변경된 필드만 데이터베이스에 반영
-    dirty: list[str] = []
-    if nickname is not None:
-        user.nickname = nickname
-        dirty.append("nickname")
-    if profile_img_url is not None:
-        user.profile_img_url = profile_img_url
-        dirty.append("profile_img_url")
-    if dirty:
-        user.save(update_fields=dirty)
+    with transaction.atomic():
+        user.nickname = nickname if nickname is not None else user.nickname
+        user.profile_img_url = profile_img_url if profile_img_url is not None else user.profile_img_url
+        user.phone_number = phone_number if phone_number is not None else user.phone_number
+        user.save(update_fields=["nickname", "profile_img_url", "phone_number"])
     return user
