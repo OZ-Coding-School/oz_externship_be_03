@@ -51,6 +51,30 @@ class StudyGroupListCreateViewTest(TestCase):
         self.assertIn("lectures", first_group)
 
 
+class StudyGroupDetailUpdateViewTest(TestCase):
+    def setUp(self) -> None:
+        self.client = Client()
+        group_id = "00000000-0000-0000-0000-000000000003"
+        self.url = f"/api/v1/studies/groups/{group_id}"
+
+    def test_get_detail_study_group(self) -> None:
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        data = response.json()
+
+        self.assertIn("id", data)
+        self.assertIn("name", data)
+        self.assertIn("current_headcount", data)
+        self.assertIn("max_headcount", data)
+        self.assertIn("members", data)
+        self.assertIn("profile_img_url", data)
+        self.assertIn("start_at", data)
+        self.assertIn("end_at", data)
+        self.assertIn("status", data)
+        self.assertIn("lectures", data)
+
+
 # REQ-STDY-006: 스터디 그룹 멤버 추방 API 테스트
 class MemberKickAPITestCase(TestCase):
     def setUp(self) -> None:

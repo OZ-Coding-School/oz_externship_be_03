@@ -1,18 +1,23 @@
-from typing import Dict, List
+from typing import Any, Dict, List
 
+from django.http import Http404
 from drf_spectacular.utils import extend_schema
 from rest_framework import parsers, status
+from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import AllowAny
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from ...lecture.models import CrawledLecture
-from ..models.groups import StudyGroup, StudyLecture
+from ...users.models import User
+from ..models.groups import GroupMember, StudyGroup, StudyLecture
 from ..serializers.groups import (
     StudyGroupCreateSerializer,
+    StudyGroupDetailSerializer,
     StudyGroupLectureSerializer,
     StudyGroupListSerializer,
+    StudyGroupMemberSerializer,
 )
 from ..services.groups import StudyGroupService
 
@@ -100,7 +105,114 @@ class StudyGroupListCreateView(APIView):
                 "end_at": group.end_at,
                 "status": group.status,
                 "lectures": StudyGroupLectureSerializer(study_lectures[group.name], many=True).data,
+                "review_count": (i * 7 % 9) + 2,
+                "star_rating_average": ((i * 7) % 51) / 10,
+                "is_reviewed": ((i * 3 + 1) % 2) == 0,
             }
             response_data.append(data)
 
+        return Response(response_data, status=status.HTTP_200_OK)
+
+
+class StudyGroupDetailUpdateView(APIView):
+    permission_classes = [AllowAny]
+
+    parser_classes = [parsers.JSONParser, parsers.MultiPartParser]
+
+    def get_object(self) -> Dict[str, Any]:
+        group_id = self.kwargs.get("group_id")
+        if not group_id:
+            raise ValidationError("group_id가 전달되지 않았습니다.")
+        try:
+            data_num = int(str(group_id)[-2:])
+        except ValueError:
+            raise ValidationError("테스트용입니다. UUID의 끝 2자리가 숫자가 아닙니다.")
+
+        if data_num < 1 or data_num > 10:
+            raise ValidationError("테스트용입니다. UUID의 끝 2자리를 1~10 사이의 숫자로 입력해주세요.")
+
+        start_at = f"2025-11-{str(data_num).zfill(2)}"
+        end_at = f"2025-11-{str(data_num+20).zfill(2)}"
+        group_status = StudyGroupService.get_status_by_date(start_at, end_at)
+
+        mock_data = StudyGroup(
+            id=data_num,
+            name=f"Mock Group {data_num}",
+            # 결과가 불규칙한 2~10의 수로 나오는 수식
+            max_headcount=(data_num * 7 % 9) + 2,
+            profile_img_url=f"https://example.com/study{data_num}.png",
+            start_at=start_at,
+            end_at=end_at,
+            status=group_status,
+        )
+
+        # 실제 DB가 아니라 FK가 자동으로 연결되지 않으므로 따로 생성해서 데이터 추가
+        lectures: list[CrawledLecture] = [
+            CrawledLecture(
+                id=i,
+                thumbnail_img_url=f"https://example.com/lecture{i}.png",
+                title=f"example lecture{i}",
+                instructor=f"example instructor{i}",
+                url_link=f"https://example.com/lecture{i}",
+            )
+            for i in range(1, 6)  # 1~5번 강의
+        ]
+
+        study_lectures: Dict[str, List[StudyLecture]] = {}
+        # 결과가 불규칙한 1~5의 수로 나오는 수식
+        lecture_count = ((data_num * 3) % 5) + 1
+        selected_lectures = lectures[:lecture_count]  # 앞에서 lecture_count개만 선택
+        study_lectures[mock_data.name] = [StudyLecture(study_group=mock_data, lecture=lec) for lec in selected_lectures]
+
+        users = [User(nickname=f"nickname{data_num}"), User(nickname=f"nickname{data_num + 1}")]
+
+        members = [
+            GroupMember(user=users[0], is_leader=True),
+            GroupMember(user=users[1], is_leader=False),
+        ]
+
+        group_members: Dict[str, List[GroupMember]] = {}
+        member_count = 2
+        selected_members = members[:member_count]
+        group_members[mock_data.name] = [
+            GroupMember(study_group=mock_data, user=member.user, is_leader=member.is_leader)
+            for member in selected_members
+        ]
+
+        # Mock에서는 FK 참조 못해서 수동으로 응답 구성. 실 API에서는 시리얼라이저 사용.
+        # serializer = StudyGroupDetailSerializer(mock_data)
+
+        response_data = {
+            "id": data_num,
+            "name": mock_data.name,
+            "current_headcount": 2,
+            "max_headcount": mock_data.max_headcount,
+            "members": StudyGroupMemberSerializer(group_members[mock_data.name], many=True).data,
+            "profile_img_url": mock_data.profile_img_url,
+            "start_at": mock_data.start_at,
+            "end_at": mock_data.end_at,
+            "status": mock_data.status,
+            "lectures": StudyGroupLectureSerializer(study_lectures[mock_data.name], many=True).data,
+        }
+
+        return response_data
+
+    @extend_schema(
+        operation_id="v1_studies_groups_detail",
+        tags=["StudyGroup"],
+        summary="스터디 그룹 상세 조회 API",
+        description=(
+            """
+            현재 API는 Spec API이므로
+            0000-0000-0000-0000-000000000001 에서
+            0000-0000-0000-0000-000000000010 까지의
+            값으로 테스트해주세요.
+            """
+        ),
+        responses={
+            200: StudyGroupDetailSerializer(many=True),
+        },
+    )
+    def get(self, request: Request) -> Response:
+        response_data = self.get_object()
         return Response(response_data, status=status.HTTP_200_OK)
