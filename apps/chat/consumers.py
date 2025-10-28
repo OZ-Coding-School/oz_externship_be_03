@@ -42,7 +42,7 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):  # type: ignore[misc]
         user = self.scope["user"]
 
         if message_type == "chat.message":
-            message_content = content.get("content")
+            message_content = content.get("content", "").strip()  # Ensure message_content is always a string
 
             if user.is_authenticated:
                 await self.create_chat_message(user, message_content)
@@ -57,24 +57,21 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):  # type: ignore[misc]
                 },
             )
 
-    @database_sync_to_async  # type: ignore[misc]
-    def is_valid_study_group(self) -> bool:
-        return StudyGroup.objects.filter(id=self.study_group_id).exists()
+    async def is_valid_study_group(self) -> bool:
+        return await StudyGroup.objects.filter(id=self.study_group_id).aexists()
 
-    @database_sync_to_async  # type: ignore[misc]
-    def is_group_member(self, user: AbstractBaseUser) -> bool:
+    async def is_group_member(self, user: AbstractBaseUser) -> bool:
         if not user.is_authenticated or not isinstance(user, get_user_model()):
             return False
-        return bool(GroupMember.objects.filter(study_group_id=self.study_group_id, user=user).exists())
+        return await GroupMember.objects.filter(study_group_id=self.study_group_id, user=user).aexists()
 
-    @database_sync_to_async  # type: ignore[misc]
-    def create_chat_message(self, user: AbstractBaseUser, content: str) -> None:
+    async def create_chat_message(self, user: AbstractBaseUser, content: str) -> None:
         """
         Asynchronously creates a chat message in the database.
         """
-        study_group = StudyGroup.objects.get(id=self.study_group_id)
-        ChatMessageService.create_chat_message(
-            sender=user,  # type: ignore[arg-type]
+        study_group = await StudyGroup.objects.aget(id=self.study_group_id)
+        await database_sync_to_async(ChatMessageService.create_chat_message)(
+            sender=user,
             study_group=study_group,
             content=content,
         )
