@@ -1,4 +1,3 @@
-# apps/lecture/tests/test_inflearn_ctg.py
 from unittest.mock import Mock, patch
 
 from django.test import TestCase
@@ -12,23 +11,29 @@ class InflearnCategoryCrawlerTest(TestCase):
     def setUp(self) -> None:
         self.crawler = InflearnCategoryCrawler()
 
-        # Mock 데이터를 setUp에서 한 번만 정의
         self.mock_response = {
             "statusCode": "200",
             "data": [
+                # 1. title/slug 누락으로 인한 continue 커버
+                {"slug": "missing-parent-title"},
+                {"title": "Missing Parent Slug"},
+                # 2. valid_ctg_slugs에 없는 슬러그로 인한 continue 커버
+                {"title": "Invalid Category", "slug": "invalid-slug"},
                 {
-                    "title": "개발",
+                    "title": "개발·프로그래밍",
+                    "slug": "it-programming",
                     "children": [
                         {
-                            "title": "언어",
+                            "title": "웹 개발",
+                            "slug": "web-dev",
                             "skills": [
-                                {"title": "Python"},
-                                {"title": "Java"},
-                                {"title": "Python"},  # 중복
+                                {"title": "Python", "slug": "python"},
+                                {"title": "Java", "slug": "java"},
+                                {"title": "Python", "slug": "python"},  # 중복 항목
                             ],
                         }
                     ],
-                }
+                },
             ],
         }
 
@@ -39,13 +44,15 @@ class InflearnCategoryCrawlerTest(TestCase):
 
         result = self.crawler.crawl()
 
+        # 총 유효 항목 4개 (불완전 항목 3개 + 중복 항목 1개는 필터링됨)
         self.assertIsInstance(result, list)
-        self.assertGreater(len(result), 0)
+        self.assertEqual(len(result), 4)
 
-        # 첫 번째 항목만 검증
         item = result[0]
-        self.assertIn("name", item)
-        self.assertIsInstance(item["name"], str)
+        self.assertIn("title", item)
+        self.assertIn("slug", item)
+        self.assertIsInstance(item["title"], str)
+        self.assertIsInstance(item["slug"], str)
 
     @patch("apps.lecture.crawlers.base_crawler.BaseCrawler.get_json")
     def test_crawl_removes_duplicates(self, mock_get_json: Mock) -> None:
@@ -53,9 +60,9 @@ class InflearnCategoryCrawlerTest(TestCase):
         mock_get_json.return_value = self.mock_response
 
         result = self.crawler.crawl()
-        names = [c["name"] for c in result]
+        tuples = [(c["title"], c["slug"]) for c in result]
 
-        self.assertEqual(len(names), len(set(names)))
+        self.assertEqual(len(tuples), len(set(tuples)))
 
     @patch("apps.lecture.crawlers.base_crawler.BaseCrawler.get_json")
     def test_crawl_sorts_results(self, mock_get_json: Mock) -> None:
@@ -63,9 +70,9 @@ class InflearnCategoryCrawlerTest(TestCase):
         mock_get_json.return_value = self.mock_response
 
         result = self.crawler.crawl()
-        names = [c["name"] for c in result]
+        titles = [c["title"] for c in result]
 
-        self.assertEqual(names, sorted(names))
+        self.assertEqual(titles, sorted(titles))
 
     @patch("apps.lecture.crawlers.inflearn_ctg.logger")
     @patch("apps.lecture.crawlers.base_crawler.BaseCrawler.get_json")
@@ -93,7 +100,7 @@ class InflearnCategoryCrawlerTest(TestCase):
     @patch("apps.lecture.crawlers.base_crawler.BaseCrawler.get_json")
     def test_crawl_handles_missing_status_code(self, mock_get_json: Mock, mock_logger: Mock) -> None:
         """상태 코드 없는 응답 처리 테스트"""
-        mock_get_json.return_value = {"data": [{"title": "Python"}]}
+        mock_get_json.return_value = {"data": [{"title": "Python", "slug": "python"}]}
 
         result = self.crawler.crawl()
 
