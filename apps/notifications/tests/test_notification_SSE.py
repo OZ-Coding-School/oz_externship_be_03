@@ -71,7 +71,7 @@ class TestSSEViews(IsolatedRedisTestClient):
 
         stream_content = []
         if hasattr(response.streaming_content, "__aiter__"):
-            async for chunk in response.streaming_content:  # type: ignore
+            async for chunk in response.streaming_content:
                 stream_content.append(chunk.decode("utf-8"))
                 if len(stream_content) >= 2:
                     break
