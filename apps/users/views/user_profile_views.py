@@ -27,4 +27,4 @@ class MeView(APIView):
         현재 로그인한 사용자 정보 반환
         """
         serializer = UserProfileSerializer(request.user)
-        return Response({"detail": "내 정보를 조회합니다.", "data": serializer.data})
+        return Response(serializer.data, status=200)
