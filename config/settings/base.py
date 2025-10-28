@@ -31,6 +31,7 @@ THIRD_PARTY_APPS = [
     "corsheaders",
     "drf_spectacular",
     "django_filters",
+    "django_celery_beat",
 ]
 
 LOCAL_APPS = [
@@ -260,7 +261,8 @@ CELERY_ENABLE_UTC = False
 # 매일 00:10에 due_date 지난 유저 삭제
 from celery.schedules import crontab  # type: ignore[import-untyped]
 
-CELERY_BEAT_SCHEDULE = "django_celery_beat.schedulers:DatabaseScheduler"
+CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"
+
 
 # 리프레쉬 토큰 쿠키 설정
 AUTH_REFRESH_COOKIE_NAME = "refresh_token"
