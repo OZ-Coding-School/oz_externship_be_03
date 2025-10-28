@@ -18,12 +18,12 @@ from apps.studies.models.groups import GroupMember
 from apps.users.models import User
 
 
-class ChatMessageListView(ListAPIView[ChatMessage]):
+class ChatMessageListView(ListAPIView):
     serializer_class = ChatMessageSerializer
     permission_classes = [IsAuthenticated]
     pagination_class = ChatMessagePagination
 
-    def get_queryset(self) -> QuerySet[ChatMessage]:
+    def get_queryset(self):
         study_group_id = self.kwargs["study_group_id"]
         return ChatMessage.objects.filter(study_group_id=study_group_id).order_by("-created_at")
 
@@ -99,10 +99,7 @@ class ChatMessageListView(ListAPIView[ChatMessage]):
         user = request.user
 
         # 사용자가 스터디 그룹의 멤버인지 확인
-        if (
-            not user.is_authenticated
-            or not GroupMember.objects.filter(study_group_id=study_group_id, user=user).exists()
-        ):
+        if not user.is_authenticated or not GroupMember.objects.filter(study_group_id=study_group_id, user=user).exists():
             return Response(
                 {
                     "status": "error",

@@ -1,5 +1,4 @@
-# apps/chat/urls.py
-from django.urls import URLPattern, URLResolver, path
+from django.urls import path
 
 from apps.chat.views import ChatMessageListView, ChatRoomListView
 
