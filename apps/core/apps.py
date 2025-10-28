@@ -15,3 +15,10 @@ class CoreConfig(AppConfig):
             hour="0",
             minute="1",
         )
+
+        register_periodic_task(
+            name="delete-withdrawn-users-daily",
+            task_path="apps.users.tasks.delete_withdrawn_users",
+            hour="0",
+            minute="10",
+        )
