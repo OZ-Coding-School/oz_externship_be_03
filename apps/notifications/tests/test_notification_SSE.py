@@ -1,5 +1,6 @@
 import asyncio
-from datetime import date
+import logging
+from datetime import date, datetime
 
 from django.contrib.auth import get_user_model
 from django.http import HttpRequest
@@ -12,13 +13,15 @@ from apps.users.enums import Gender
 
 User = get_user_model()
 
+logger = logging.getLogger(__name__)
+
 
 class TestSSEViews(IsolatedRedisTestClient):
 
-    def setUp(self)-> None:
+    def setUp(self) -> None:
         super().setUp()
 
-        from datetime import datetime
+        logging.disable(logging.CRITICAL)
 
         self.user = User.objects.create(
             email="test@test.com",
@@ -48,7 +51,7 @@ class TestSSEViews(IsolatedRedisTestClient):
             "back_url_link": "test/",
         }
 
-    async def test_notification_stream(self)-> None:
+    async def test_notification_stream(self) -> None:
         """SSE 스트림 테스트"""
         request = HttpRequest()
         request.user = self.user
@@ -67,8 +70,8 @@ class TestSSEViews(IsolatedRedisTestClient):
         publish_task = asyncio.create_task(publish_notification())
 
         stream_content = []
-        if hasattr(response.streaming_content,'__aiter__'):
-            async for chunk in response.streaming_content: # type: ignore
+        if hasattr(response.streaming_content, "__aiter__"):
+            async for chunk in response.streaming_content:  # type: ignore
                 stream_content.append(chunk.decode("utf-8"))
                 if len(stream_content) >= 2:
                     break

@@ -20,7 +20,7 @@ class TestRedisPubSubService(IsolatedRedisTestClient):
 
     def setUp(self) -> None:
         super().setUp()  # 부모 클래스 세팅
-
+        logging.disable(logging.CRITICAL)
         self.pubsub_service = RedisPubSubService()
 
         self.author = User.objects.create(
@@ -44,7 +44,6 @@ class TestRedisPubSubService(IsolatedRedisTestClient):
     async def test_redis_connection(self) -> None:
         ping_result = await self.pubsub_service.redis_client.ping()
         self.assertTrue(ping_result)
-        print("연결완료")
 
         user_id = self.author.id
         channel = self.pubsub_service.get_user_channel(user_id)
