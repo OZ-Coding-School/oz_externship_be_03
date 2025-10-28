@@ -21,7 +21,6 @@ from apps.users.serializers.user_signup_serializers import (
 )
 from apps.users.services.user_signup_service import (
     DefaultSignupService,
-    status_from_active,
 )
 from apps.users.views.responses import error, ok
 
@@ -47,20 +46,6 @@ def normalize_errors(detail: Any) -> Dict[str, List[str]]:
         return {"non_field_errors": [str(x) for x in detail]}
 
     return {"non_field_errors": [str(detail)]}
-
-
-def to_public_user(user: "UserModel") -> Dict[str, Any]:
-    """응답 생성용 공개 사용자 dict 변환 유틸"""
-    return {
-        "email": getattr(user, "email", None),
-        "nickname": getattr(user, "nickname", None),
-        "name": getattr(user, "name", None),
-        "phone_number": getattr(user, "phone_number", None),
-        "birthday": getattr(user, "birthday", None),
-        "gender": getattr(user, "gender", None),
-        "status": status_from_active(bool(getattr(user, "is_active", False))),
-        "created_at": getattr(user, "created_at", None),
-    }
 
 
 # ---------------------------------------------------------------------
