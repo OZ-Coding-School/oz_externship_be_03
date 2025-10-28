@@ -76,6 +76,12 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):  # type: ignore[misc]
                 },
             )
 
+        elif message_type == "chat.edit_message":
+            message_id = content.get("message_id")
+            new_content = content.get("new_content", "").strip()
+
+            if user.is_authenticated and message_id and new_content:
+                await self.edit_chat_message(user, message_id, new_content)
     async def is_valid_study_group(self) -> bool:
         return await StudyGroup.objects.filter(id=self.study_group_id).aexists()
 
@@ -95,6 +101,33 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):  # type: ignore[misc]
             content=content,
         )
 
+    async def edit_chat_message(self, user: AbstractBaseUser, message_id: int, new_content: str) -> None:
+        try:
+            message = await ChatMessage.objects.aget(id=message_id, study_group_id=self.study_group_id)
+        except ChatMessage.DoesNotExist:
+            await self.send_json({"type": "error", "code": "MESSAGE_NOT_FOUND", "message": "메시지를 찾을 수 없습니다."})
+            return
+
+        if message.sender != user:
+            await self.send_json({"type": "error", "code": "NOT_MESSAGE_SENDER", "message": "메시지 발신자만 수정할 수 있습니다."})
+            return
+
+        updated_message = await database_sync_to_async(ChatMessageService.edit_chat_message)(
+            message=message,
+            new_content=new_content,
+        )
+
+        # Broadcast the updated message
+        await self.channel_layer.group_send(
+            self.room_group_name,
+            {
+                "type": "chat_message_edited",
+                "message_id": updated_message.id,
+                "editor_id": user.id,
+                "new_content": updated_message.content,
+                "updated_at": updated_message.updated_at.isoformat(),
+            },
+        )
     # Receive message from room group
     async def chat_message(self, event: dict[str, Any]) -> None:
         message = event["message"]
@@ -104,6 +137,25 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):  # type: ignore[misc]
         await self.send(
             text_data=json.dumps(
                 {"type": "chat.message", "message": message, "sender_id": sender_id},
+                ensure_ascii=False,
+            )
+        )
+
+    async def chat_message_edited(self, event: dict[str, Any]) -> None:
+        message_id = event["message_id"]
+        editor_id = event["editor_id"]
+        new_content = event["new_content"]
+        updated_at = event["updated_at"]
+
+        await self.send(
+            text_data=json.dumps(
+                {
+                    "type": "chat.message.edited",
+                    "message_id": message_id,
+                    "editor_id": editor_id,
+                    "new_content": new_content,
+                    "updated_at": updated_at,
+                },
                 ensure_ascii=False,
             )
         )

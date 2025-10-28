@@ -31,3 +31,14 @@ class ChatMessageService:
         )
         # TODO: 메시지 생성 후 관련 로직 추가 (예: 웹소켓으로 브로드캐스트)
         return chat_message
+
+    @staticmethod
+    async def edit_chat_message(
+        message: ChatMessage, new_content: str
+    ) -> ChatMessage:
+        """
+        채팅 메시지 내용을 수정하고 업데이트된 메시지를 반환합니다.
+        """
+        message.content = new_content
+        await message.asave()
+        return message
