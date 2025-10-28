@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from django.contrib.auth.base_user import BaseUserManager
 from django.db import models
@@ -37,13 +37,11 @@ class UserManager(BaseUserManager["User"]):
         user.save(using=self._db)
         return user
 
-    def create_superuser(self, email: str, password: str, **extra_fields: object) -> "User":
-        """어드민 생성"""
+    def create_superuser(self, email: str, password: Optional[str] = None, **extra_fields: Any) -> "User":
+        """관리자 유저 생성"""
         extra_fields.setdefault("is_staff", True)
         extra_fields.setdefault("is_superuser", True)
-
-        if not (extra_fields.get("is_staff") and extra_fields.get("is_superuser")):
-            raise ValueError("관리자 계정을 생성할 수 없습니다.")
+        extra_fields.setdefault("is_active", True)
 
         return self.create_user(email, password, **extra_fields)
 
