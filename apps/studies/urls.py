@@ -48,7 +48,6 @@ urlpatterns = [
     ),
     path("groups/", StudyGroupListCreateView.as_view(), name="study-group-list-create"),
     path("groups/<uuid:group_id>/", StudyGroupDetailUpdateView.as_view(), name="study-group-detail-update"),
-
     # StudyNote APIs
     path("notes/", StudyNoteListCreateAPIView.as_view(), name="study-note-list-create"),
     path("notes/<int:note_id>/", StudyNoteDetailAPIView.as_view(), name="study-note-detail"),

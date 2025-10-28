@@ -41,22 +41,20 @@ class IsGroupMemberDOP(DjangoObjectPermissions):
 
 class IsGroupMember(BasePermission):
     """
-    임시 퍼미션 예시
-    - POST: 그룹 멤버만
-    - GET: 그룹 멤버 or 인증된 유저 (공개 접근 허용 가능)
-    - PUT/DELETE: 그룹 멤버이면서 작성자만
+    스터디 그룹 멤버만 접근 가능.
+    - 인증되지 않은 사용자는 어떤 요청도 불가.
+    - 그룹 멤버가 아니면 접근 불가.
     """
 
-    message = "해당 노트에 대한 접근 권한이 없습니다."
+    message = "해당 스터디 그룹의 멤버만 접근할 수 있습니다."
 
+    # 로그인 디폴트에서 그룹 멤버 여부
     def has_object_permission(self, request: Request, view: View, obj: Any) -> bool:
         user = request.user
 
-        # 인증되지 않은 경우 읽기(GET)만 허용
         if not user.is_authenticated:
-            return request.method == "GET"
+            return False
 
-        # 대상 객체가 StudyNote가 아닐 경우 기본 False
         if not isinstance(obj, StudyNote):
             return False
 
@@ -64,26 +62,27 @@ class IsGroupMember(BasePermission):
         if group is None:
             return False
 
-        is_member = group.members.filter(user=user).exists()
-        is_author = getattr(obj, "author", None) == user
+        return group.members.filter(user=user).exists()
 
-        # HTTP 메서드별 접근 제어
-        if request.method == "GET":
-            return is_member or user.is_authenticated
 
-        elif request.method == "POST":
-            return is_member
+class IsStudyNoteAuthor(BasePermission):
+    """
+    노트 작성자만 수정/삭제 가능.
+    """
 
-        elif request.method in ("PUT", "PATCH", "DELETE"):
-            return is_member and is_author
+    message = "해당 노트를 수정 또는 삭제할 권한이 없습니다."
 
-        return False
+    def has_object_permission(self, request: Request, view: View, obj: Any) -> bool:
+        user = request.user
 
-    def has_permission(self, request: Request, view: View) -> bool:
-        """
-        단순 인증 여부 선필터
-        """
-        # 조회(GET)는 비로그인 허용
-        if request.method == "GET":
-            return True
-        return request.user.is_authenticated
+        if not user.is_authenticated:
+            return False
+
+        if not isinstance(obj, StudyNote):
+            return False
+
+        # 단일 역할: "작성자 여부만 확인"
+        if request.method in ("PUT", "PATCH", "DELETE"):
+            return obj.author == user
+
+        return True  # 나머지 요청(GET 등)은 제한하지 않음
