@@ -87,8 +87,6 @@ class ReviewCreateView(APIView):
         return Response(status=201)
 
 
-
-
 @extend_schema(
     operation_id="ListGroupReviews",
     tags=["StudyGroupReview"],
@@ -167,34 +165,33 @@ class GroupReviewListView(generics.ListAPIView[Review]):
             },
         }
 
-
     def _should_attach_meta(self, request: Request) -> bool:
         # page 파라미터가 없거나 1인 경우만 meta 포함
         page = request.query_params.get("page")
         return page in (None, "", "1")
 
-
     def list(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         group = self.get_group()
-        queryset = self.filter_queryset(self.get_queryset())
+        queryset: QuerySet[Review] = self.filter_queryset(self.get_queryset())
         page = self.paginate_queryset(queryset)
 
         serializer = self.get_serializer(page if page is not None else queryset, many=True)
+
         if page is not None:
             resp = self.get_paginated_response(serializer.data)
             if self._should_attach_meta(request):
-                stats: Dict[str, Any] = self._rating_stats(group.id)  # ← 집계는 1페이지만
-                resp.data["meta"] = {"group_id": group.id, **stats}
+                meta_stats = self._rating_stats(group.id)
+                resp.data["meta"] = {"group_id": group.id, **meta_stats}
             return resp
 
-        stats: Dict[str, Any] = self._rating_stats(group.id)
-        return Response({"results": serializer.data, "meta": {"group_id": group.id, **stats}})
+        meta_stats = self._rating_stats(group.id)
+        return Response({"results": serializer.data, "meta": {"group_id": group.id, **meta_stats}})
 
     def get_queryset(self) -> QuerySet[Review]:
         group = self.get_group()  # 404는 여기서
-        qs = (Review.objects
-              .filter(study_group_id=group.id)
-              .only("id", "star_rating", "content", "created_at", "updated_at"))  # is_mine만이면 user_id 안 써도 OK
+        qs = Review.objects.filter(study_group_id=group.id).only(
+            "id", "star_rating", "content", "created_at", "updated_at"
+        )  # is_mine만이면 user_id 안 써도 OK
         # (?rating=) 필터는 기존대로
         rating_str = self.request.query_params.get("rating")
         if rating_str:

@@ -1,13 +1,14 @@
 from __future__ import annotations
+
+from typing import Any
+
+from django.http import HttpRequest
 from django.views import View
 from rest_framework.permissions import BasePermission
 from rest_framework.request import Request
 
-from typing import Any
-from rest_framework.permissions import BasePermission
-from django.http import HttpRequest
-
 from apps.studies.models.groups import GroupMember
+
 
 # 리더 여부 권한 확인
 class IsGroupLeader(BasePermission):

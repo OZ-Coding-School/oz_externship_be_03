@@ -60,8 +60,6 @@ class ReviewCreateSerializer(serializers.ModelSerializer[Review]):
         return Review.objects.create(user=self.context["request"].user, **validated_data)
 
 
-
-
 class ReviewListItemSerializer(serializers.Serializer[Any]):
     id = serializers.IntegerField()
     rating = StarRatingField(read_only=True, source="star_rating")
@@ -73,5 +71,3 @@ class ReviewListItemSerializer(serializers.Serializer[Any]):
     def get_is_mine(self, obj: Any) -> bool:
         request = self.context.get("request")
         return bool(request and getattr(request, "user", None) and obj.user_id == request.user.id)
-
-
