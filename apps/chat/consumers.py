@@ -5,22 +5,28 @@ from typing import Any
 
 from channels.db import database_sync_to_async  # type: ignore[import-untyped]
 from channels.generic.websocket import (  # type: ignore[import-untyped]
-    AsyncWebsocketConsumer,
+    AsyncJsonWebsocketConsumer,
 )
+from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AbstractBaseUser
 
-from apps.studies.models.groups import StudyGroup
+from apps.studies.models.groups import GroupMember, StudyGroup
 
 from .services import ChatMessageService
 
 
-class ChatConsumer(AsyncWebsocketConsumer):  # type: ignore[misc]
+class ChatConsumer(AsyncJsonWebsocketConsumer):  # type: ignore[misc]
     study_group_id: int
     room_group_name: str
 
     async def connect(self) -> None:
         self.study_group_id = self.scope["url_route"]["kwargs"]["study_group_id"]
         self.room_group_name = f"chat_{self.study_group_id}"
+        user = self.scope["user"]
+
+        if not await self.is_valid_study_group() or not await self.is_group_member(user):
+            await self.close(code=403)
+            return
 
         # Join room group
         await self.channel_layer.group_add(self.room_group_name, self.channel_name)
@@ -31,16 +37,12 @@ class ChatConsumer(AsyncWebsocketConsumer):  # type: ignore[misc]
         await self.channel_layer.group_discard(self.room_group_name, self.channel_name)
 
     # Receive message from WebSocket
-    async def receive(self, text_data: str | None = None, bytes_data: bytes | None = None) -> None:
-        if not text_data:
-            return
-
-        text_data_json = json.loads(text_data)
-        message_type = text_data_json.get("type")
+    async def receive_json(self, content: dict[str, Any], **kwargs: Any) -> None:
+        message_type = content.get("type")
         user = self.scope["user"]
 
         if message_type == "chat.message":
-            message_content = text_data_json.get("content")
+            message_content = content.get("content")
 
             if user.is_authenticated:
                 await self.create_chat_message(user, message_content)
@@ -55,7 +57,15 @@ class ChatConsumer(AsyncWebsocketConsumer):  # type: ignore[misc]
                 },
             )
 
-        # TODO: Add handlers for other event types like message.read, file.send
+    @database_sync_to_async  # type: ignore[misc]
+    def is_valid_study_group(self) -> bool:
+        return StudyGroup.objects.filter(id=self.study_group_id).exists()
+
+    @database_sync_to_async  # type: ignore[misc]
+    def is_group_member(self, user: AbstractBaseUser) -> bool:
+        if not user.is_authenticated or not isinstance(user, get_user_model()):
+            return False
+        return bool(GroupMember.objects.filter(study_group_id=self.study_group_id, user=user).exists())
 
     @database_sync_to_async  # type: ignore[misc]
     def create_chat_message(self, user: AbstractBaseUser, content: str) -> None:
@@ -75,4 +85,9 @@ class ChatConsumer(AsyncWebsocketConsumer):  # type: ignore[misc]
         sender_id = event["sender_id"]
 
         # Send message to WebSocket
-        await self.send(text_data=json.dumps({"type": "chat.message", "message": message, "sender_id": sender_id}))
+        await self.send(
+            text_data=json.dumps(
+                {"type": "chat.message", "message": message, "sender_id": sender_id},
+                ensure_ascii=False,
+            )
+        )
