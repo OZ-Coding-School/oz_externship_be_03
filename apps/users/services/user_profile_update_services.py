@@ -36,6 +36,10 @@ def update_user_profile(
             raise ValidationError({"error": "이미 사용 중인 닉네임입니다."})
 
     if phone_number is not None:
+        # 이미 등록된 번호와 동일하면 차단
+        if phone_number == user.phone_number:
+            raise ValidationError({"error": "현재 등록된 휴대폰 번호와 동일합니다."})
+
         if not verify_token:
             raise ValidationError({"error": "휴대폰 번호 변경에는 verify_token이 필요합니다."})
 
