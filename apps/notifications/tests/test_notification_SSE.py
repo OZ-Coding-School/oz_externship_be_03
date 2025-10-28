@@ -9,7 +9,7 @@ from django.contrib.auth import get_user_model
 from apps.core.utils.isolated_cache_testcase import IsolatedRedisTestClient
 from apps.notifications.models import Notification
 from apps.notifications.services.redis_pubsub_classify import RedisPubSubService
-from apps.studies.models import StudyGroup
+
 from apps.users.enums import Gender
 
 User = get_user_model()
