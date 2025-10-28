@@ -1,9 +1,6 @@
 from django.urls import path
 
-from apps.studies.views.groups import (
-    StudyGroupDetailUpdateView,
-    StudyGroupListCreateView,
-)
+from apps.studies.views.groups import StudyGroupListCreateView
 from apps.studies.views.members import (
     DelegateLeaderAPIView,
     MemberKickAPIView,
@@ -16,7 +13,7 @@ app_name = "studies"
 
 urlpatterns = [
     # POST /api/v1/studies/groups/{group_id}/reviews/
-    path("groups/<int:group_id>/reviews/", ReviewCreateView.as_view(), name="group-review-create"),
+    path("groups/<uuid:group_id>/reviews/", ReviewCreateView.as_view(), name="group-review-create"),
     # REQ-STDY-006: 스터디 그룹 리더 위임 API
     path(
         "groups/<uuid:group_id>/delegate-leader",
@@ -36,5 +33,5 @@ urlpatterns = [
         name="study-member-kick",
     ),
     path("groups/", StudyGroupListCreateView.as_view(), name="study-group-list-create"),
-    path("groups/<uuid:group_id>/", StudyGroupDetailUpdateView.as_view(), name="study-group-detail-update"),
+    path("groups/<uuid:group_id>/", GroupReviewListView.as_view(), name="group-review-list"),
 ]

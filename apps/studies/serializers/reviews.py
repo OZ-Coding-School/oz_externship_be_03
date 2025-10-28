@@ -60,9 +60,6 @@ class ReviewCreateSerializer(serializers.ModelSerializer[Review]):
         return Review.objects.create(user=self.context["request"].user, **validated_data)
 
 
-def _anon_tag(user_id: int, group_id: int) -> str:
-    h = blake2b(f"{user_id}:{group_id}".encode("utf-8"), digest_size=3)
-    return f"익명#{h.hexdigest()}"
 
 
 class ReviewListItemSerializer(serializers.Serializer[Any]):
@@ -71,10 +68,10 @@ class ReviewListItemSerializer(serializers.Serializer[Any]):
     content = serializers.CharField()
     created_at = serializers.DateTimeField()
     updated_at = serializers.DateTimeField()
-    author = serializers.SerializerMethodField()
+    is_mine = serializers.SerializerMethodField()
 
-    def get_author(self, obj: Any) -> Dict[str, Any]:
+    def get_is_mine(self, obj: Any) -> bool:
         request = self.context.get("request")
-        is_mine: bool = bool(request and getattr(request, "user", None) and obj.user_id == request.user.id)
-        display: str = "나" if is_mine else _anon_tag(obj.user_id, obj.study_group.id)
-        return {"is_mine": is_mine, "display": display}
+        return bool(request and getattr(request, "user", None) and obj.user_id == request.user.id)
+
+

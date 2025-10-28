@@ -31,6 +31,7 @@ from rest_framework.views import APIView
 from apps.lecture.models.review import RatingEnum
 from apps.studies.models.groups import GroupMember, StudyGroup
 from apps.studies.models.reviews import Review
+from apps.studies.permissions import IsGroupMember
 from apps.studies.serializers.reviews import (
     ReviewCreateSerializer,
     ReviewListItemSerializer,
@@ -86,13 +87,6 @@ class ReviewCreateView(APIView):
         return Response(status=201)
 
 
-def _assert_group_member_or_403(group_id: int, user_id: int) -> None:
-    is_member = GroupMember.objects.filter(
-        study_group_id=group_id,
-        user_id=user_id,
-    ).exists()
-    if not is_member:
-        raise PermissionDenied("이 그룹의 멤버만 리뷰를 볼 수 있습니다.")
 
 
 @extend_schema(
@@ -117,7 +111,7 @@ def _assert_group_member_or_403(group_id: int, user_id: int) -> None:
     responses={200: ReviewListItemSerializer},
 )
 class GroupReviewListView(generics.ListAPIView[Review]):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsGroupMember]
     serializer_class = ReviewListItemSerializer
     filter_backends = [filters.OrderingFilter]
     ordering_fields = ["created_at"]
@@ -173,41 +167,35 @@ class GroupReviewListView(generics.ListAPIView[Review]):
             },
         }
 
+
+    def _should_attach_meta(self, request: Request) -> bool:
+        # page 파라미터가 없거나 1인 경우만 meta 포함
+        page = request.query_params.get("page")
+        return page in (None, "", "1")
+
+
     def list(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         group = self.get_group()
-        queryset: QuerySet[Review] = self.filter_queryset(self.get_queryset())
-
+        queryset = self.filter_queryset(self.get_queryset())
         page = self.paginate_queryset(queryset)
+
         serializer = self.get_serializer(page if page is not None else queryset, many=True)
-
-        stats: Dict[str, Any] = self._rating_stats(group.id)  # ← 평균/히스토그램
-
         if page is not None:
-            response = self.get_paginated_response(serializer.data)
-            # 페이지네이션 응답에 meta 추가
-            response.data["meta"] = {"group_id": group.id, **stats}
-            return response
+            resp = self.get_paginated_response(serializer.data)
+            if self._should_attach_meta(request):
+                stats: Dict[str, Any] = self._rating_stats(group.id)  # ← 집계는 1페이지만
+                resp.data["meta"] = {"group_id": group.id, **stats}
+            return resp
 
-        return Response(
-            {
-                "results": serializer.data,
-                "meta": {"group_id": group.id, **stats},
-            }
-        )
+        stats: Dict[str, Any] = self._rating_stats(group.id)
+        return Response({"results": serializer.data, "meta": {"group_id": group.id, **stats}})
 
     def get_queryset(self) -> QuerySet[Review]:
-        group = self.get_group()
-        user_id = cast(int, self.request.user.id)
-        _assert_group_member_or_403(group_id=group.id, user_id=user_id)
-        qs = Review.objects.filter(study_group_id=group.id)
-        qs = qs.only(
-            "id",
-            "star_rating",
-            "content",
-            "created_at",
-            "updated_at",
-            "user_id" "study_group_id",
-        )
+        group = self.get_group()  # 404는 여기서
+        qs = (Review.objects
+              .filter(study_group_id=group.id)
+              .only("id", "star_rating", "content", "created_at", "updated_at"))  # is_mine만이면 user_id 안 써도 OK
+        # (?rating=) 필터는 기존대로
         rating_str = self.request.query_params.get("rating")
         if rating_str:
             try:
