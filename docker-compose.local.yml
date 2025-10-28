@@ -80,7 +80,7 @@ services:
     container_name: celery
     command: >
       sh -c "celery -A config.celery worker --loglevel=info &
-             celery -A config.celery beat --loglevel=info"
+             celery -A config.celery beat --scheduler django_celery_beat.schedulers:DatabaseScheduler --loglevel=info"
     volumes:
       - .:/oz_externship
     env_file:

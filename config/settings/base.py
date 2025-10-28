@@ -260,21 +260,7 @@ CELERY_ENABLE_UTC = False
 # 매일 00:10에 due_date 지난 유저 삭제
 from celery.schedules import crontab  # type: ignore[import-untyped]
 
-CELERY_BEAT_SCHEDULE = {
-    "delete-withdrawn-users-daily": {
-        "task": "apps.users.tasks.delete_withdrawn_users",
-        "schedule": crontab(minute=10, hour=0),  # 매일 00:10 KST
-        "options": {"expires": 60 * 60},  # 1시간 뒤 만료(중복 방지용)
-        "args": (),
-        "kwargs": {"batch_size": 1000},
-    },
-    # REQ-STDY-010: 스터디 그룹 상태 자동 업데이트
-    "update-studygroup-status-daily": {
-        "task": "apps.studies.tasks.update_studygroup_status_daily",
-        "schedule": crontab(minute=1, hour=0),  # 매일 00:01 KST
-        "options": {"expires": 60 * 60},
-    },
-}
+CELERY_BEAT_SCHEDULE = "django_celery_beat.schedulers:DatabaseScheduler"
 
 # 리프레쉬 토큰 쿠키 설정
 AUTH_REFRESH_COOKIE_NAME = "refresh_token"
