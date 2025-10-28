@@ -2,6 +2,7 @@ from django.contrib.auth.models import AnonymousUser
 from drf_spectacular.utils import extend_schema, inline_serializer
 from rest_framework import serializers, status
 from rest_framework.exceptions import NotAuthenticated
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -11,7 +12,10 @@ from apps.users.serializers.user_profile_serializers import (
     UserProfileUpdateResponseSerializer,
     UserProfileUpdateSerializer,
 )
-from apps.users.services.user_profile_update_services import update_user_profile
+from apps.users.services.user_profile_update_services import (
+    change_password,
+    update_user_profile,
+)
 
 
 class UserProfileUpdateView(APIView):
@@ -60,11 +64,28 @@ class UserProfileUpdateView(APIView):
 
 
 class UserChangePasswordView(APIView):
+    permission_classes = [IsAuthenticated]
+    throttle_scope = "change-password"  # 레이트리밋 스코프
+
     @extend_schema(
         tags=["Users"],
         summary="내 정보 수정 - 비밀번호 수정 ",
         description="로그인한 사용자가 비밀번호를 변경합니다.",
         request=UserProfilePasswordUpdateSerializer,
     )
-    def patch(self, request: Request) -> None:
-        pass
+    def patch(self, request: Request) -> Response:
+        # mypy용 명시
+        if isinstance(request.user, AnonymousUser) or not request.user.is_authenticated:
+            raise NotAuthenticated("인증이 필요합니다.")
+
+        serializer = UserProfilePasswordUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        change_password(
+            user=request.user,
+            current_password=serializer.validated_data.get("current_password"),
+            new_password=serializer.validated_data["new_password"],
+            new_password_confirm=serializer.validated_data["new_password_confirm"],
+        )
+
+        return Response({"detail": "비밀번호가 변경되었습니다."}, status=status.HTTP_200_OK)

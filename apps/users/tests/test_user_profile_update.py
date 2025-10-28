@@ -175,3 +175,107 @@ class UserProfileUpdateTests(IsolatedRedisTestClient):
         resp = self.client.patch(self.url, {"nickname": self.other.nickname}, format="json")
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(resp.json().get("error"), "이미 사용 중인 닉네임입니다.")
+
+
+class ChangePasswordAPITests(IsolatedRedisTestClient):
+    def setUp(self) -> None:
+        self.url = reverse("users:user_change_password")
+        self.user = User.objects.create_user(
+            email="user@example.com",
+            password="OldPass!234",
+            nickname="me_nick",
+            name="나",
+            phone_number="01011112222",
+            birthday=date(1999, 1, 1),
+            gender=Gender.MALE,
+            is_active=True,
+        )
+        self.client.force_authenticate(user=self.user)
+
+    def test_change_password_success(self) -> None:
+        """정상 변경 → 200 + detail"""
+        payload = {
+            "current_password": "OldPass!234",
+            "new_password": "New!2345",
+            "new_password_confirm": "New!2345",
+        }
+        resp = self.client.patch(self.url, payload, format="json")
+
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(resp.json().get("detail"), "비밀번호가 변경되었습니다.")
+
+        # DB 반영 확인
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password("New!2345"))
+        self.assertFalse(self.user.check_password("OldPass!234"))
+
+    def test_change_password_wrong_current(self) -> None:
+        """현재 비밀번호 불일치 → 400"""
+        payload = {
+            "current_password": "Wrong!234",
+            "new_password": "New!2345",
+            "new_password_confirm": "New!2345",
+        }
+        resp = self.client.patch(self.url, payload, format="json")
+
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(resp.json().get("error"), "현재 비밀번호가 올바르지 않습니다.")
+
+    def test_change_password_mismatch_confirm(self) -> None:
+        """새/확인 불일치 → 400"""
+        payload = {
+            "current_password": "OldPass!234",
+            "new_password": "New!2345",
+            "new_password_confirm": "New!2345xxxx",
+        }
+        resp = self.client.patch(self.url, payload, format="json")
+
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(resp.json().get("error"), "새 비밀번호와 확인 비밀번호가 일치하지 않습니다.")
+
+    def test_change_password_same_as_current(self) -> None:
+        """새 비밀번호 == 현재 비밀번호 → 400"""
+        payload = {
+            "current_password": "OldPass!234",
+            "new_password": "OldPass!234",
+            "new_password_confirm": "OldPass!234",
+        }
+        resp = self.client.patch(self.url, payload, format="json")
+
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(resp.json().get("error"), "새 비밀번호는 이전 비밀번호와 달라야 합니다.")
+
+    def test_change_password_policy_too_short(self) -> None:
+        """
+        정책 위반(최소 길이) → 400
+        - Django validator가 반환하는 첫 메시지를 DRF ValidationError로 변환하는 로직이 제대로 동작해야 함
+        - 예시 메시지(ko 번역 기준): "이 비밀번호는 너무 짧습니다. 최소 8자 이상이어야 합니다."
+        """
+        payload = {
+            "current_password": "OldPass!234",
+            "new_password": "Aa1!",  # 4자: 길이 위반 유도
+            "new_password_confirm": "Aa1!",
+        }
+        resp = self.client.patch(self.url, payload, format="json")
+
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        # 문자열만 내려오는지(리스트 to string 아님) 확인
+        err = resp.json().get("error")
+        self.assertIsInstance(err, str)
+        self.assertTrue("최소 8자" in err or "짧" in err)
+
+    def test_change_password_unauthorized(self) -> None:
+        """인증 누락 → 401"""
+        # 인증 해제
+        self.client.force_authenticate(user=None)
+
+        payload = {
+            "current_password": "OldPass!234",
+            "new_password": "New!2345",
+            "new_password_confirm": "New!2345",
+        }
+        resp = self.client.patch(self.url, payload, format="json")
+
+        self.assertEqual(resp.status_code, status.HTTP_401_UNAUTHORIZED)
+        # DRF 기본 메시지로 내려올 수 있으므로 키 존재만 확인
+        self.assertIn("detail", resp.json())

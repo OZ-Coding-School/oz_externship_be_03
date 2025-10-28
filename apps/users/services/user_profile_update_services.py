@@ -2,9 +2,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Optional
 
-from django.contrib.auth import get_user_model
+from django.contrib.auth import get_user_model, password_validation
+from django.contrib.auth.hashers import check_password
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
-from rest_framework.exceptions import AuthenticationFailed, ValidationError
+from rest_framework.exceptions import ValidationError
 
 from apps.users.enums import PhoneVerificationPurpose
 from apps.users.utils.verify_token import verify_and_consume  # Response | dict
@@ -59,3 +61,34 @@ def update_user_profile(
         user.phone_number = phone_number if phone_number is not None else user.phone_number
         user.save(update_fields=["nickname", "profile_img_url", "phone_number"])
     return user
+
+
+def change_password(*, user: UserModel, current_password: str, new_password: str, new_password_confirm: str) -> None:
+    """
+    - 현재 비밀번호 확인
+    - 새 비밀번호 = 새 비밀번호 확인
+    - 새 비밀번호 != 현재 비밀번호
+    - Django 비밀번호 정책 검사
+    """
+
+    # 현재 비밀번호 확인
+    if not user.check_password(current_password):
+        raise ValidationError({"error": "현재 비밀번호가 올바르지 않습니다."})
+
+    # 새 비밀번호 = 새 비밀번호 확인
+    if new_password != new_password_confirm:
+        raise ValidationError({"error": "새 비밀번호와 확인 비밀번호가 일치하지 않습니다."})
+
+    # 새 비밀번호 != 현재 비밀번호
+    if check_password(new_password, user.password):
+        raise ValidationError({"error": "새 비밀번호는 이전 비밀번호와 달라야 합니다."})
+
+    # Django 비밀번호 정책 검사
+    try:
+        password_validation.validate_password(new_password, user=user)
+    except DjangoValidationError as e:
+        raise ValidationError({"error": str(e.messages[0])})
+
+    # 5) 적용
+    user.set_password(new_password)
+    user.save(update_fields=["password"])
