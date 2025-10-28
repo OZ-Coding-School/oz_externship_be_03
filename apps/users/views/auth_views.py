@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Literal, Optional, cast
+from typing import Any, Dict, Optional
 
-from django.conf import settings
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.validators import validate_email as django_validate_email
 from drf_spectacular.utils import OpenApiParameter, extend_schema
@@ -13,49 +12,18 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.users.models.user import User
 from apps.users.serializers.auth_serializers import (
     LoginRequestSerializer,
     LoginResponseSerializer,
-    TokenRefreshRequestSerializer,
     TokenRefreshResponseSerializer,
 )
 from apps.users.services.auth_services import (
     authenticate_and_issue_tokens,
     refresh_access_token,
 )
-from config.settings.base import (
-    AUTH_REFRESH_COOKIE_HTTPONLY,
-    AUTH_REFRESH_COOKIE_MAX_AGE,
-    AUTH_REFRESH_COOKIE_NAME,
-    AUTH_REFRESH_COOKIE_PATH,
-    AUTH_REFRESH_COOKIE_SAMESITE,
-    AUTH_REFRESH_COOKIE_SECURE,
-)
-
-SameSite = Optional[Literal["Lax", "Strict", "None", False]]
-COOKIE_SAMESITE: SameSite = cast(SameSite, AUTH_REFRESH_COOKIE_SAMESITE)
-
-
-def _set_refresh_cookie(resp: Response, refresh: str) -> None:
-
-    resp.set_cookie(
-        key=AUTH_REFRESH_COOKIE_NAME,
-        value=refresh,
-        max_age=AUTH_REFRESH_COOKIE_MAX_AGE,
-        path=AUTH_REFRESH_COOKIE_PATH,
-        secure=AUTH_REFRESH_COOKIE_SECURE,
-        httponly=AUTH_REFRESH_COOKIE_HTTPONLY,
-        samesite=COOKIE_SAMESITE,
-    )
-
-
-# TODO: 만료/로그아웃 시 쿠키 삭제 함수
-def _pop_refresh_cookie(resp: Response) -> None:
-    resp.delete_cookie(
-        key=AUTH_REFRESH_COOKIE_NAME,
-        path=AUTH_REFRESH_COOKIE_PATH,
-        samesite=COOKIE_SAMESITE,
-    )
+from apps.users.utils.cookies import set_refresh_cookie
+from config.settings.base import AUTH_REFRESH_COOKIE_NAME
 
 
 # ==============================
@@ -70,8 +38,13 @@ def _validate_login_payload(payload: Dict[str, Any]) -> None:
     if not isinstance(password, str) or not password:
         raise serializers.ValidationError({"password": ["비밀번호를 입력해주세요."]})
 
+    if password != password.strip():
+        raise serializers.ValidationError({"password": ["비밀번호 앞뒤 공백은 허용되지 않습니다."]})
+
+    email_str = User.objects.normalize_email(email)
+
     try:
-        django_validate_email(email)
+        django_validate_email(email_str)
     except DjangoValidationError:
         raise serializers.ValidationError({"email": ["이메일 형식이 올바르지 않습니다."]})
 
@@ -143,14 +116,13 @@ class LoginView(APIView):
             {"detail": "토큰이 발급되었습니다.", "data": out_ser.data},
             status=status.HTTP_201_CREATED,
         )
-        _set_refresh_cookie(resp, tokens["refresh"])
+        set_refresh_cookie(resp, tokens["refresh"])
         return resp
 
 
 class TokenRefreshView(APIView):
     """
     POST /auth/refresh
-    body (선택): { "refresh": "<refresh_token>" }
     """
 
     permission_classes = [AllowAny]
