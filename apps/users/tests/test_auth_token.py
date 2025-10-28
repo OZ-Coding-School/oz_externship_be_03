@@ -1,19 +1,87 @@
 from __future__ import annotations
 
 import json
-from typing import Dict
-from unittest.mock import patch
+import random
+from datetime import date
+from typing import Any, ClassVar, Dict, Final
+from unittest.mock import Mock, patch
+from uuid import uuid4
 
 from django.conf import settings
 from django.test import Client, TestCase
 from django.urls import reverse
+from rest_framework import serializers
+
+from apps.users.models.user import User as UserModel
+from apps.users.services.auth_services import (
+    authenticate_and_issue_tokens,
+    refresh_access_token,
+)
+from apps.users.views.auth_views import (
+    _validate_login_payload,
+    _validate_refresh_payload,
+)
+
+# ---------------------------------------------------------------------
+# 공통 상수/헬퍼
+# ---------------------------------------------------------------------
+
+DEFAULT_PWD: Final[str] = "Passw0rd!"
+
+
+def make_user(
+    *,
+    email: str | None = None,
+    password: str = DEFAULT_PWD,
+    name: str = "홍길동",
+    nickname: str | None = None,
+    phone_number: str | None = None,
+    gender: str = "M",
+    birthday: date = date(1990, 1, 1),
+    is_active: bool = True,
+) -> UserModel:
+    """
+    테스트 유저 생성
+    """
+    suffix = uuid4().hex[:6]
+    if email is None:
+        email = f"user{suffix}@example.com"
+    if nickname is None:
+        nickname = f"nick{suffix}"
+    if phone_number is None:
+        phone_number = f"010-{random.randint(1000, 9999)}-{random.randint(1000, 9999)}"
+
+    user = UserModel.objects.create_user(
+        email=email,
+        password=password,
+        name=name,
+        nickname=nickname,
+        phone_number=phone_number,
+        gender=gender,
+        birthday=birthday,
+    )
+    if user.is_active != is_active:
+        user.is_active = is_active
+        user.save(update_fields=["is_active"])
+    return user
+
+
+# ---------------------------------------------------------------------
+# 뷰 테스트
+# ---------------------------------------------------------------------
 
 
 class AuthViewsTest(TestCase):
+    login_url: ClassVar[str]
+    refresh_url: ClassVar[str]
+
+    @classmethod
+    def setUpTestData(cls) -> None:
+        cls.login_url = reverse("users:auth_login")
+        cls.refresh_url = reverse("users:auth_refresh")
+
     def setUp(self) -> None:
         self.client = Client()
-        self.login_url = reverse("users:auth_login")
-        self.refresh_url = reverse("users:auth_refresh")
 
     # ------------------------------
     # /auth/login
@@ -85,6 +153,23 @@ class AuthViewsTest(TestCase):
         kwargs = mocked.call_args.kwargs
         self.assertTrue(kwargs["email"].endswith("@example.com"))
 
+    def test_login_rejects_password_with_leading_or_trailing_spaces(self) -> None:
+        payload = {"email": "user@example.com", "password": " pass1234! "}
+        resp = self.client.post(self.login_url, data=json.dumps(payload), content_type="application/json")
+        self.assertEqual(resp.status_code, 400)
+        body = json.loads(resp.content.decode())
+        self.assertTrue("password" in body or "error" in body)
+
+    def test_login_missing_email_returns_400_by_schema(self) -> None:
+        resp = self.client.post(
+            self.login_url,
+            data=json.dumps({"password": "pass1234!"}),
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 400)
+        body = json.loads(resp.content.decode())
+        self.assertIn("email", body)
+
     # ------------------------------
     # /auth/refresh (쿠키 전용)
     # ------------------------------
@@ -132,3 +217,102 @@ class AuthViewsTest(TestCase):
         self.assertEqual(resp.status_code, 400)
         body = json.loads(resp.content.decode())
         self.assertEqual(body["error"], "유효하지 않은 리프레시 토큰입니다.")
+
+
+# ---------------------------------------------------------------------
+# 서비스 테스트
+# ---------------------------------------------------------------------
+class AuthServiceTests(TestCase):
+    user_id: ClassVar[int]
+
+    @classmethod
+    def setUpTestData(cls) -> None:
+        u = make_user()
+        cls.user_id = u.id
+
+    def setUp(self) -> None:
+        self.user: UserModel = UserModel.objects.get(pk=self.user_id)
+
+    @patch("apps.users.services.auth_services.authenticate")
+    def test_authenticate_and_issue_tokens_success(self, mock_auth: Mock) -> None:
+        mock_auth.return_value = self.user
+
+        tokens: Dict[str, str] = authenticate_and_issue_tokens(
+            email="  user@example.com  ",
+            password=DEFAULT_PWD,
+        )
+        assert "access" in tokens and tokens["access"]
+        assert "refresh" in tokens and tokens["refresh"]
+
+        call_kwargs = mock_auth.call_args.kwargs
+        assert call_kwargs["email"] == "user@example.com"
+        assert call_kwargs["password"] == DEFAULT_PWD
+
+    @patch("apps.users.services.auth_services.authenticate")
+    def test_authenticate_and_issue_tokens_invalid_credentials(self, mock_auth: Mock) -> None:
+        mock_auth.return_value = None
+        with self.assertRaises(PermissionError):
+            authenticate_and_issue_tokens(email="user@example.com", password="wrong!")
+
+    @patch("apps.users.services.auth_services.authenticate")
+    def test_authenticate_and_issue_tokens_inactive_user(self, mock_auth: Mock) -> None:
+        self.user.is_active = False
+        self.user.save(update_fields=["is_active"])
+        mock_auth.return_value = self.user
+
+        with self.assertRaises(PermissionError):
+            authenticate_and_issue_tokens(email="user@example.com", password=DEFAULT_PWD)
+
+    def test_refresh_access_token_success(self) -> None:
+        from rest_framework_simplejwt.tokens import RefreshToken
+
+        refresh = str(RefreshToken.for_user(self.user))
+        new_access = refresh_access_token(refresh_token=refresh)
+        assert isinstance(new_access, str) and len(new_access) > 10
+
+    def test_refresh_access_token_invalid_token(self) -> None:
+        with self.assertRaises(PermissionError):
+            refresh_access_token(refresh_token="not.a.valid.token")
+
+
+# ---------------------------------------------------------------------
+# 유효성 함수 커버
+# ---------------------------------------------------------------------
+
+
+class AuthValidatorsUnitTest(TestCase):
+    def test_validate_login_payload_email_normalization_and_password_space_rejection(self) -> None:
+        _validate_login_payload({"email": "USER@EXAMPLE.COM", "password": "pass"})
+
+        with self.assertRaises(serializers.ValidationError):
+            _validate_login_payload({"email": "user@example.com", "password": " pass "})
+
+        ok_payload: Dict[str, Any] = {"email": " USER@EXAMPLE.COM ", "password": "pass"}
+        _validate_login_payload(ok_payload)
+        self.assertEqual(ok_payload["email"], "USER@example.com")
+
+    def test_validate_refresh_payload_paths(self) -> None:
+        payload = {"refresh": "  a.b.c  "}
+        _validate_refresh_payload(payload)
+        self.assertEqual(payload["refresh"], "a.b.c")
+
+        with self.assertRaises(serializers.ValidationError):
+            _validate_refresh_payload({"refresh": "   "})
+
+        with self.assertRaises(serializers.ValidationError):
+            _validate_refresh_payload({"refresh": "invalidtoken"})
+
+    def test_validate_login_payload_missing_email(self) -> None:
+        # email이 공백/미입력일 때
+        with self.assertRaises(serializers.ValidationError):
+            _validate_login_payload({"email": "   ", "password": "pass1234!"})
+
+    def test_validate_login_payload_missing_password(self) -> None:
+        # password가 미입력일 때
+        with self.assertRaises(serializers.ValidationError):
+            _validate_login_payload({"email": "user@example.com", "password": ""})
+
+    def test_validate_login_payload_invalid_email_format(self) -> None:
+        # 잘못된 이메일 형식
+        with self.assertRaises(serializers.ValidationError):
+            _validate_login_payload({"email": "not-an-email", "password": "pass1234!"})

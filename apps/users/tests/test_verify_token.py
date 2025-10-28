@@ -12,7 +12,6 @@ from rest_framework.response import Response
 
 from apps.users.enums import EmailVerificationPurpose, PhoneVerificationPurpose
 from apps.users.utils.verify_token import (
-    REDIS_JTI_PREFIX,
     _jti_key,
     issue_verify_token,
     verify_and_consume,
