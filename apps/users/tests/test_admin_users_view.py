@@ -42,14 +42,14 @@ class TestAdminUserAPI(APITestCase):
 
     # ✅ 회원 목록 조회
     def test_user_list(self) -> None:
-        url = reverse("users:admin-user-list")
+        url = reverse("admin-user-list")  # 네임스페이스 제거
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("email", response.data[0])
 
     # ✅ 회원 상세 조회 / 정보 수정 / 삭제 (통합 뷰)
     def test_user_detail_update_delete(self) -> None:
-        url = reverse("users:admin-user-detail", args=[self.user.id])
+        url = reverse("admin-user-detail", kwargs={"user_id": self.user.id})
 
         # 상세 조회
         response = self.client.get(url)
@@ -69,7 +69,7 @@ class TestAdminUserAPI(APITestCase):
 
     # ✅ 회원 권한 변경 (별도 엔드포인트)
     def test_change_user_role(self) -> None:
-        url = reverse("users:admin-user-role-update", args=[self.user.id])
+        url = reverse("admin-user-role-update", kwargs={"user_id": self.user.id})
         payload_role = {"role": "staff"}
         response = self.client.patch(url, payload_role, format="json")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -79,7 +79,7 @@ class TestAdminUserAPI(APITestCase):
     # ✅ 유저 상태 필드 (탈퇴 예정)
     def test_user_status_field(self) -> None:
         Withdrawal.objects.create(user=self.user, due_date=timezone.now())
-        url = reverse("users:admin-user-detail", args=[self.user.id])
+        url = reverse("admin-user-detail", kwargs={"user_id": self.user.id})
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["status"], UserStatus.WITHDRAWAL_PENDING.value)
@@ -108,6 +108,6 @@ class TestAdminUserAPI(APITestCase):
         )
 
         self.client.force_authenticate(user=staff_user)
-        url = reverse("users:admin-user-detail", args=[target_user.id])
+        url = reverse("admin-user-detail", kwargs={"user_id": target_user.id})
         response = self.client.delete(url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
