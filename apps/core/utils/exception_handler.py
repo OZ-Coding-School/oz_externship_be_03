@@ -24,7 +24,7 @@ def exception_handler(exc: Exception, context: dict[str, Any]) -> Response:
         return Response({"error": "접근 권한이 없습니다."}, status=status.HTTP_403_FORBIDDEN)
     if isinstance(exc, (exceptions.AuthenticationFailed, exceptions.NotAuthenticated)):
         return Response({"error": "인증에 실패했습니다."}, status=status.HTTP_401_UNAUTHORIZED)
-    
+
     return Response({"error": str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 

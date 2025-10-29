@@ -1,7 +1,6 @@
 from django.urls import URLPattern, URLResolver, path
 
-from apps.users.views.user_profile_views import MeView
-from apps.users.views.user_info_view import UserDupNicknameView
+from apps.users.views.user_profile_views import MeView, UserDupNicknameView
 from apps.users.views.user_signup_views import UserSignupView
 
 urlpatterns: list[URLPattern | URLResolver] = [
