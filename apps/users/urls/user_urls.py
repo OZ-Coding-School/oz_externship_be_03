@@ -1,7 +1,11 @@
 from django.urls import URLPattern, URLResolver, path
 
-from apps.users.views.user_profile_views import MeView, UserDupNicknameView, UserProfileUpdateView, UserChangePasswordView, UserWithdrawalAPIView, UserAccountRecoveryAPIView
+from apps.users.views.user_profile_views import MeView, UserDupNicknameView, UserProfileUpdateView, UserChangePasswordView
 from apps.users.views.user_signup_views import UserSignupView
+from apps.users.views.user_withdrawals_views import (
+    UserAccountRecoveryAPIView,
+    UserWithdrawalAPIView,
+)
 from apps.users.views.password_reset_views import PasswordResetView
 
 urlpatterns: list[URLPattern | URLResolver] = [
