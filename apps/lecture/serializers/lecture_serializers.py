@@ -24,6 +24,7 @@ class LectureListSerializer(serializers.ModelSerializer[CrawledLecture]):
             "discount_price",
             "platform",
             "average_rating",
+            "duration",
             "url_link",
             "is_bookmarked",
         ]
