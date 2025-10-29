@@ -86,3 +86,30 @@ class UserProfilePasswordUpdateSerializer(serializers.Serializer[Dict[str, Any]]
     current_password = serializers.CharField(write_only=True)
     new_password = serializers.CharField(write_only=True)
     new_password_confirm = serializers.CharField(write_only=True)
+
+
+class DupNicknameQuerySerializer(serializers.Serializer[dict[str, Any]]):
+    """
+    닉네임 중복 확인 쿼리 파라미터
+    """
+
+    nickname = serializers.CharField(required=True, trim_whitespace=True)
+    case_insensitive = serializers.BooleanField(required=False, default=True)
+
+
+class DupNicknameDataSerializer(serializers.Serializer[dict[str, Any]]):
+    """
+    닉네임 중복 응답 data 필드 스키마
+    """
+
+    nickname = serializers.CharField()
+    available = serializers.BooleanField()
+
+
+class DupNicknameResponseSerializer(serializers.Serializer[dict[str, Any]]):
+    """
+    닉네임 중복 전체 응답 스키마
+    """
+
+    detail = serializers.CharField()
+    payload = DupNicknameDataSerializer(source="data")
