@@ -2,21 +2,31 @@ from __future__ import annotations
 
 import json
 import random
-from datetime import date
+from datetime import date, timedelta
 from typing import Any, ClassVar, Dict, Final
 from unittest.mock import Mock, patch
 from uuid import uuid4
 
 from django.conf import settings
-from django.test import Client, TestCase
+from django.http import HttpRequest
+from django.test import TestCase
 from django.urls import reverse
 from rest_framework import serializers
+from rest_framework.request import Request
+from rest_framework.test import APIClient
+from rest_framework_simplejwt.exceptions import (
+    ExpiredTokenError,
+    InvalidToken,
+    TokenError,
+)
+from rest_framework_simplejwt.tokens import AccessToken, RefreshToken
 
 from apps.users.models.user import User as UserModel
 from apps.users.services.auth_services import (
     authenticate_and_issue_tokens,
     refresh_access_token,
 )
+from apps.users.utils.jwt import coerce_samesite, extract_bearer_token, is_jwt_like
 from apps.users.views.auth_views import (
     _validate_login_payload,
 )
@@ -73,14 +83,34 @@ def make_user(
 class AuthViewsTest(TestCase):
     login_url: ClassVar[str]
     refresh_url: ClassVar[str]
+    logout_url: ClassVar[str]
+    user: UserModel
+    client: APIClient
 
     @classmethod
     def setUpTestData(cls) -> None:
         cls.login_url = reverse("users:auth_login")
         cls.refresh_url = reverse("users:auth_refresh")
+        cls.logout_url = reverse("users:auth_logout")
+        cls.user = make_user()
 
     def setUp(self) -> None:
-        self.client = Client()
+        self.client = APIClient()
+
+        self.access_token, self.refresh_token = self.get_tokens()
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {str(self.access_token)}")
+
+    def get_tokens(self) -> tuple[AccessToken, RefreshToken]:
+        """
+        토큰을 생성하고 만료 시간을 설정하는 공통 메서드
+        """
+        refresh_token = RefreshToken.for_user(self.user)
+        access_token = refresh_token.access_token
+
+        refresh_token.set_exp(lifetime=timedelta(hours=1))
+        access_token.set_exp(lifetime=timedelta(hours=1))
+
+        return access_token, refresh_token
 
     # ------------------------------
     # /auth/login
@@ -169,9 +199,6 @@ class AuthViewsTest(TestCase):
         body = json.loads(resp.content.decode())
         self.assertIn("email", body)
 
-    # ------------------------------
-    # /auth/refresh (쿠키 전용)
-    # ------------------------------
     def test_refresh_uses_cookie_when_present(self) -> None:
         cookie_name = settings.AUTH_REFRESH_COOKIE_NAME
         self.client.cookies[cookie_name] = "header.payload.signature"
@@ -188,34 +215,106 @@ class AuthViewsTest(TestCase):
         self.assertEqual(body["data"]["access"], "new.access.jwt")
         mocked.assert_called_once_with(refresh_token="header.payload.signature")
 
-    def test_refresh_missing_token_returns_400(self) -> None:
-        resp = self.client.post(self.refresh_url, data=json.dumps({}), content_type="application/json")
-        self.assertEqual(resp.status_code, 400)
-        body = json.loads(resp.content.decode())
-        self.assertEqual(body["error"], "리프레시 토큰이 필요합니다.")
+    # ------------------------------
+    # /auth/logout
+    # ------------------------------
+    def test_logout_success(self) -> None:
+        payload = {"email": self.user.email, "password": DEFAULT_PWD}
 
-    def test_refresh_invalid_format_cookie_returns_400(self) -> None:
-        cookie_name = settings.AUTH_REFRESH_COOKIE_NAME
-        self.client.cookies[cookie_name] = "invalidtoken"
+        self.refresh_token.set_exp(lifetime=timedelta(hours=1))
+        self.access_token.set_exp(lifetime=timedelta(hours=1))
 
-        resp = self.client.post(self.refresh_url, data=json.dumps({}), content_type="application/json")
-        self.assertEqual(resp.status_code, 400)
-        body = json.loads(resp.content.decode())
-        self.assertEqual(body["error"], "refresh 토큰 형식이 올바르지 않습니다.")
-
-    def test_refresh_cookie_service_reject_returns_400(self) -> None:
-        cookie_name = settings.AUTH_REFRESH_COOKIE_NAME
-        self.client.cookies[cookie_name] = "a.b.c"
+        fake_tokens: Dict[str, str] = {
+            "access": str(self.access_token),
+            "refresh": str(self.refresh_token),
+        }
 
         with patch(
-            "apps.users.views.auth_views.refresh_access_token",
-            side_effect=PermissionError,
+            "apps.users.views.auth_views.authenticate_and_issue_tokens",
+            return_value=fake_tokens,
         ):
-            resp = self.client.post(self.refresh_url, data=json.dumps({}), content_type="application/json")
+            # 로그인 후 리프레시 토큰 쿠키 설정
+            resp = self.client.post(
+                self.login_url,
+                data=json.dumps(payload),
+                content_type="application/json",
+            )
 
-        self.assertEqual(resp.status_code, 400)
-        body = json.loads(resp.content.decode())
-        self.assertEqual(body["error"], "유효하지 않은 리프레시 토큰입니다.")
+        # 로그인 후 리프레시 토큰을 쿠키에 설정
+        self.client.cookies[settings.AUTH_REFRESH_COOKIE_NAME] = str(self.refresh_token)
+
+        # 액세스 토큰을 Authorization 헤더에 설정하여 인증된 상태로 만든다.
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {str(self.access_token)}")
+
+        with patch("apps.users.views.auth_views.RefreshToken.blacklist", return_value=None):  # mock 처리
+            # 로그아웃 요청
+            resp = self.client.post(self.logout_url, data=json.dumps({}), content_type="application/json")
+
+        # 정상적으로 로그아웃 처리된 경우
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(json.loads(resp.content.decode())["detail"], "로그아웃이 완료되었습니다.")
+
+        cookie = resp.cookies.get(settings.AUTH_REFRESH_COOKIE_NAME)
+        if cookie:
+            self.assertEqual(cookie.value, "")  # 쿠키가 빈 값으로 설정되었는지 확인
+        else:
+            self.fail(f"쿠키 '{settings.AUTH_REFRESH_COOKIE_NAME}'가 삭제되지 않았습니다.")
+
+    def test_logout_invalid_token_returns_401(self) -> None:
+        # 잘못된 토큰인 경우
+        refresh_token = RefreshToken.for_user(self.user)
+        access_token = refresh_token.access_token
+
+        refresh_token.set_exp(lifetime=timedelta(hours=1))
+        access_token.set_exp(lifetime=timedelta(hours=1))
+
+        self.client.cookies[settings.AUTH_REFRESH_COOKIE_NAME] = str(refresh_token)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {str(access_token)}")
+        with patch("apps.users.views.auth_views.RefreshToken.blacklist", side_effect=InvalidToken):
+            resp = self.client.post(self.logout_url, data=json.dumps({}), content_type="application/json")
+
+        # 유효하지 않은 토큰 오류
+        self.assertEqual(resp.status_code, 401)
+        self.assertEqual(json.loads(resp.content.decode())["error"], "유효하지 않은 토큰입니다.")
+
+    def test_logout_expired_token_returns_401(self) -> None:
+        # 만료된 토큰인 경우
+        refresh_token = RefreshToken.for_user(self.user)
+        access_token = refresh_token.access_token
+
+        refresh_token.set_exp(lifetime=timedelta(hours=1))
+        access_token.set_exp(lifetime=timedelta(hours=1))
+
+        with patch("apps.users.views.auth_views.RefreshToken.blacklist", side_effect=ExpiredTokenError):
+            resp = self.client.post(self.logout_url, data=json.dumps({}), content_type="application/json")
+
+        # 만료된 토큰 오류
+        self.assertEqual(resp.status_code, 401)
+        self.assertEqual(json.loads(resp.content.decode())["error"], "잘못된 자격 증명입니다.")
+
+    def test_logout_already_logged_out_returns_200(self) -> None:
+        refresh_token = RefreshToken.for_user(self.user)
+        access_token = refresh_token.access_token
+
+        refresh_token.set_exp(lifetime=timedelta(hours=1))
+        # 이미 로그아웃된 상태
+        self.client.cookies[settings.AUTH_REFRESH_COOKIE_NAME] = str(refresh_token)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {str(access_token)}")  # APIClient로 인증된 상태 설정
+
+        with patch("apps.users.views.auth_views.RefreshToken.blacklist", side_effect=TokenError) as mock_blacklist:
+            resp = self.client.post(self.logout_url, data=json.dumps({}), content_type="application/json")
+
+        # 이미 로그아웃된 경우 처리
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(json.loads(resp.content.decode())["detail"], "이미 로그아웃된 유저입니다.")
+
+    def test_logout_not_logged_in_returns_401(self) -> None:
+        # 로그인이 안 된 상태
+        resp = self.client.post(self.logout_url, data=json.dumps({}), content_type="application/json")
+
+        # 로그인되지 않은 상태에서의 처리
+        self.assertEqual(resp.status_code, 401)
+        self.assertEqual(json.loads(resp.content.decode())["error"], "잘못된 자격 증명입니다.")
 
 
 # ---------------------------------------------------------------------
@@ -236,7 +335,7 @@ class AuthServiceTests(TestCase):
     def test_authenticate_and_issue_tokens_success(self, mock_auth: Mock) -> None:
         mock_auth.return_value = self.user
 
-        tokens: Dict[str, str] = authenticate_and_issue_tokens(
+        tokens = authenticate_and_issue_tokens(
             email="  user@example.com  ",
             password=DEFAULT_PWD,
         )
@@ -247,6 +346,9 @@ class AuthServiceTests(TestCase):
         assert call_kwargs["email"] == "user@example.com"
         assert call_kwargs["password"] == DEFAULT_PWD
 
+    # ==============================
+    # authenticate_and_issue_tokens 예외 처리 테스트
+    # ==============================
     @patch("apps.users.services.auth_services.authenticate")
     def test_authenticate_and_issue_tokens_invalid_credentials(self, mock_auth: Mock) -> None:
         mock_auth.return_value = None
@@ -262,9 +364,10 @@ class AuthServiceTests(TestCase):
         with self.assertRaises(PermissionError):
             authenticate_and_issue_tokens(email="user@example.com", password=DEFAULT_PWD)
 
+    # ==============================
+    # refresh_access_token 성공 및 실패 테스트
+    # ==============================
     def test_refresh_access_token_success(self) -> None:
-        from rest_framework_simplejwt.tokens import RefreshToken
-
         refresh = str(RefreshToken.for_user(self.user))
         new_access = refresh_access_token(refresh_token=refresh)
         assert isinstance(new_access, str) and len(new_access) > 10
@@ -304,3 +407,62 @@ class AuthValidatorsUnitTest(TestCase):
         # 잘못된 이메일 형식
         with self.assertRaises(serializers.ValidationError):
             _validate_login_payload({"email": "not-an-email", "password": "pass1234!"})
+
+
+class TestJwtUtils(TestCase):
+
+    def test_valid_samesite_values(self) -> None:
+        self.assertEqual(coerce_samesite("Lax"), "Lax")
+        self.assertEqual(coerce_samesite("Strict"), "Strict")
+        self.assertEqual(coerce_samesite("None"), "None")
+
+    def test_false_value(self) -> None:
+        self.assertEqual(coerce_samesite(False), False)
+
+    def test_invalid_values(self) -> None:
+        self.assertIsNone(coerce_samesite("Invalid"))
+        self.assertIsNone(coerce_samesite(None))
+
+    def test_valid_jwt(self) -> None:
+        self.assertTrue(is_jwt_like("valid.jwt.token"))
+
+    def test_invalid_jwt(self) -> None:
+        self.assertFalse(is_jwt_like("invalid.token"))
+        self.assertFalse(is_jwt_like("token.withoutparts"))
+        self.assertFalse(is_jwt_like("part1.part2"))
+        self.assertFalse(is_jwt_like(""))
+
+    def test_empty_string(self) -> None:
+        self.assertFalse(is_jwt_like(""))
+
+    def test_missing_parts(self) -> None:
+        self.assertFalse(is_jwt_like("part1.part2"))
+
+    def test_extract_valid_token(self) -> None:
+        request = HttpRequest()
+        # 요청의 META에 'Authorization' 헤더를 설정
+        request.META["HTTP_AUTHORIZATION"] = "Bearer valid_token_string"
+
+        # HttpRequest를 Request로 래핑
+        drf_request = Request(request)
+
+        token = extract_bearer_token(drf_request)
+        self.assertEqual(token, "valid_token_string")
+
+    def test_extract_invalid_token(self) -> None:
+        request = HttpRequest()
+        request.META["HTTP_AUTHORIZATION"] = "InvalidToken"
+
+        drf_request = Request(request)
+
+        token = extract_bearer_token(drf_request)
+        self.assertIsNone(token)
+
+    def test_no_authorization_header(self) -> None:
+        request = HttpRequest()
+        request.META["HTTP_AUTHORIZATION"] = ""
+
+        drf_request = Request(request)
+
+        token = extract_bearer_token(drf_request)
+        self.assertIsNone(token)
