@@ -123,14 +123,7 @@ class UserProfileUpdateView(APIView):
 
         # instance를 넘겨 UniqueValidator가 본인을 제외하도록 함
         req_serializer = UserProfileUpdateSerializer(instance=request.user, data=request.data, partial=True)
-        if not req_serializer.is_valid():
-            # UniqueValidator 400 -> 메시지 기반 409 승격
-            errors = req_serializer.errors
-            dup_msgs = {"이미 사용 중인 휴대폰 번호입니다.", "이미 사용 중인 닉네임입니다."}
-            flat = {str(msg) for v in errors.values() for msg in (v if isinstance(v, (list, tuple)) else [v])}
-            if dup_msgs & flat:
-                return Response({"error": list(dup_msgs & flat)[0]}, status=status.HTTP_409_CONFLICT)
-            return Response(errors, status=status.HTTP_400_BAD_REQUEST)
+        req_serializer.is_valid(raise_exception=True)
 
         updated = update_user_profile(
             user=request.user,
