@@ -1,6 +1,5 @@
 import logging
 
-from asgiref.sync import async_to_sync
 from celery import shared_task  # type: ignore
 
 from apps.notifications.models import Notification
@@ -10,11 +9,11 @@ logger = logging.getLogger(__name__)
 
 
 @shared_task  # type: ignore[misc]
-def send_to_pubsub(notification_id: int) -> None:
+async def send_to_pubsub(notification_id: int) -> None:
     try:
-        notification = Notification.objects.select_related("user").get(id=notification_id)
+        notification = await Notification.objects.select_related("user").aget(id=notification_id)
 
-        async_to_sync(notification_pubsub.publish_notification)(
+        await notification_pubsub.publish_notification(
             user_id=notification.user.id,
             notification_data={
                 "id": notification.id,
