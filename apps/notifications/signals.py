@@ -29,8 +29,9 @@ def recruitment_apply_created(sender: Any, instance: Application, created: bool,
 
     send_to_pubsub.delay(notification.id)
 
+
 @receiver(post_save, sender=Application)
-def application_approved_rejected_created(sender: Any, instance: Application, created:bool, **kwargs: Any) -> None:
+def application_approved_rejected_created(sender: Any, instance: Application, created: bool, **kwargs: Any) -> None:
     """공고 지원 승인/거절 알림"""
     if not created and instance.status in [ApplicationStatus.APPROVED, ApplicationStatus.REJECTED]:
         recruitment = instance.recruitment
