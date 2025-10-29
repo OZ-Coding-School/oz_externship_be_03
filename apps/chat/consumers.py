@@ -32,6 +32,22 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):  # type: ignore[misc]
         await self.channel_layer.group_add(self.room_group_name, self.channel_name)
         await self.accept()
 
+        # '읽음 처리' 로직 구현
+        if user.is_authenticated:
+            try:
+                latest_message = await ChatMessage.objects.filter(
+                    study_group_id=self.study_group_id
+                ).order_by("-created_at").afirst()
+
+                if latest_message:
+                    await LastReadMessage.objects.aupdate_or_create(
+                        user=user,
+                        study_group_id=self.study_group_id,
+                        defaults={'message': latest_message},
+                    )
+            except ChatMessage.DoesNotExist:
+                pass
+
     async def disconnect(self, close_code: int) -> None:
         # Leave room group
         await self.channel_layer.group_discard(self.room_group_name, self.channel_name)
