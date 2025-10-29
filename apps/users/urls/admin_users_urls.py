@@ -9,7 +9,7 @@ from apps.users.views.admin_users_views import (
 app_name = "users"
 
 urlpatterns = [
-    path("admin/", AdminUserListView.as_view(), name="admin-user-list"),
-    path("admin/<int:user_id>/", AdminUserView.as_view(), name="admin-user-detail"),
-    path("admin/<int:user_id>/update_role/", AdminUserRoleUpdateView.as_view(), name="admin-user-role-update"),
+    path("", AdminUserListView.as_view(), name="admin-user-list"),
+    path("<int:user_id>", AdminUserView.as_view(), name="admin-user-detail"),
+    path("<int:user_id>/update_role", AdminUserRoleUpdateView.as_view(), name="admin-user-role-update"),
 ]

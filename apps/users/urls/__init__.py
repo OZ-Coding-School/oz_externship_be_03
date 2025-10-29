@@ -14,6 +14,5 @@ urlpatterns: list[URLPattern | URLResolver] = [
     *users_urls,
     *user_withdrawal_urls,
     *auth_urls,
-    *admin_users_urls,
     *user_profile_update_urls,
 ]
