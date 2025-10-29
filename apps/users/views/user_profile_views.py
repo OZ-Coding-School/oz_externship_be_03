@@ -1,13 +1,10 @@
-from drf_spectacular.types import OpenApiTypes
-from drf_spectacular.utils import OpenApiParameter, extend_schema
-from rest_framework import status
-from rest_framework.authentication import BaseAuthentication
-from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.contrib.auth.models import AnonymousUser
-from drf_spectacular.utils import extend_schema, inline_serializer
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import OpenApiParameter, extend_schema, inline_serializer
 from rest_framework import serializers, status
+from rest_framework.authentication import BaseAuthentication
 from rest_framework.exceptions import NotAuthenticated
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -68,6 +65,8 @@ class UserDupNicknameView(ExceptionHandledAPIView):
             data={"nickname": nickname, "available": not is_dup},
             status_code=status.HTTP_200_OK,
         )
+
+
 from apps.users.serializers.user_profile_serializers import (
     UserProfilePasswordUpdateSerializer,
     UserProfileSerializer,
