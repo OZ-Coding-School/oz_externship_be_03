@@ -55,7 +55,7 @@ class NotificationListAPITestCase(APITestCase):
         """
         인증된 사용자는 자신의 알림만 조회 가능
         """
-        url = reverse("notification-list")
+        url = reverse("notifications:notification-list")
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -67,7 +67,7 @@ class NotificationListAPITestCase(APITestCase):
         인증되지 않은 사용자는 접근 불가 (401)
         """
         self.client.force_authenticate(user=None)
-        url = reverse("notification-list")
+        url = reverse("notifications:notification-list")
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)

@@ -1,0 +1,32 @@
+import asyncio
+import logging
+from typing import Any
+
+from asgiref.sync import async_to_sync
+from django.conf import settings
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+
+from apps.notifications.models import Notification
+from apps.notifications.services.redis_pubsub_classify import notification_pubsub
+from apps.notifications.tasks import send_to_pubsub
+from apps.recruitments.models.application import Application
+
+logger = logging.getLogger(__name__)
+
+
+@receiver(post_save, sender=Application)
+def notifications_created(sender: Any, instance: Application, created: bool, **kwargs: Any) -> None:
+    if not created:
+        return  # 없으면 수정시에도 트리거가 발동됨
+
+    recruitment = instance.recruitment
+
+    notification = Notification.objects.create(
+        user_id=recruitment.author_id,
+        content=f"공고 '{recruitment.title}'에 새로운 지원자가 지원했습니다.",
+        type=Notification.NotificationType.APPLICATION_CREATED,
+        back_url_link=f"{settings.FRONTEND_DOMAIN}/studies/applications",
+    )
+
+    send_to_pubsub.delay(notification.id)
