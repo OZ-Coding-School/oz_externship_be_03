@@ -2,8 +2,8 @@ from django.urls import path
 
 from apps.users.views.admin_users_views import (
     AdminUserListView,
+    AdminUserRoleUpdateView,
     AdminUserView,
-    AdminUserRoleUpdateView
 )
 
 app_name = "users"
