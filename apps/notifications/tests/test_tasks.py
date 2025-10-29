@@ -1,0 +1,58 @@
+import asyncio
+from django.contrib.auth import get_user_model
+from datetime import date
+
+from apps.core.utils.isolated_cache_testcase import IsolatedRedisTestClient
+from apps.notifications.services.redis_pubsub_classify import notification_pubsub
+from apps.notifications.models import Notification
+from apps.notifications.tasks import send_to_pubsub
+from apps.users.enums import Gender
+
+User = get_user_model()
+
+class TasksTest(IsolatedRedisTestClient):
+    def setUp(self) -> None:
+        super().setUp()
+
+        self.user = User.objects.create_user(
+            email="test@test.com",
+            password="pass123",
+            nickname="test",
+            name="테스트",
+            phone_number="010-1456-7890",
+            birthday=date(1995,1,11),
+            gender=Gender.MALE,
+        )
+
+        self.notification = Notification.objects.create(
+            user=self.user,
+            content="테스트 알림입니다.",
+            type=Notification.NotificationType.APPLICATION_CREATED,
+            back_url_link="https://example.com/test"
+        )
+
+    async def test_send_to_pubsub(self)-> None:
+        messages = []
+
+        async def message_listener():
+            async for message in notification_pubsub.subscribe_user_notification(self.user.id):
+                messages.append(message)
+                if len(messages) >= 1:
+                    break
+
+        listener_task = asyncio.create_task(message_listener())
+
+        await asyncio.sleep(0.1)
+
+        await send_to_pubsub(self.notification.id)
+
+        try:
+            await asyncio.wait_for(listener_task, timeout=5.0)
+        except asyncio.TimeoutError:
+            listener_task.cancel()
+
+        self.assertEqual(len(messages), 1)
+        data=messages[0]
+        self.assertEqual(data["id"], self.notification.id)
+        self.assertEqual(data["type"], self.notification.type)
+        self.assertEqual(data["content"], self.notification.content)
