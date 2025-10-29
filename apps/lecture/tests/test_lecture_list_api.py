@@ -4,7 +4,7 @@ from django.contrib.auth import get_user_model
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
-from .base_lecture import BaseLectureTest
+
 from apps.lecture.models import (
     Category,
     CrawledLecture,
@@ -13,6 +13,8 @@ from apps.lecture.models import (
     LectureCategory,
     LectureSearchLog,
 )
+
+from .base_lecture import BaseLectureTest
 
 User = get_user_model()
 
@@ -30,7 +32,6 @@ class LectureListApiViewTest(BaseLectureTest):
             birthday=date(1990, 1, 1),
             gender="MALE",
         )
-
 
     def test_lecture_list(self) -> None:
         """강의 목록 조회 성공"""

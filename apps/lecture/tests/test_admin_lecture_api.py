@@ -1,4 +1,5 @@
 from datetime import date
+
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 from rest_framework import status
@@ -6,6 +7,7 @@ from rest_framework import status
 from .base_lecture import BaseLectureTest
 
 User = get_user_model()
+
 
 class BaseAdminLectureTest(BaseLectureTest):
     def setUp(self) -> None:
@@ -30,6 +32,7 @@ class BaseAdminLectureTest(BaseLectureTest):
             birthday=date(1990, 1, 1),
             gender="MALE",
         )
+
 
 class AdminLectureAPITestCase(BaseAdminLectureTest):
     def setUp(self) -> None:
@@ -59,7 +62,7 @@ class AdminLectureAPITestCase(BaseAdminLectureTest):
 class AdminLectureDetailApiViewTest(BaseAdminLectureTest):
     def test_admin_lecture_detail(self) -> None:
         """스태프 및 관리자 상세 조회 성공"""
-        self.detail_url = reverse("admin_lecture:admin-lecture-detail", kwargs={"lecture_id":self.lecture1.id})
+        self.detail_url = reverse("admin_lecture:admin-lecture-detail", kwargs={"lecture_id": self.lecture1.id})
         self.client.force_authenticate(user=self.admin_user)
         response = self.client.get(self.detail_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)

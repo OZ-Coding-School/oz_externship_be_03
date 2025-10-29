@@ -7,7 +7,6 @@ from apps.lecture.models import (
 )
 
 
-
 class BaseLectureTest(APITestCase):
     def setUp(self) -> None:
         self.category1 = Category.objects.create(name="Python")
