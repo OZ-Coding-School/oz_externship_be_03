@@ -31,7 +31,7 @@ class LectureListView(APIView):
         responses={200: LectureListSerializer(many=True)},
     )
     def get(self, request: Request) -> Response:
-        queryset = CrawledLecture.objects.prefetch_related("lecture_categories__category").all()
+        queryset = CrawledLecture.objects.prefetch_related("categories").all()
 
         if request.user.is_authenticated:
             queryset = queryset.prefetch_related(
