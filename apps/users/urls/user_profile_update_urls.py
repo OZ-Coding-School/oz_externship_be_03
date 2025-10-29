@@ -1,6 +1,6 @@
 from django.urls import path
 
-from apps.users.views.user_profile_update_views import (
+from apps.users.views.user_profile_views import (
     UserChangePasswordView,
     UserProfileUpdateView,
 )
