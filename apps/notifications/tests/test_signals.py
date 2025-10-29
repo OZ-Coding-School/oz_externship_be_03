@@ -1,5 +1,5 @@
 from datetime import date
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
@@ -42,7 +42,7 @@ class SignalTest(TestCase):
         )
 
     @patch("apps.notifications.signals.send_to_pubsub.delay")
-    def test_application_created_notification(self, mock_task:MagicMock) -> None:
+    def test_application_created_notification(self, mock_task: MagicMock) -> None:
         """지원 생성시 공고 작성자에게 보낼 알림 생성 테스트"""
         application = Application.objects.create(
             recruitment=self.recruitment,
@@ -61,7 +61,7 @@ class SignalTest(TestCase):
         mock_task.assert_called_once_with(notification.id)
 
     @patch("apps.notifications.signals.send_to_pubsub.delay")
-    def test_application_approved_notification(self, mock_task:MagicMock) -> None:
+    def test_application_approved_notification(self, mock_task: MagicMock) -> None:
         """지원 승인 알림 생성 테스트"""
         application = Application.objects.create(
             recruitment=self.recruitment,
@@ -85,7 +85,7 @@ class SignalTest(TestCase):
         self.assertEqual(mock_task.call_count, 2)
 
     @patch("apps.notifications.signals.send_to_pubsub.delay")
-    def test_application_rejected_notification(self, mock_task:MagicMock) -> None:
+    def test_application_rejected_notification(self, mock_task: MagicMock) -> None:
         """지원 거절 알림 생성 테스트"""
         application = Application.objects.create(
             recruitment=self.recruitment,
