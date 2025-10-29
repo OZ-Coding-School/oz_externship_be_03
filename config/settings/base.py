@@ -27,6 +27,7 @@ DJANGO_APPS = [
 THIRD_PARTY_APPS = [
     "debug_toolbar",
     "rest_framework_simplejwt",
+    "rest_framework_simplejwt.token_blacklist",
     "rest_framework",
     "corsheaders",
     "drf_spectacular",
@@ -146,6 +147,8 @@ SIMPLE_JWT = {
     "AUTH_HEADER_NAME": "HTTP_AUTHORIZATION",
     "USER_ID_FIELD": "id",
     "USER_ID_CLAIM": "user_id",
+    "BLACKLIST_AFTER_ROTATION": True,
+    "BLACKLIST_TOKENS_ON_LOGOUT": True,
 }
 
 # Internationalization
