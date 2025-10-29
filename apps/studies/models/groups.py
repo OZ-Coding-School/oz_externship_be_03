@@ -4,7 +4,7 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.db.models import CheckConstraint, Q
 
-from ...core.models import BaseModel
+from apps.core.models import UUIDBaseModel
 
 
 class StudyGroupStatus(models.TextChoices):
@@ -13,7 +13,7 @@ class StudyGroupStatus(models.TextChoices):
     ENDED = "ENDED", "종료됨"
 
 
-class StudyGroup(BaseModel):
+class StudyGroup(UUIDBaseModel):
     name = models.CharField(max_length=20, null=False, default="")
     introduction = models.CharField(max_length=500, null=True, blank=True)
     max_headcount = models.PositiveSmallIntegerField(
@@ -39,7 +39,7 @@ class StudyGroup(BaseModel):
         return self.name
 
 
-class StudyLecture(BaseModel):
+class StudyLecture(UUIDBaseModel):
     pk = models.CompositePrimaryKey("lecture_id", "study_group_id")
 
     lecture = models.ForeignKey(
@@ -58,7 +58,7 @@ class StudyLecture(BaseModel):
         app_label = "studies"
 
 
-class GroupMember(BaseModel):
+class GroupMember(UUIDBaseModel):
     study_group = models.ForeignKey(
         "StudyGroup",
         on_delete=models.CASCADE,
@@ -89,7 +89,7 @@ class GroupMember(BaseModel):
         return f"{self.user.id} in group {self.study_group.id}"
 
 
-class GroupSchedule(BaseModel):
+class GroupSchedule(UUIDBaseModel):
     study_group = models.ForeignKey(
         "StudyGroup",
         on_delete=models.CASCADE,
