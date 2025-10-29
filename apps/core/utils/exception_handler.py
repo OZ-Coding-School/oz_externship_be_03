@@ -12,18 +12,22 @@ def exception_handler(exc: Exception, context: dict[str, Any]) -> Response:
     """
     DRF 예외를 {"error": "메시지"} 형태로 통일
     """
+    custom_messages = {
+        Http404: ("요청한 리소스를 찾을 수 없습니다.", status.HTTP_404_NOT_FOUND),
+        exceptions.PermissionDenied: ("접근 권한이 없습니다.", status.HTTP_403_FORBIDDEN),
+        exceptions.AuthenticationFailed: ("인증에 실패했습니다.", status.HTTP_401_UNAUTHORIZED),
+        exceptions.NotAuthenticated: ("인증에 실패했습니다.", status.HTTP_401_UNAUTHORIZED),
+    }
+
     response = drf_exception_handler(exc, context)
+
+    for exc_type, (message, code) in custom_messages.items():
+        if isinstance(exc, exc_type):
+            return Response({"error": message}, status=getattr(response, "status_code", code))
 
     if response is not None:
         message = _build_error_message(getattr(exc, "detail", None) or response.data)
         return Response({"error": message}, status=response.status_code)
-
-    if isinstance(exc, Http404):
-        return Response({"error": "요청한 리소스를 찾을 수 없습니다."}, status=status.HTTP_404_NOT_FOUND)
-    if isinstance(exc, exceptions.PermissionDenied):
-        return Response({"error": "접근 권한이 없습니다."}, status=status.HTTP_403_FORBIDDEN)
-    if isinstance(exc, (exceptions.AuthenticationFailed, exceptions.NotAuthenticated)):
-        return Response({"error": "인증에 실패했습니다."}, status=status.HTTP_401_UNAUTHORIZED)
 
     return Response({"error": str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 

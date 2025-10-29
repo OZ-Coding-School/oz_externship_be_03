@@ -2,15 +2,24 @@ from __future__ import annotations
 
 import random
 from datetime import date
-from typing import TYPE_CHECKING, ClassVar, Final
+from typing import TYPE_CHECKING, Any, ClassVar, Final
 from uuid import uuid4
 
 from django.contrib.auth import get_user_model
+from django.http import Http404
 from django.test import Client, TestCase
 from django.urls import reverse
+from rest_framework import exceptions, status
 from rest_framework.exceptions import NotAuthenticated
 from rest_framework.test import APITestCase
 from rest_framework_simplejwt.tokens import RefreshToken
+
+from apps.core.utils.exception_handler import (
+    _build_error_message,
+    _first_text,
+    _safe_str,
+    exception_handler,
+)
 
 if TYPE_CHECKING:
     from apps.users.models.user import User as UserType
@@ -183,3 +192,87 @@ class UserDupNicknameViewTests(TestCase):
         # "0" → false 처리 → 대소문 구분
         resp_yes = self.client.get(self.url, {"nickname": "winter", "case_insensitive": "0"})
         self.assertTrue(resp_yes.json()["data"]["available"])
+
+
+# ==============================
+# exeption handler 테스트
+# ==============================
+class ExceptionHandlerTests(TestCase):
+    def test_http404_returns_404_error_message(self) -> None:
+        exc = Http404()
+        response = exception_handler(exc, {})
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(response.data["error"], "요청한 리소스를 찾을 수 없습니다.")
+
+    def test_permission_denied_returns_403(self) -> None:
+        exc = exceptions.PermissionDenied()
+        response = exception_handler(exc, {})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.data["error"], "접근 권한이 없습니다.")
+
+    def test_authentication_failed_returns_401(self) -> None:
+        exc = exceptions.AuthenticationFailed()
+        response = exception_handler(exc, {})
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(response.data["error"], "인증에 실패했습니다.")
+
+    def test_not_authenticated_returns_401(self) -> None:
+        exc = exceptions.NotAuthenticated()
+        response = exception_handler(exc, {})
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(response.data["error"], "인증에 실패했습니다.")
+
+    def test_unexpected_exception_returns_500(self) -> None:
+        exc = ValueError("예상치 못한 오류")
+        response = exception_handler(exc, {})
+        self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
+        self.assertIn("예상치 못한 오류", response.data["error"])
+
+    # ======================
+    # _build_error_message 분기 테스트
+    # ======================
+    def test_build_error_message_with_detail_mapping(self) -> None:
+        data = {"detail": {"field1": ["error1"], "field2": ["error2"]}}
+        self.assertIn("field1: error1", _build_error_message(data))
+
+    def test_build_error_message_with_non_field_errors(self) -> None:
+        data = {"non_field_errors": ["global error"]}
+        self.assertEqual(_build_error_message(data), "global error")
+
+    def test_build_error_message_with_list(self) -> None:
+        data = ["simple error"]
+        self.assertEqual(_build_error_message(data), "simple error")
+
+    def test_build_error_message_with_plain_string(self) -> None:
+        data = "plain error"
+        self.assertEqual(_build_error_message(data), "plain error")
+
+    def test_build_error_message_with_empty_mapping(self) -> None:
+        data: dict[str, Any] = {}
+        self.assertEqual(_build_error_message(data), "요청이 올바르지 않습니다.")
+
+    # ======================
+    # _first_text 커버리지 테스트
+    # ======================
+    def test_first_text_with_nested_list_and_dict(self) -> None:
+        value = [{"detail": [{"message": "deep error"}]}]
+        self.assertEqual(_first_text(value), "deep error")
+
+    def test_first_text_with_empty_list(self) -> None:
+        self.assertEqual(_first_text([]), "요청이 올바르지 않습니다.")
+
+    def test_first_text_with_empty_dict(self) -> None:
+        self.assertEqual(_first_text({}), "요청이 올바르지 않습니다.")
+
+    def test_first_text_with_unexpected_type(self) -> None:
+        self.assertEqual(_first_text(1234), "1234")
+
+    # ======================
+    # _safe_str 커버리지 테스트
+    # ======================
+    def test_safe_str_with_none_and_blank(self) -> None:
+        self.assertEqual(_safe_str(None, "DEFAULT"), "DEFAULT")
+        self.assertEqual(_safe_str("   ", "DEFAULT"), "DEFAULT")
+
+    def test_safe_str_with_normal_value(self) -> None:
+        self.assertEqual(_safe_str("Hello", "DEFAULT"), "Hello")
