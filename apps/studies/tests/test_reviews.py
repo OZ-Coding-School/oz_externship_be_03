@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, timedelta
-from typing import Any, ClassVar, Optional, TYPE_CHECKING, cast, Type
+from typing import TYPE_CHECKING, Any, ClassVar, Optional, Type, cast
 
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError
@@ -19,7 +19,9 @@ if TYPE_CHECKING:
     from apps.users.models.user import User
 else:
     # Runtime only; for mypy we import concrete type in TYPE_CHECKING above
-    from django.contrib.auth.base_user import AbstractBaseUser as User  # type: ignore[assignment]
+    from django.contrib.auth.base_user import (
+        AbstractBaseUser as User,  # type: ignore[assignment]
+    )
 
 UserModel: Type[User] = get_user_model()
 
@@ -35,26 +37,26 @@ class _BaseFixtures(TestCase):
     def setUpTestData(cls) -> None:
         # 사용자 1
         cls.user = UserModel.objects.create(
-                email="test@example.com",
-                nickname="testuser",
-                name="Test User",
-                phone_number="010-1234-5678",
-                birthday="1990-01-01",
-                gender="MALE",
-                is_active=True,
-            )
+            email="test@example.com",
+            nickname="testuser",
+            name="Test User",
+            phone_number="010-1234-5678",
+            birthday="1990-01-01",
+            gender="MALE",
+            is_active=True,
+        )
         cls.user.set_password("pw1234")
         cls.user.save()
 
         cls.other_user = UserModel.objects.create(
-                email="other@example.com",
-                nickname="otheruser",
-                name="Other User",
-                phone_number="010-1111-2222",
-                birthday="1990-01-01",
-                gender="FEMALE",
-                is_active=True,
-            )
+            email="other@example.com",
+            nickname="otheruser",
+            name="Other User",
+            phone_number="010-1111-2222",
+            birthday="1990-01-01",
+            gender="FEMALE",
+            is_active=True,
+        )
         cls.other_user.set_password("pw1234")
         cls.other_user.save()
 
@@ -160,8 +162,7 @@ class ReviewCreateAPITests(_BaseFixtures):
         self.client = APIClient()
 
     def _url(self, group: StudyGroup) -> str:
-        group_uuid: uuid.UUID = cast(uuid.UUID, group.uuid)
-        return reverse("studies:group-review-create", kwargs={"group_id": str(group_uuid)})
+        return reverse("studies:group-review-create", kwargs={"group_id": str(group.uuid)})
 
     # 인증 사용자 + 정상 입력 → 201 생성(본문 없음) 확인
     def test_create_review_201(self) -> None:
@@ -225,8 +226,7 @@ class ReviewCreateAPITests(_BaseFixtures):
 # 2)API 리뷰생성
 class ReviewListAPITests(_BaseFixtures):
     def _url(self, group: StudyGroup) -> str:
-        group_uuid: uuid.UUID = cast(uuid.UUID, group.uuid)
-        return reverse("studies:group-review-list", kwargs={"group_id": str(group_uuid)})
+        return reverse("studies:group-review-list", kwargs={"group_id": str(group.uuid)})
 
     def _add_member(self, group: StudyGroup, user: User) -> None:
         GroupMember.objects.create(study_group=group, user=user)

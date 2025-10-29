@@ -61,7 +61,7 @@ class ReviewCreateSerializer(serializers.ModelSerializer[Review]):
 
 
 class ReviewListItemSerializer(serializers.Serializer[Any]):
-    id = serializers.UUIDField(read_only=True)
+    id = serializers.UUIDField(read_only=True, source="uuid")
     rating = StarRatingField(read_only=True, source="star_rating")
     content = serializers.CharField()
     created_at = serializers.DateTimeField()

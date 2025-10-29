@@ -138,7 +138,7 @@ class GroupReviewListView(generics.ListAPIView[Review]):
         qs = (
             Review.objects.filter(study_group_id=group.id)  # 내부적으로는 id 사용
             # serializer.get_is_mine()에서 obj.user_id 비교하므로 user_id 필요
-            .only("id", "star_rating", "content", "created_at", "updated_at", "user_id")
+            .only("uuid", "star_rating", "content", "created_at", "updated_at", "user_id")
         )
 
         # ?rating=1..5 → Enum 매핑 후 필터
