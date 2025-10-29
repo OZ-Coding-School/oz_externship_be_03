@@ -22,13 +22,13 @@ class UserManager(BaseUserManager["User"]):
         """
         이메일 중복 확인
         """
-        return self.get_active_user().filter(email=email).exists()
+        return self.filter(email=email).exists()
 
     def exists_nickname(self, nickname: str) -> bool:
         """
         닉네임 중복 확인
         """
-        return self.get_active_user().filter(nickname=nickname).exists()
+        return self.filter(nickname=nickname).exists()
 
     def create_user(self, email: str, password: Optional[str] = None, **extra_fields: object) -> "User":
         """유저 생성: 이메일 정규화 적용 + 비밀번호 설정(None이면 unusable)"""
