@@ -1,6 +1,5 @@
-import json
 import logging
-import random
+import pickle
 import time
 from collections import defaultdict
 from datetime import datetime
@@ -11,13 +10,18 @@ import joblib  # type: ignore
 import numpy as np
 from django.conf import settings
 from django.core.cache import cache
-from django.db.models import Avg, Case, FloatField, IntegerField, QuerySet, Value, When
-from django.db.models.functions import Cast
+from django.db.models import Case, IntegerField, QuerySet, Value, When
+from django.utils import timezone
 from django_redis import get_redis_connection  # type: ignore
 from implicit.als import AlternatingLeastSquares  # type: ignore
 from scipy.sparse import csr_matrix
 
-from apps.lecture.models import CrawledLecture, LectureCategory, UserPreferCategory
+from apps.lecture.models import (
+    CrawledLecture,
+    LectureBookmark,
+    LectureCategory,
+    UserPreferCategory,
+)
 from apps.lecture.services.recommendation_service.constants import (
     ALS_MODEL_CACHE_KEY,
     ALS_SCORE_POWER_DECAY,
@@ -72,14 +76,13 @@ class RecommendationService:
         self._lecture_idx_to_id: Optional[Dict[int, int]] = None
         self._user_items_matrix: Optional[csr_matrix] = None
         self._last_trained_at: Optional[datetime] = None
-
+        self.redis_healthy = False
         self.redis_conn: Optional[RedisConnection] = self._get_redis_cache()
-        self.redis_healthy: bool = self._check_redis_health(log_status=False)
+        self.redis_healthy = self._check_redis_health(log_status=False)
         self.last_ping: float = time.time()
 
     def _get_redis_cache(self) -> Optional[RedisConnection]:
         try:
-            # redis-py의 실제 연결 객체를 반환
             return get_redis_connection("default")
         except Exception as e:
             logger.error(f"[CACHE] Redis connection failed during init: {e}. Falling back to Django cache.")
@@ -90,7 +93,6 @@ class RecommendationService:
             return False
         previous_status = self.redis_healthy
         try:
-            # ping() 호출은 성공 시 True 반환
             new_status: bool = bool(self.redis_conn.ping())
             self.redis_healthy = new_status
             if not previous_status and new_status:
@@ -110,13 +112,12 @@ class RecommendationService:
             return True
         status_check_interval = 60 if not self.redis_healthy else self.REDIS_PING_INTERVAL_SECONDS
         if now - self.last_ping >= status_check_interval:
-            self._check_redis_health()
+            self._check_redis_health(log_status=False)  # 불필요한 로그 출력 방지
             self.last_ping = now
         return self.redis_healthy
 
-    # ────────────────── 코드 중복 최소화: 캐시 헬퍼 함수 ──────────────────
     def _cache_get_safe(self, key: str, backend: str = "django") -> Optional[Any]:
-        """캐시에서 joblib 직렬화된 데이터를 안전하게 읽고 역직렬화."""
+        """캐시에서 pickle 직렬화된 데이터를 안전하게 읽고 역직렬화."""
         cached_raw = None
         try:
             if backend == "redis" and self._is_redis_ready() and self.redis_conn:
@@ -127,8 +128,7 @@ class RecommendationService:
             if cached_raw is None:
                 return None
 
-            # joblib.loads는 bytes 또는 file-like 객체를 기대함
-            return joblib.loads(cached_raw)
+            return pickle.loads(cached_raw)
 
         except Exception as e:
             logger.error(f"[CACHE_FAIL] {key} ({backend}) get/deserialization error: {e}. Invalidating cache.")
@@ -139,60 +139,31 @@ class RecommendationService:
             return None
 
     def _cache_set_safe(self, key: str, value: Any, timeout: int, backend: str = "django") -> None:
-        """joblib 직렬화된 데이터를 캐시에 안전하게 발송."""
+        """pickle 직렬화된 데이터를 캐시에 안전하게 저장."""
         if value is None:
             return
         try:
-            # joblib.dumps는 bytes를 반환하며, redis와 django cache 모두 지원
-            serialized_data = joblib.dumps(value, compress=3)
+            serialized_data = pickle.dumps(value, pickle.HIGHEST_PROTOCOL)
             if backend == "redis" and self._is_redis_ready() and self.redis_conn:
                 self.redis_conn.set(key, serialized_data, ex=timeout)
             elif backend == "django":
                 cache.set(key, serialized_data, timeout)
-            # else: 캐시에 쓰지 않음
         except Exception as e:
             logger.error(f"[CACHE_FAIL] {key} ({backend}) serialization/set error: {e}")
 
     def _metadata_get_safe(self, cache_key: str) -> Optional[LectureMetadata]:
-        """강의 메타데이터(JSON)를 캐시에서 읽고 역직렬화."""
-        cached_raw = None
-        try:
-            if self._is_redis_ready() and self.redis_conn is not None:
-                cached_raw = self.redis_conn.get(cache_key)
-            else:
-                cached_raw = cache.get(cache_key)
-
-            if cached_raw is None:
-                return None
-
-            if isinstance(cached_raw, bytes):
-                cached_raw = cached_raw.decode("utf-8")
-
-            data = json.loads(cached_raw)
-            return (float(data["rating"]), set(data["categories"]))
-
-        except Exception as e:
-            logger.warning(f"[META_CACHE] Cache retrieval failed for {cache_key}: {e}. Falling back to DB.")
-            return None
+        """강의 메타데이터를 캐시에서 읽고 역직렬화 (pickle 사용으로 통일)."""
+        return self._cache_get_safe(cache_key, backend="redis" if self._is_redis_ready() else "django")
 
     def _metadata_set_safe(self, cache_key: str, avg_rating: float, category_ids: Set[int]) -> None:
-        """강의 메타데이터(JSON)를 캐시에 씁니다."""
-        data_to_cache = {"rating": avg_rating, "categories": list(category_ids)}
-        json_data = json.dumps(data_to_cache)
-        try:
-            if self._is_redis_ready() and self.redis_conn is not None:
-                self.redis_conn.set(cache_key, json_data, ex=LECTURE_METADATA_TTL)
-            else:
-                cache.set(cache_key, json_data, LECTURE_METADATA_TTL)
-        except Exception as e:
-            logger.error(f"[META_CACHE] Error saving to cache for {cache_key}: {e}")
-
-    # ──────────────────────────────────────────────────────────────────
+        """강의 메타데이터를 캐시에 저장 (pickle 사용으로 통일)."""
+        metadata: LectureMetadata = (avg_rating, category_ids)
+        self._cache_set_safe(
+            cache_key, metadata, LECTURE_METADATA_TTL, backend="redis" if self._is_redis_ready() else "django"
+        )
 
     def _load_from_redis(self) -> bool:
         """캐시에서 ALS 모델 및 매핑 정보를 로드. (Redis 우선, Django Cache 폴백)"""
-
-        # 1. Redis에서 로드 시도
         if self._is_redis_ready():
             cached_data = {k: self._cache_get_safe(k, backend="redis") for k in self.MODEL_CACHE_KEYS}
             if all(v is not None for v in cached_data.values()):
@@ -200,7 +171,6 @@ class RecommendationService:
                 logger.debug("[CACHE] Loaded model from Redis cache.")
                 return True
 
-        # 2. Django Cache에서 로드 시도
         cached_data = {k: self._cache_get_safe(k, backend="django") for k in self.MODEL_CACHE_KEYS}
         if all(v is not None for v in cached_data.values()):
             self._apply_loaded_data(cached_data)
@@ -217,8 +187,7 @@ class RecommendationService:
         self._lecture_to_idx = cached_data[L_TO_IDX_CACHE_KEY]
         self._lecture_idx_to_id = cached_data[L_IDX_TO_ID_CACHE_KEY]
         loaded_matrix = cached_data[USER_ITEMS_MATRIX_CACHE_KEY]
-        # 캐시된 행렬 포맷이 coo든 csr이든 안전하게 csr로 변환하여 사용
-        self._user_items_matrix = loaded_matrix.tocsr() if loaded_matrix else None
+        self._user_items_matrix = loaded_matrix.tocsr() if loaded_matrix is not None else None
 
     def _save_to_redis(self) -> None:
         """인스턴스 모델 데이터를 캐시에 저장. (Redis/Django Cache)"""
@@ -238,11 +207,9 @@ class RecommendationService:
             U_TO_IDX_CACHE_KEY: self._user_to_idx,
             L_TO_IDX_CACHE_KEY: self._lecture_to_idx,
             L_IDX_TO_ID_CACHE_KEY: self._lecture_idx_to_id,
-            # 행렬은 csr 포맷 그대로 저장 (joblib이 압축 처리)
             USER_ITEMS_MATRIX_CACHE_KEY: self._user_items_matrix,
         }
 
-        # Redis와 Django 캐시에 동시에 저장
         for key, value in data_to_cache.items():
             self._cache_set_safe(key, value, MODEL_CACHE_TIMEOUT, backend="redis")
             self._cache_set_safe(key, value, MODEL_CACHE_TIMEOUT, backend="django")
@@ -254,7 +221,6 @@ class RecommendationService:
         if self._load_from_redis():
             return True
 
-        # 캐시 로드 실패 시 디스크 로드 시도 (Lock 기반 동시성 제어)
         for attempt in range(MAX_CACHE_LOAD_RETRIES):
             if cache.add(ALS_TRAINING_LOCK_KEY, True, timeout=300):
                 try:
@@ -279,6 +245,10 @@ class RecommendationService:
                         logger.error("[FILE] Essential model components missing from disk.")
                         return False
 
+                    # Timezone-aware 변환 추가
+                    if last_trained_at.tzinfo is None:
+                        last_trained_at = timezone.make_aware(last_trained_at)
+
                     self._model = model
                     self._user_to_idx = u_to_i
                     self._lecture_to_idx = l_to_i
@@ -288,98 +258,65 @@ class RecommendationService:
 
                     self._save_to_redis()
                     return True
+
+                except Exception as e:
+                    logger.error(f"[FILE] Error loading model from disk: {e}", exc_info=True)
+                    return False
                 finally:
-                    try:
-                        cache.delete(ALS_TRAINING_LOCK_KEY)
-                    except Exception as e:
-                        logger.error(f"[CACHE_FAIL] Failed to release training lock: {e}")
+                    cache.delete(ALS_TRAINING_LOCK_KEY)
             else:
-                backoff_time = min(INITIAL_BACKOFF_SECONDS * (2**attempt), 30)
-                jittered_time = backoff_time * (0.5 + random.random() * 0.5)
-                if settings.DEBUG:
-                    logger.debug(
-                        f"[CACHE] Training lock active. Retrying in {jittered_time:.2f}s (Attempt {attempt + 1})."
-                    )
-                time.sleep(jittered_time)
-        logger.error("[CACHE] Failed to acquire model load lock after multiple retries.")
+                backoff = INITIAL_BACKOFF_SECONDS * (2**attempt)
+                logger.info(f"[LOCK] Model load locked. Retry {attempt + 1}/{MAX_CACHE_LOAD_RETRIES} after {backoff}s")
+                time.sleep(backoff)
+
+        logger.error("[LOCK] Failed to acquire lock for model loading after retries.")
         return False
 
-    def _get_lecture_metadata_cached(self, lecture_id: int) -> LectureMetadata:
-        """단일 강의의 메타데이터를 캐시 우선 로드."""
-        cache_key = LECTURE_METADATA_CACHE_KEY.format(lecture_id)
-
-        # 1. 캐시에서 로드 시도
-        cached_metadata = self._metadata_get_safe(cache_key)
-        if cached_metadata:
-            return cached_metadata
-
-        # 2. DB에서 로드 및 캐싱
-        try:
-            lecture_data = (
-                CrawledLecture.objects.filter(id=lecture_id)
-                .annotate(avg_rating_calculated=Avg(Cast("reviews__rating", output_field=FloatField())))
-                .values("average_rating", "avg_rating_calculated")
-                .first()
-            )
-            avg_rating_field = lecture_data.get("average_rating") if lecture_data else None
-            if avg_rating_field is None:
-                avg_rating_field = lecture_data.get("avg_rating_calculated") if lecture_data else None
-
-            avg_rating = float(avg_rating_field) if avg_rating_field is not None else 0.0
-
-            category_ids = set(
-                LectureCategory.objects.filter(lecture_id=lecture_id).values_list("category_id", flat=True)
-            )
-
-            self._metadata_set_safe(cache_key, avg_rating, category_ids)
-            return (avg_rating, category_ids)
-
-        except Exception as e:
-            logger.error(f"[METADATA] Failed to load metadata for lecture {lecture_id}: {e}")
-            return (0.0, set())
-
     def _get_lectures_metadata_bulk(self, lecture_ids: List[int]) -> LectureMetadataMap:
-        """여러 강의의 메타데이터를 캐시/DB에서 일괄 로드합니다."""
+        """강의 메타데이터 일괄 조회 (캐시 우선, DB 폴백) - Redis pipeline 최적화"""
         metadata_map: LectureMetadataMap = {}
-        cache_keys = [LECTURE_METADATA_CACHE_KEY.format(id) for id in lecture_ids]
+        miss_lecture_ids: List[int] = []
 
-        # 1. Bulk Cache 로드 시도
-        try:
-            cached_data = cache.get_many(cache_keys)
-            hit_lecture_ids = set()
-            cache_hit_count = 0
+        # Redis pipeline을 사용한 일괄 조회 (성능 최적화)
+        if self._is_redis_ready() and self.redis_conn:
+            try:
+                pipeline = self.redis_conn.pipeline()
+                cache_keys = [LECTURE_METADATA_CACHE_KEY.format(lec_id) for lec_id in lecture_ids]
 
-            for i, key in enumerate(cache_keys):
-                if cached_data.get(key) is not None:
-                    lec_id = lecture_ids[i]
-                    metadata = self._deserialize_metadata(cached_data[key])
-                    metadata_map[lec_id] = metadata
-                    hit_lecture_ids.add(lec_id)
-                    cache_hit_count += 1
+                for cache_key in cache_keys:
+                    pipeline.get(cache_key)
 
-            miss_lecture_ids = [id for id in lecture_ids if id not in hit_lecture_ids]
+                cached_results = pipeline.execute()
 
-        except Exception as e:
-            logger.warning(f"[META_CACHE] Bulk cache retrieval failed: {e}. Falling back all to DB.")
-            miss_lecture_ids = lecture_ids
+                for lec_id, cached_raw in zip(lecture_ids, cached_results):
+                    if cached_raw is not None:
+                        try:
+                            metadata_map[lec_id] = pickle.loads(cached_raw)
+                        except Exception as e:
+                            logger.warning(f"[CACHE] Failed to deserialize metadata for lecture {lec_id}: {e}")
+                            miss_lecture_ids.append(lec_id)
+                    else:
+                        miss_lecture_ids.append(lec_id)
+            except Exception as e:
+                logger.warning(f"[CACHE] Redis pipeline failed: {e}. Falling back to individual queries.")
+                miss_lecture_ids = lecture_ids
+        else:
+            # Redis 사용 불가 시 개별 캐시 조회
+            for lec_id in lecture_ids:
+                cache_key = LECTURE_METADATA_CACHE_KEY.format(lec_id)
+                cached_metadata = self._metadata_get_safe(cache_key)
+                if cached_metadata is not None:
+                    metadata_map[lec_id] = cached_metadata
+                else:
+                    miss_lecture_ids.append(lec_id)
 
-        # 2. DB에서 로드 및 캐싱
+        # 캐시 미스 항목 DB 조회
         if miss_lecture_ids:
-            # 강의-평점 정보 로드
-            lectures_ratings_qs = (
-                CrawledLecture.objects.filter(id__in=miss_lecture_ids)
-                .annotate(avg_rating_calculated=Avg(Cast("reviews__rating", output_field=FloatField())))
-                .values("id", "average_rating", "avg_rating_calculated")
-            )
-            ratings_map: Dict[int, float] = {}
-            for row in lectures_ratings_qs:
-                lec_id = row["id"]
-                avg_rating_field = row.get("average_rating")
-                if avg_rating_field is None:
-                    avg_rating_field = row.get("avg_rating_calculated")
-                ratings_map[lec_id] = float(avg_rating_field) if avg_rating_field is not None else 0.0
+            ratings_qs = CrawledLecture.objects.filter(id__in=miss_lecture_ids).values("id", "average_rating")
+            ratings_map: Dict[int, float] = {
+                r["id"]: float(r["average_rating"]) for r in ratings_qs if r["average_rating"] is not None
+            }
 
-            # 강의-카테고리 정보 로드
             categories_qs = LectureCategory.objects.filter(lecture_id__in=miss_lecture_ids).values_list(
                 "lecture_id", "category_id"
             )
@@ -387,63 +324,49 @@ class RecommendationService:
             for lec_id, cat_id in categories_qs:
                 categories_map[lec_id].add(cat_id)
 
-            cache_to_set = {}
             for lec_id in miss_lecture_ids:
                 avg_rating = ratings_map.get(lec_id, 0.0)
                 category_ids = categories_map.get(lec_id, set())
-
                 metadata_map[lec_id] = (avg_rating, category_ids)
 
-                # 캐시 저장을 위한 직렬화
+                # 캐시에 저장
                 cache_key = LECTURE_METADATA_CACHE_KEY.format(lec_id)
-                data_to_cache = {"rating": avg_rating, "categories": list(category_ids)}
-                cache_to_set[cache_key] = json.dumps(data_to_cache)
+                self._metadata_set_safe(cache_key, avg_rating, category_ids)
 
-            try:
-                # Cache set_many는 Redis와 Django Cache 모두 지원
-                cache.set_many(cache_to_set, LECTURE_METADATA_TTL)
-            except Exception as e:
-                logger.error(f"[META_CACHE] Error saving bulk cache: {e}")
-
-        # 3. 누락된 ID에 기본값 설정
-        for lec_id in lecture_ids:
-            if lec_id not in metadata_map:
-                metadata_map[lec_id] = (0.0, set())
         return metadata_map
 
-    def _deserialize_metadata(self, raw_data: Union[bytes, str]) -> LectureMetadata:
-        """강의 메타데이터 JSON 역직렬화 헬퍼."""
-        if isinstance(raw_data, bytes):
-            raw_data = raw_data.decode("utf-8")
-        data = json.loads(raw_data)
-        return (float(data["rating"]), set(data["categories"]))
-
-    def _get_post_processed_ranking(self, user_id: int, recommended_with_score: List[Tuple[int, float]]) -> List[int]:
-        if not recommended_with_score or self._lecture_idx_to_id is None:
-            logger.error("[RERANK] Components missing or no recommendation. Skipping Reranking.")
+    def _get_post_processed_ranking(self, user_id: int, recommended_idx_scores: List[Tuple[int, float]]) -> List[int]:
+        """ALS 추천 결과에 평점/카테고리 보너스 적용 후 재정렬"""
+        if not recommended_idx_scores:
             return []
-        lecture_indices = [idx for idx, _ in recommended_with_score]
-        lecture_ids = [self._lecture_idx_to_id[idx] for idx in lecture_indices]
-        metadata_map = self._get_lectures_metadata_bulk(lecture_ids)
-        user_prefer_cats = set(UserPreferCategory.objects.filter(user_id=user_id).values_list("category_id", flat=True))
-        final_scores = []
-        als_scores = np.array([s for _, s in recommended_with_score], dtype=np.float32)
-        if als_scores.size > 0:
-            processed_als_scores = np.power(als_scores, ALS_SCORE_POWER_DECAY)
-            if NORMALIZE_ALS_SCORE:
-                min_s, max_s = processed_als_scores.min(), processed_als_scores.max()
-                ptp_score = max_s - min_s
-                if ptp_score > 1e-6:
-                    normalized_als_scores = (processed_als_scores - min_s) / ptp_score
-                else:
-                    logger.warning(
-                        "[RERANK] ALS scores Min=Max (%s after decay). Setting normalized scores to 0.", f"{min_s:.3f}"
-                    )
-                    normalized_als_scores = processed_als_scores * 0
+
+        lecture_indices, als_scores = zip(*recommended_idx_scores)
+        lecture_ids = [cast(Dict[int, int], self._lecture_idx_to_id)[idx] for idx in lecture_indices]
+
+        metadata_map: LectureMetadataMap = self._get_lectures_metadata_bulk(lecture_ids)
+        user_prefer_cats: Set[int] = set(
+            UserPreferCategory.objects.filter(user_id=user_id).values_list("category_id", flat=True)
+        )
+
+        als_scores_array = np.array(als_scores, dtype=np.float32)
+        processed_als_scores = np.power(als_scores_array, ALS_SCORE_POWER_DECAY)
+
+        if NORMALIZE_ALS_SCORE and processed_als_scores.size > 0:
+            min_s = processed_als_scores.min()
+            max_s = processed_als_scores.max()
+            if max_s > min_s:
+                normalized_als_scores = (processed_als_scores - min_s) / (max_s - min_s)
             else:
-                normalized_als_scores = processed_als_scores
+                if settings.DEBUG:
+                    logger.debug(
+                        "[RECSCORE] All ALS scores identical (%s after decay). Setting normalized scores to 0.",
+                        f"{min_s:.3f}",
+                    )
+                normalized_als_scores = processed_als_scores * 0
         else:
             normalized_als_scores = np.array([])
+
+        final_scores: List[Tuple[int, float]] = []
         for i, lec_id in enumerate(lecture_ids):
             avg_rating, lec_cats = metadata_map.get(lec_id, (0.0, set()))
             final_als_score = (
@@ -455,6 +378,7 @@ class RecommendationService:
             category_bonus = len(matched_cats) * CATEGORY_MATCH_BONUS
             final_score = final_als_score + rating_bonus + category_bonus
             final_scores.append((lec_id, final_score))
+
             if settings.DEBUG:
                 logger.debug(
                     "[RECSCORE][U:%s] L:%s: ALS_Final(%.3f) + R(%.3f) + C(%.3f) -> Final(%.3f)",
@@ -465,52 +389,80 @@ class RecommendationService:
                     category_bonus,
                     final_score,
                 )
+
         final_scores.sort(key=lambda x: x[1], reverse=True)
         return [lec_id for lec_id, _ in final_scores]
 
-    def _get_popular_lectures(self, top_n: int) -> LectureQuerySet:
+    def _get_popular_lectures(self, user_id: int, top_n: int) -> LectureQuerySet:
+        """인기 강의 조회 (북마크 제외, 캐시 활용)"""
+        bookmarked_ids = list(LectureBookmark.objects.filter(user_id=user_id).values_list("lecture_id", flat=True))
+
         cached_ids = cache.get(POPULAR_LECTURE_CACHE_KEY)
+
         if cached_ids:
-            popular_ids = cached_ids[:top_n]
+            filtered_ids = [id_ for id_ in cached_ids if id_ not in bookmarked_ids]
+            popular_ids = filtered_ids[:top_n]
         else:
             try:
-                popular_qs = CrawledLecture.objects.all().order_by(POPULAR_LECTURE_ORDER_BY)[: top_n * 2]
-                all_ids = list(popular_qs.values_list("id", flat=True))
-                if all_ids:
-                    cache.set(POPULAR_LECTURE_CACHE_KEY, all_ids, POPULAR_LECTURE_TTL)
-                    popular_ids = all_ids[:top_n]
-                else:
-                    popular_ids = []
+                # 캐시용 쿼리 한 번만 실행 (북마크 필터링 없음)
+                unfiltered_all_ids = list(
+                    CrawledLecture.objects.all()
+                    .order_by(POPULAR_LECTURE_ORDER_BY)[: top_n * 2]
+                    .values_list("id", flat=True)
+                )
+
+                if unfiltered_all_ids:
+                    cache.set(POPULAR_LECTURE_CACHE_KEY, unfiltered_all_ids, POPULAR_LECTURE_TTL)
+
+                # 북마크 필터링은 메모리에서 처리
+                popular_ids = [id_ for id_ in unfiltered_all_ids if id_ not in bookmarked_ids][:top_n]
+
             except Exception as e:
                 logger.error(f"[FALLBACK] Error fetching popular lectures from DB: {e}")
                 # 안전을 위해 ID 내림차순 (최신) fallback
-                popular_ids = list(CrawledLecture.objects.all().order_by("-id").values_list("id", flat=True)[:top_n])
+                popular_ids = list(
+                    CrawledLecture.objects.all()
+                    .exclude(id__in=bookmarked_ids)
+                    .order_by("-id")
+                    .values_list("id", flat=True)[:top_n]
+                )
+
         if not popular_ids:
             return CrawledLecture.objects.none()
+
         return (
             CrawledLecture.objects.filter(id__in=popular_ids)
             .order_by(
                 Case(*[When(id=id_, then=Value(i)) for i, id_ in enumerate(popular_ids)], output_field=IntegerField())
             )
-            .prefetch_related("lecturecategory_set__category")
+            .prefetch_related("lecture_categories__category")
         )
 
     def _get_category_fallback(self, user_id: int, top_n: int) -> LectureQuerySet:
+        """선호 카테고리 기반 강의 조회 (북마크 제외)"""
+        bookmarked_ids = list(LectureBookmark.objects.filter(user_id=user_id).values_list("lecture_id", flat=True))
+
         user_prefer_cats = set(UserPreferCategory.objects.filter(user_id=user_id).values_list("category_id", flat=True))
+
         if not user_prefer_cats:
             logger.info(f"[COLD_START] User {user_id} has no preferred categories. Using Popular Fallback.")
-            return self._get_popular_lectures(top_n)
+            return self._get_popular_lectures(user_id, top_n)
+
         filtered_qs = (
             CrawledLecture.objects.filter(lecture_categories__category_id__in=user_prefer_cats)
+            .exclude(id__in=bookmarked_ids)
             .distinct()
             .order_by(POPULAR_LECTURE_ORDER_BY)
         )
+
         try:
-            # 2배수 로드 후 무작위 샘플링하여 다양성 확보
             ids = list(filtered_qs.values_list("id", flat=True)[: top_n * 2])
+
             if not ids:
-                return self._get_popular_lectures(top_n)
+                return self._get_popular_lectures(user_id, top_n)
+
             random_ids = sample(ids, min(top_n, len(ids)))
+
             return (
                 CrawledLecture.objects.filter(id__in=random_ids)
                 .order_by(
@@ -518,26 +470,30 @@ class RecommendationService:
                         *[When(id=id_, then=Value(i)) for i, id_ in enumerate(random_ids)], output_field=IntegerField()
                     )
                 )
-                .prefetch_related("lecturecategory_set__category")
+                .prefetch_related("lecture_categories__category")
             )
         except Exception as e:
             logger.error(f"[FALLBACK] Error fetching category fallback using random.sample: {e}")
             return filtered_qs[:top_n]
 
     def recommend_lectures(self, user_id: int, top_n: int = 10) -> LectureQuerySet:
+        """사용자 맞춤 강의 추천 (ALS → Category Fallback → Popular Fallback)"""
         if not self._ensure_model_loaded() or self._model is None or self._user_items_matrix is None:
             logger.warning(f"[REC] Model not available for user {user_id}. Using Category Fallback.")
             return self._get_category_fallback(user_id, top_n)
+
         user_index = cast(Dict[int, int], self._user_to_idx).get(user_id)
+
         if user_index is None:
             logger.warning(f"[REC] User {user_id} not in model mapping. Using Category Fallback.")
             return self._get_category_fallback(user_id, top_n)
+
         rec_ids = []
         try:
             recommended_idx_scores = self._model.recommend(
                 userid=user_index,
                 user_items=self._user_items_matrix,
-                N=top_n * 5,  # 충분한 양을 추천받아 후처리
+                N=top_n * 5,
                 filter_already_liked_items=True,
                 recalculate_user=True,
             )
@@ -545,27 +501,33 @@ class RecommendationService:
             rec_ids = final_ranked_ids[:top_n]
         except Exception as e:
             logger.error(f"[REC] ALS recommendation failed for user {user_id}: {e}", exc_info=True)
-            return self._get_popular_lectures(top_n)
+            # ALS 실패 시: Category Fallback으로 통일
+            return self._get_category_fallback(user_id, top_n)
+
         if len(rec_ids) < top_n:
             needed_count = top_n - len(rec_ids)
             logger.info(
                 f"[REC] ALS only returned {len(rec_ids)} results. Filling {needed_count} with Category Fallback."
             )
+
             fallback_qs = self._get_category_fallback(user_id, needed_count)
             fallback_ids = list(fallback_qs.values_list("id", flat=True))
+
             for lec_id in fallback_ids:
                 if lec_id not in rec_ids:
                     rec_ids.append(lec_id)
                     if len(rec_ids) == top_n:
                         break
+
         if not rec_ids:
             return CrawledLecture.objects.none()
+
         qs = (
             CrawledLecture.objects.filter(id__in=rec_ids)
             .order_by(
                 Case(*[When(id=id_, then=Value(i)) for i, id_ in enumerate(rec_ids)], output_field=IntegerField())
             )
-            .prefetch_related("lecturecategory_set__category")
+            .prefetch_related("lecture_categories__category")
         )
         logger.info(f"[RECOMMENDATION_RESULT][{user_id}] IDs: {rec_ids}")
         return qs
