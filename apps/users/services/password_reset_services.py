@@ -49,7 +49,7 @@ def reset_password(
         raise AuthenticationFailed({"error": "토큰이 유효하지 않습니다."})
 
     try:
-        user = User.objects.get(phone_number=subject, is_active=True)
+        user = User.objects.get(email=subject)
     except User.DoesNotExist:
         raise AuthenticationFailed({"error": "토큰이 유효하지 않습니다."})
 
