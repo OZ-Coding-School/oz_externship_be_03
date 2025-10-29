@@ -60,6 +60,7 @@ class SignalTest(TestCase):
 
     @patch('apps.notifications.tasks.send_to_pubsub.delay')
     def test_application_approved_notification(self,mock_task):
+        """지원 승인 알림 생성 테스트"""
         application = Application.objects.create(
             recruitment=self.recruitment,
             user=self.applicant,
@@ -82,6 +83,7 @@ class SignalTest(TestCase):
 
     @patch('apps.notifications.tasks.send_to_pubsub.delay')
     def test_application_rejected_notification(self,mock_task):
+        """지원 거절 알림 생성 테스트"""
         application = Application.objects.create(
             recruitment=self.recruitment,
             user=self.applicant,
