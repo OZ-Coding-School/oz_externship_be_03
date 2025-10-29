@@ -6,3 +6,14 @@ from .recruitment_tag import RecruitmentTag
 from .recruitments import Recruitment
 from .search_log import SearchLog
 from .tag import Tag
+
+__all__ = [
+    "ApplicationStatus",
+    "RecruitmentAttachment",
+    "Bookmark",
+    "RecruitmentImage",
+    "RecruitmentTag",
+    "Recruitment",
+    "SearchLog",
+    "Tag",
+]

@@ -2,14 +2,26 @@ from django.db import models
 
 from apps.core.models import BaseModel
 
-from .recruitments import Recruitment
-from .tag import Tag
-
 
 class RecruitmentTag(BaseModel):
+    """공고-태그 연결 테이블"""
+
     pk = models.CompositePrimaryKey("recruitment_id", "tag_id")
-    recruitment = models.ForeignKey(Recruitment, on_delete=models.CASCADE, related_name="tags")  # 공고
-    tag = models.ForeignKey(Tag, on_delete=models.CASCADE, related_name="recruitments")  # 태그
+    # 문자열 참조 사용 → 순환 참조 완전 차단
+    recruitment = models.ForeignKey(
+        "recruitments.Recruitment",
+        on_delete=models.CASCADE,
+        related_name="recruitment_tags",
+    )
+    tag = models.ForeignKey(
+        "recruitments.Tag",
+        on_delete=models.CASCADE,
+        related_name="recruitment_tags",
+    )
 
     class Meta:
-        constraints = [models.UniqueConstraint(fields=["recruitment", "tag"], name="unique_recruitment_tag")]  # 중복 방
+        db_table = "recruitments_recruitment_tag"
+
+    def __str__(self) -> str:
+        """관리자 페이지나 shell에서 보기 쉽게"""
+        return f"{self.recruitment.title} - {self.tag.name}"
