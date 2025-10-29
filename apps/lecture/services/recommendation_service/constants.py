@@ -1,30 +1,35 @@
+import os
 from dataclasses import dataclass
-from datetime import datetime
 from typing import Dict, Final
+
+from django.utils import timezone
 
 """ALS 모델 학습/예측 및 서비스 운영에서 사용하는 주요 상수 정의 모듈."""
 
 # ──────────────────
-"""모델 버전 관리: 배포 날짜 기반 자동 버전명 생성.
-예: v20251027 (YYYYMMDD 형식)
+"""모델 버전 관리: 환경변수 기반 버전명 관리.  
+배포 시 환경변수로 명시적 버전 지정 필요.  
+예: MODEL_VERSION=v20251027 또는 MODEL_VERSION=v1.0.0  
 """
-MODEL_VERSION: Final[str] = datetime.now().strftime("v%Y%m%d")
+MODEL_VERSION: Final[str] = os.environ.get(
+    "ALS_MODEL_VERSION", timezone.now().strftime("v%Y%m%d")  # 개발 환경 fallback
+)
 
 # ──────────────────
-"""상호작용 점수 감쇠 관련 상수.
-반감기(일 단위) - 시간 기반 점수 감소에 사용.
+"""상호작용 점수 감쇠 관련 상수.  
+반감기(일 단위) - 시간 기반 점수 감소에 사용.  
 
-수학적 적용 예시:
-    감쇠 계수 = 0.5 ** (경과일수 / HALF_LIFE_DAYS)
-    또는
-    f(t) = exp(-ln(2) * t / HALF_LIFE_DAYS)
-    (t: 상호작용 이후 경과 일수, HALF_LIFE_DAYS: 반감기)
+수학적 적용 예시:  
+    감쇠 계수 = 0.5 ** (경과일수 / HALF_LIFE_DAYS)  
+    또는  
+    f(t) = exp(-ln(2) * t / HALF_LIFE_DAYS)  
+    (t: 상호작용 이후 경과 일수, HALF_LIFE_DAYS: 반감기)  
 """
 HALF_LIFE_DAYS: Final[float] = 7.0
 
 # ──────────────────
-"""ALS 모델 학습 하이퍼파라미터 모음.
-잠재 요인 수, 정규화 강도, 반복 횟수 등 모델 품질·비용 관련 파라미터 정의.
+"""ALS 모델 학습 하이퍼파라미터 모음.  
+잠재 요인 수, 정규화 강도, 반복 횟수 등 모델 품질·비용 관련 파라미터 정의.  
 """
 
 
@@ -39,8 +44,8 @@ class ALS_Hyperparameters:
 ALS_PARAMS: Final[ALS_Hyperparameters] = ALS_Hyperparameters()
 
 # ──────────────────
-"""사용자 상호작용별 가중치 설정.
-각 상호작용은 추천 행렬 점수에 더해짐.
+"""사용자 상호작용별 가중치 설정.  
+각 상호작용은 추천 행렬 점수에 더해짐.  
 """
 USER_INTERACTION_WEIGHTS: Final[Dict[str, float]] = {
     "bookmark": 3.0,  # 강의 북마크: 높은 의도성
@@ -49,8 +54,8 @@ USER_INTERACTION_WEIGHTS: Final[Dict[str, float]] = {
 }
 
 # ──────────────────
-"""아이템 피처별 점수 가중치.
-추천 점수 후처리 및 행렬 구축에 사용.
+"""아이템 피처별 점수 가중치.  
+추천 점수 후처리 및 행렬 구축에 사용.  
 """
 ITEM_FEATURE_WEIGHTS: Final[Dict[str, float]] = {
     "category_match": 2.5,  # 사용자가 선호하는 카테고리와 강의 카테고리 일치 가중치
