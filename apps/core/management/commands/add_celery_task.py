@@ -1,11 +1,13 @@
+from typing import Any
+
 from django.core.management.base import BaseCommand
-from django_celery_beat.models import PeriodicTask
+from django_celery_beat.models import PeriodicTask  # type: ignore[import-untyped]
 
 from apps.core.scheduler import register_periodic_task
 
 
 class Command(BaseCommand):
-    def handle(self, *args, **options):
+    def handle(self, *args: Any, **options: dict[str, Any]) -> None:
         try:
             register_periodic_task(
                 name="update-studygroup-status-daily",
