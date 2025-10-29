@@ -33,5 +33,5 @@ urlpatterns = [
         name="study-member-kick",
     ),
     path("groups/", StudyGroupListCreateView.as_view(), name="study-group-list-create"),
-    path("groups/<uuid:group_id>/", GroupReviewListView.as_view(), name="group-review-list"),
+    path("groups/<uuid:group_id>/reviews", GroupReviewListView.as_view(), name="group-review-list"),
 ]
