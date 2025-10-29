@@ -42,7 +42,7 @@ class TasksTest(IsolatedRedisTestClient):
                 if len(messages) >= 1:
                     break
 
-        listener_task = asyncio.create_task(message_listener()) # type: ignore[unused-ignore]
+        listener_task = asyncio.create_task(message_listener())  # type: ignore[unused-ignore]
 
         await asyncio.sleep(0.1)
 
