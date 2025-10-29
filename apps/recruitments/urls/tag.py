@@ -1,7 +1,7 @@
 from django.urls import path
 
-from apps.recruitments.views.tag import TagListView
+from apps.recruitments.views.tag import TagListCreateView
 
 urlpatterns = [
-    path("tags", TagListView.as_view(), name="tag-list"),
+    path("tags", TagListCreateView.as_view(), name="tag-list"),
 ]

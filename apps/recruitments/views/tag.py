@@ -14,7 +14,7 @@ from apps.recruitments.serializers.tag import TagSerializer
 
 
 @extend_schema(tags=["RecruitmentTags"])
-class TagListView(APIView):
+class TagListCreateView(APIView):
     """전체 태그(Mock) 목록 조회 및 생성"""
 
     permission_classes = [AllowAny]
