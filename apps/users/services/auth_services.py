@@ -3,19 +3,25 @@ from __future__ import annotations
 from typing import Any, Dict, Optional, cast
 
 from django.contrib.auth import authenticate
-from rest_framework_simplejwt.exceptions import (
-    ExpiredTokenError,
-    TokenError,
-)
-from rest_framework_simplejwt.tokens import RefreshToken
+from django.core.cache import cache
+from django.utils import timezone
+from rest_framework_simplejwt.exceptions import ExpiredTokenError, TokenError
+from rest_framework_simplejwt.tokens import AccessToken, RefreshToken
 
 from apps.users.models.user import User as UserModel
+from apps.users.utils.jwt import (
+    ACCESS_DENYLIST_PREFIX,
+    REFRESH_DENYLIST_PREFIX,
+)
 
 
 # -------------------------------------------------------------------
 # 토큰 발급 유틸
 # -------------------------------------------------------------------
 def _issue_tokens(user: UserModel) -> Dict[str, str]:
+    """
+    주어진 사용자에 대한 access/refresh 페어 발급
+    """
     refresh = RefreshToken.for_user(user)
     return {"access": str(refresh.access_token), "refresh": str(refresh)}
 
@@ -56,3 +62,57 @@ def refresh_access_token(*, refresh_token: str) -> str:
         raise PermissionError("만료된 refresh 토큰입니다.") from e
     except TokenError as e:
         raise PermissionError("유효하지 않은 refresh 토큰입니다.") from e
+
+
+# -------------------------------------------------------------------
+# 리프레시 토큰 캐시 denylist
+# -------------------------------------------------------------------
+def denylist_refresh_token_raw(refresh_raw: str) -> bool:
+    """
+    리프레시 토큰 문자열을 받아 만료 시점까지 캐시에 denylist 등록.
+    """
+    try:
+        rt = RefreshToken(cast(Any, refresh_raw))
+        jti = str(rt["jti"])
+        exp = int(rt["exp"])
+        ttl = max(exp - int(timezone.now().timestamp()), 0)
+        if ttl > 0:
+            cache.set(f"{REFRESH_DENYLIST_PREFIX}{jti}", True, ttl)
+        return True
+    except TokenError:
+        return False
+
+
+def is_refresh_denied(rt: RefreshToken) -> bool:
+    """
+    RefreshToken 객체가 캐시 denylist에 존재하는지 확인.
+    """
+    jti = str(rt["jti"])
+    return bool(cache.get(f"{REFRESH_DENYLIST_PREFIX}{jti}"))
+
+
+# -------------------------------------------------------------------
+# 액세스 토큰 캐시 denylist
+# -------------------------------------------------------------------
+def denylist_access_token_raw(access_raw: str) -> bool:
+    """
+    액세스 토큰 문자열을 받아 만료 시점까지 캐시에 denylist 등록.
+    """
+    try:
+        at = AccessToken(cast(Any, access_raw))
+        jti = str(at["jti"])
+        exp = int(at["exp"])
+        ttl = max(exp - int(timezone.now().timestamp()), 0)
+        if ttl > 0:
+            cache.set(f"{ACCESS_DENYLIST_PREFIX}{jti}", True, ttl)
+        return True
+    except TokenError:
+        return False
+
+
+def is_access_denied(at: AccessToken) -> bool:
+    """
+    AccessToken 객체가 캐시 denylist에 존재하는지 확인.
+    """
+    jti = str(at["jti"])
+    return bool(cache.get(f"{ACCESS_DENYLIST_PREFIX}{jti}"))
