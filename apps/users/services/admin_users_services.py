@@ -53,7 +53,7 @@ class AdminUserService:
             user.is_superuser = False
             user.is_staff = False
         else:
-            raise ValueError(f"지원하지 않는 권한입니다: {new_role}")
+            raise ValueError(f"지원하지 않는 권한입니다. 사용 가능한 값: admin,staff,user")
 
         user.save()
         return user
