@@ -1,9 +1,6 @@
 from typing import Any, Dict
 
-from django.contrib.auth import get_user_model
 from rest_framework import serializers
-
-User = get_user_model()
 
 
 class PasswordResetSerializer(serializers.Serializer[Dict[str, Any]]):
