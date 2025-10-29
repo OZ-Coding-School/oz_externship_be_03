@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Mapping, Optional, cast
+from typing import Any, Dict, Optional, cast
 
 from django.conf import settings
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -13,9 +13,13 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework_simplejwt.exceptions import (
+    ExpiredTokenError,
+    InvalidToken,
+    TokenError,
+)
+from rest_framework_simplejwt.tokens import RefreshToken
 
-from apps.core.authentication import ExtendedJWTAuthentication
 from apps.core.views import ExceptionHandledAPIView
 from apps.users.models.user import User
 from apps.users.serializers.auth_serializers import (
@@ -25,14 +29,10 @@ from apps.users.serializers.auth_serializers import (
 )
 from apps.users.services.auth_services import (
     authenticate_and_issue_tokens,
-    denylist_access_token_raw,
-    denylist_refresh_token_raw,
-    is_access_denied,
     refresh_access_token,
 )
 from apps.users.utils.cookies import set_refresh_cookie
-from apps.users.utils.jwt import coerce_samesite, extract_bearer_token, is_jwt_like
-from apps.users.views.responses import ok
+from apps.users.utils.jwt import extract_bearer_token, is_jwt_like
 
 
 # ==============================
@@ -184,6 +184,8 @@ class LogoutView(ExceptionHandledAPIView):
     로그아웃: refresh/access 즉시 무효화(캐시 denylist) + 쿠키 삭제
     """
 
+    permission_classes = [IsAuthenticated]
+
     @extend_schema(
         tags=["Auth"],
         summary="로그아웃",
@@ -192,29 +194,24 @@ class LogoutView(ExceptionHandledAPIView):
         responses={200: {"type": "object", "properties": {"detail": {"type": "string"}}}},
     )
     def post(self, request: Request) -> Response:
-        cookie_name = settings.AUTH_REFRESH_COOKIE_NAME
-        path = settings.AUTH_REFRESH_COOKIE_PATH
-        samesite = coerce_samesite(settings.AUTH_REFRESH_COOKIE_SAMESITE)
+        refresh_raw = request.COOKIES.get(settings.AUTH_REFRESH_COOKIE_NAME)
+        access_token = extract_bearer_token(request)
 
-        refresh_raw: Optional[str] = request.COOKIES.get(cookie_name)
-        access_raw: Optional[str] = extract_bearer_token(request)
-
-        if not refresh_raw and not access_raw:
+        if not refresh_raw or not access_token:
             raise AuthenticationFailed("로그인된 상태가 아닙니다.")
 
-        # 1) refresh → 캐시 denylist
-        if refresh_raw:
-            denylist_refresh_token_raw(refresh_raw)
+        refresh_token = RefreshToken(cast(Any, refresh_raw))
 
-        # 2) access → 캐시 denylist
-        if access_raw:
-            denylist_access_token_raw(access_raw)
+        try:
+            refresh_token.blacklist()
+        except InvalidToken:
+            return Response({"error": "유효하지 않은 토큰입니다."}, status=401)
+        except ExpiredTokenError:
+            return Response({"error": "토큰이 만료되었습니다."}, status=401)
+        except TokenError:
+            # 이미 블랙리스트에 있을 경우 성공 처리
+            return Response({"detail": "이미 로그아웃된 유저입니다."}, status=200)
 
-        # 3) 쿠키 삭제 + 200
-        resp = ok("로그아웃이 완료되었습니다.", status_code=status.HTTP_200_OK)
-        resp.delete_cookie(
-            key=cookie_name,
-            path=path,
-            samesite=samesite,
-        )
+        resp = Response({"detail": "로그아웃이 완료되었습니다."}, status=200)
+        resp.delete_cookie(settings.AUTH_REFRESH_COOKIE_NAME)
         return resp
