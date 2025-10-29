@@ -81,18 +81,9 @@ class AdminUserDeleteResponseSerializer(serializers.Serializer[Any]):
 
 # [관리자] 회원 권한 변경 요청
 class AdminUserRoleUpdateRequestSerializer(serializers.Serializer[Any]):
-
-    role: serializers.CharField = serializers.CharField(help_text="변경할 권한 (user | staff | admin)")
-
-    def validate_role(self, value: str) -> str:
-        # 입력된 권한값 검증 (대소문자 무관)
-        normalized = value.lower()
-        valid_roles = [r for r in Role]
-
-        if normalized not in valid_roles:
-            raise serializers.ValidationError("유효하지 않은 권한입니다.")
-
-        return normalized
+    role = serializers.ChoiceField(
+        choices=[(r.value, r.name) for r in Role], help_text="변경할 권한 (user | staff | admin)"
+    )
 
 
 # [관리자] 회원 권한 변경 응답
@@ -104,7 +95,6 @@ class AdminUserRoleUpdateResponseSerializer(serializers.Serializer[Any]):
     class Meta:
         model = User
         fields = [
-            "detail",
             "id",
             "email",
             "name",

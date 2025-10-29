@@ -128,9 +128,14 @@ class AdminUserRoleUpdateView(APIView):
         serializer.is_valid(raise_exception=True)
 
         role = serializer.validated_data["role"]
-
         user = AdminUserService.get_user(user_id)
         updated_user = AdminUserService.change_user_role(user, role)
 
         response_serializer = AdminUserRoleUpdateResponseSerializer(updated_user)
-        return Response(response_serializer.data, status=status.HTTP_200_OK)
+        return Response(
+            {
+                "detail": "회원 권한이 변경되었습니다.",
+                "data": response_serializer.data,
+            },
+            status=status.HTTP_200_OK,
+        )
