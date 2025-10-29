@@ -4,7 +4,6 @@ from typing import Any, Dict
 
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
-from rest_framework.validators import UniqueValidator
 
 from apps.users.validators import validate_korean_phone, validate_nickname
 
@@ -46,10 +45,7 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer[Any]):
     )
     phone_number = serializers.CharField(
         required=False,
-        validators=[
-            validate_korean_phone,
-            UniqueValidator(queryset=User.objects.all(), message="이미 사용 중인 휴대폰 번호입니다."),
-        ],
+        validators=[validate_korean_phone],
     )
 
     class Meta:
