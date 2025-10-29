@@ -34,7 +34,6 @@ class PasswordResetIntegrationTests(IsolatedRedisTestClient):
             is_active=True,
         )
 
-
     def _issue_reset_token(self, *, email: str) -> str:
         # 이메일 기반 sub 고정
         return issue_verify_token(
@@ -55,14 +54,13 @@ class PasswordResetIntegrationTests(IsolatedRedisTestClient):
     def _url_with_email(self, email: str) -> str:
         return f"{self.url}?email={email}"
 
-
     def test_success_password_reset_once(self) -> None:
         token = self._issue_reset_token(email=self.user.email)
         resp = self.client.post(
             self._url_with_email(self.user.email),
             data=self._payload(new_pw="NewPass123!!", new_pw2="NewPass123!!"),
             format="json",
-            **self._headers(token=token),   # type: ignore[arg-type]
+            **self._headers(token=token),  # type: ignore[arg-type]
         )
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         self.user.refresh_from_db()
@@ -85,7 +83,7 @@ class PasswordResetIntegrationTests(IsolatedRedisTestClient):
             self.url,  # ?email= 누락
             data=self._payload(new_pw="AAAbbb123!!", new_pw2="AAAbbb123!!"),
             format="json",
-            **self._headers(token=token),   # type: ignore[arg-type]
+            **self._headers(token=token),  # type: ignore[arg-type]
         )
         # 퍼미션이 "이메일이 필요합니다." 메시지로 403을 반환해야 함
         self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
@@ -125,7 +123,7 @@ class PasswordResetIntegrationTests(IsolatedRedisTestClient):
             self._url_with_email(self.user.email),
             data=self._payload(new_pw="FirstOk123!!", new_pw2="FirstOk123!!"),
             format="json",
-            **self._headers(token=token1, idem=idem_key),   # type: ignore[arg-type]
+            **self._headers(token=token1, idem=idem_key),  # type: ignore[arg-type]
         )
         self.assertEqual(r1.status_code, status.HTTP_200_OK)
 
@@ -134,7 +132,7 @@ class PasswordResetIntegrationTests(IsolatedRedisTestClient):
             self._url_with_email(self.user.email),
             data=self._payload(new_pw="SecondXX123!!", new_pw2="SecondXX123!!"),
             format="json",
-            **self._headers(token=token2, idem=idem_key),   # type: ignore[arg-type]
+            **self._headers(token=token2, idem=idem_key),  # type: ignore[arg-type]
         )
         self.assertEqual(r2.status_code, status.HTTP_200_OK)
 
@@ -148,7 +146,7 @@ class PasswordResetIntegrationTests(IsolatedRedisTestClient):
             self._url_with_email(self.user.email),
             data=self._payload(new_pw="short", new_pw2="short"),  # 정책 위반(예: 길이)
             format="json",
-            **self._headers(token=token),   # type: ignore[arg-type]
+            **self._headers(token=token),  # type: ignore[arg-type]
         )
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("error", str(resp.data))
@@ -159,7 +157,7 @@ class PasswordResetIntegrationTests(IsolatedRedisTestClient):
             self._url_with_email(self.user.email),
             data=self._payload(new_pw="NewPass123!!", new_pw2="NewPass123!!-typo"),
             format="json",
-            **self._headers(token=token),   # type: ignore[arg-type]
+            **self._headers(token=token),  # type: ignore[arg-type]
         )
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("비밀번호 확인", str(resp.data))
