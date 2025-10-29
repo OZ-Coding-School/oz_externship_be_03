@@ -4,7 +4,7 @@ from typing import Optional
 
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import status
-from rest_framework.permissions import AllowAny
+from rest_framework.authentication import BaseAuthentication
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -42,7 +42,9 @@ def _header(request: Request, name: str) -> Optional[str]:
     ],
 )
 class PasswordResetView(APIView):
-    permission_classes = [AllowAny, EmailVerifiedPermission]
+    # 인증 비활성화
+    authentication_classes: tuple[type[BaseAuthentication], ...] = ()
+    permission_classes = [EmailVerifiedPermission]
     purpose = EmailVerificationPurpose.RESET_PASSWORD
 
     def post(self, request: Request) -> Response:
