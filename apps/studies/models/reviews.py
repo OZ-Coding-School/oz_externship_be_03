@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 from django.conf import settings
 from django.db import models
 
-from apps.core.models import BaseModel
+from apps.core.models import UUIDBaseModel
 from apps.lecture.models.review import RatingEnum
 
 if TYPE_CHECKING:
@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     study_group_id: int
 
 
-class Review(BaseModel):
+class Review(UUIDBaseModel):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
