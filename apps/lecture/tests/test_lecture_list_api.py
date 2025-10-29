@@ -8,6 +8,7 @@ from rest_framework.test import APITestCase
 from apps.lecture.models import (
     Category,
     CrawledLecture,
+    CrawledLectureReview,
     LectureBookmark,
     LectureCategory,
     LectureSearchLog,
@@ -122,21 +123,63 @@ class LectureListApiViewTest(APITestCase):
 
 class LectureReviewListApiViewTest(APITestCase):
     def setUp(self) -> None:
-        self.lecture_uuid = "550e8400-e29b-41d4-a716-446655440000"
-        self.lecture_reviews_url = reverse("lecture-review-list", kwargs={"uuid": self.lecture_uuid})
+        self.category = Category.objects.create(name="Python")
 
-    def test_lecture_review_list_returns_mock_data(self) -> None:
-        response = self.client.get(self.lecture_reviews_url)
+        self.lecture = CrawledLecture.objects.create(
+            title="Python 기초",
+            instructor="홍길동",
+            average_rating=4.5,
+            duration=600,
+            difficulty="EASY",
+            description="Python 기초 강의",
+            platform="INFLEARN",
+            original_price=50000,
+            discount_price=30000,
+            url_link="https://www.inflearn.com/python",
+        )
+        LectureCategory.objects.create(lecture=self.lecture, category=self.category)
 
+        self.review1 = CrawledLectureReview.objects.create(
+            lecture=self.lecture,
+            rating="5_OUT_OF_5_STARS",
+            content="최고의 강의",
+        )
+        self.review2 = CrawledLectureReview.objects.create(
+            lecture=self.lecture,
+            rating="1_OUT_OF_5_STARS",
+            content="최악의 강의",
+        )
+        self.review3 = CrawledLectureReview.objects.create(
+            lecture=self.lecture,
+            rating="3_OUT_OF_5_STARS",
+            content="평범한 강의",
+        )
+        self.review4 = CrawledLectureReview.objects.create(
+            lecture=self.lecture,
+            rating="2_OUT_OF_5_STARS",
+            content="나쁜 강의",
+        )
+        self.review5 = CrawledLectureReview.objects.create(
+            lecture=self.lecture,
+            rating="4_OUT_OF_5_STARS",
+            content="좋은 강의",
+        )
+
+        self.review_url = reverse("lecture-review-list", kwargs={"uuid": self.lecture.uuid})
+
+    def test_lecture_review_list(self) -> None:
+        """강의 리뷰 조회 확인 (최신4개)"""
+        response = self.client.get(self.review_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn("reviews", response.data)
-        self.assertEqual(len(response.data["reviews"]), 4)
+        self.assertEqual(len(response.data), 4)
 
-    def test_lecture_review_list_response_structure(self) -> None:
-        response = self.client.get(self.lecture_reviews_url)
+        review_ids = [review["id"] for review in response.data]
+        self.assertNotIn(self.review1.id, review_ids)
+        self.assertIn(self.review5.id, review_ids)
 
-        first_review = response.data["reviews"][0]
-        required_fields = ["id", "rating", "content", "created_at"]
-
-        for field in required_fields:
-            self.assertIn(field, first_review)
+    def test_lecture_review_list_nonexistent_uuid(self) -> None:
+        """존재하지않은 uuid"""
+        nonexistent_url = reverse("lecture-review-list", kwargs={"uuid": "00000000-0000-0000-0000-000000000000"})
+        response = self.client.get(nonexistent_url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(response.data["detail"], "lecture_not_found")

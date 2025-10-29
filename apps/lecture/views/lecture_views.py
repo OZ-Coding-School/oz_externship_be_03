@@ -1,6 +1,5 @@
-from django.db.models import Prefetch, Q
-from drf_spectacular.types import OpenApiTypes
-from drf_spectacular.utils import OpenApiParameter, extend_schema
+from django.db.models import Prefetch
+from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny
@@ -69,32 +68,16 @@ class LectureReviewListView(APIView):
         responses={200: LectureReviewSerializer(many=True)},
     )
     def get(self, request: Request, uuid: str) -> Response:
-        mock_data = {
-            "reviews": [
-                {
-                    "id": i,
-                    "rating": "5_OUT_OF_5_STARS",
-                    "content": f"정말 유익한 강의였습니다. {i}번이나 다시봤어요",
-                    "created_at": "2025-10-10 14:30:00",
-                }
-                for i in range(1, 5)
-            ]
-        }
+        try:
+            lecture = CrawledLecture.objects.get(uuid=uuid)
+        except CrawledLecture.DoesNotExist:
+            return Response({"detail": "lecture_not_found"}, status=status.HTTP_404_NOT_FOUND)
 
-        return Response(mock_data, status=status.HTTP_200_OK)
+        reviews = CrawledLectureReview.objects.filter(
+            lecture=lecture,
+        ).order_by(
+            "-created_at"
+        )[:4]
 
-        # TODO: 위와동일
-
-        # try:
-        #     lecture = CrawledLecture.objects.get(pk=lecture_uuid)
-        # except CrawledLecture.DoesNotExist:
-        #     return Response({"detail": "lecture_not_found"}, status=status.HTTP_404_NOT_FOUND)
-        #
-        # reviews = CrawledLectureReview.objects.filter(
-        #     lecture=lecture,
-        # ).order_by(
-        #     "-created_at"
-        # )[:4]
-        #
-        # serializer = LectureReviewSerializer(reviews, many=True)
-        # return Response(serializer.data, status=status.HTTP_200_OK)
+        serializer = LectureReviewSerializer(reviews, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
