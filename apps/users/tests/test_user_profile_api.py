@@ -214,13 +214,13 @@ class ExceptionHandlerTests(TestCase):
         exc = exceptions.AuthenticationFailed()
         response = exception_handler(exc, {})
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
-        self.assertEqual(response.data["error"], "인증에 실패했습니다.")
+        self.assertEqual(response.data["error"], "잘못된 자격 증명입니다.")
 
     def test_not_authenticated_returns_401(self) -> None:
         exc = exceptions.NotAuthenticated()
         response = exception_handler(exc, {})
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
-        self.assertEqual(response.data["error"], "인증에 실패했습니다.")
+        self.assertEqual(response.data["error"], "인증 정보가 제공되지 않았습니다.")
 
     def test_unexpected_exception_returns_500(self) -> None:
         exc = ValueError("예상치 못한 오류")

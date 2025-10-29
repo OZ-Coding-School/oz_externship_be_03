@@ -19,7 +19,6 @@ from apps.users.services.auth_services import (
 )
 from apps.users.views.auth_views import (
     _validate_login_payload,
-    _validate_refresh_payload,
 )
 
 # ---------------------------------------------------------------------
@@ -290,17 +289,6 @@ class AuthValidatorsUnitTest(TestCase):
         ok_payload: Dict[str, Any] = {"email": " USER@EXAMPLE.COM ", "password": "pass"}
         _validate_login_payload(ok_payload)
         self.assertEqual(ok_payload["email"], "USER@example.com")
-
-    def test_validate_refresh_payload_paths(self) -> None:
-        payload = {"refresh": "  a.b.c  "}
-        _validate_refresh_payload(payload)
-        self.assertEqual(payload["refresh"], "a.b.c")
-
-        with self.assertRaises(serializers.ValidationError):
-            _validate_refresh_payload({"refresh": "   "})
-
-        with self.assertRaises(serializers.ValidationError):
-            _validate_refresh_payload({"refresh": "invalidtoken"})
 
     def test_validate_login_payload_missing_email(self) -> None:
         # email이 공백/미입력일 때

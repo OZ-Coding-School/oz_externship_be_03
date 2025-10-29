@@ -15,8 +15,8 @@ def exception_handler(exc: Exception, context: dict[str, Any]) -> Response:
     custom_messages = {
         Http404: ("요청한 리소스를 찾을 수 없습니다.", status.HTTP_404_NOT_FOUND),
         exceptions.PermissionDenied: ("접근 권한이 없습니다.", status.HTTP_403_FORBIDDEN),
-        exceptions.AuthenticationFailed: ("인증에 실패했습니다.", status.HTTP_401_UNAUTHORIZED),
-        exceptions.NotAuthenticated: ("인증에 실패했습니다.", status.HTTP_401_UNAUTHORIZED),
+        exceptions.AuthenticationFailed: ("잘못된 자격 증명입니다.", status.HTTP_401_UNAUTHORIZED),
+        exceptions.NotAuthenticated: ("인증 정보가 제공되지 않았습니다.", status.HTTP_401_UNAUTHORIZED),
     }
 
     response = drf_exception_handler(exc, context)
