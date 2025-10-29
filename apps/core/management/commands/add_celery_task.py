@@ -26,7 +26,9 @@ class Command(BaseCommand):
             for i, task in enumerate(scheduled_tasks):
                 crontab = getattr(task, "crontab", None)
                 scheduled_time = f"{crontab.hour}:{crontab.minute}" if crontab else "None"
-                self.stdout.write(f"Task {i}: {task.name}, scheduled_time: {scheduled_time}", style_func=self.style.SUCCESS)
+                self.stdout.write(
+                    f"Task {i}: {task.name}, scheduled_time: {scheduled_time}", style_func=self.style.SUCCESS
+                )
             self.stdout.write("Celery tasks are registered successfully.", style_func=self.style.SUCCESS)
         except Exception as e:
             self.stderr.write(f"Error: {e}", style_func=self.style.ERROR)
