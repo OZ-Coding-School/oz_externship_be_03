@@ -162,10 +162,22 @@ class UserProfileUpdateTests(IsolatedRedisTestClient):
 
     def test_change_phone_duplicate_conflict_via_serializer(self) -> None:
         """
-        (시리얼라이저) 휴대폰 중복 → 409 매핑 확인
+        휴대폰 중복 → 409 매핑 확인
         """
-        resp = self.client.patch(self.url, {"phone_number": self.other.phone_number}, format="json")
-        self.assertEqual(resp.status_code, status.HTTP_409_CONFLICT)
+        # 바꾸려는 번호로 인증 토큰 발급
+        dup_phone = self.other.phone_number
+        token = issue_verify_token(
+            sub=dup_phone,
+            to="me@example.com",
+            purpose=PhoneVerificationPurpose.CHANGE_PHONE,
+        )
+
+        resp = self.client.patch(
+            self.url,
+            {"phone_number": dup_phone, "verify_token": token},
+            format="json",
+        )
+        self.assertEqual(resp.status_code, status.HTTP_409_CONFLICT, msg=resp.content)
         self.assertIn("error", resp.json())
 
     def test_change_nickname_duplicate_via_service(self) -> None:
@@ -173,7 +185,7 @@ class UserProfileUpdateTests(IsolatedRedisTestClient):
         (서비스) 닉네임 중복 → 400
         """
         resp = self.client.patch(self.url, {"nickname": self.other.nickname}, format="json")
-        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(resp.status_code, status.HTTP_409_CONFLICT)
         self.assertEqual(resp.json().get("error"), "이미 사용 중인 닉네임입니다.")
 
 
