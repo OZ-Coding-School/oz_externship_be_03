@@ -1,14 +1,18 @@
+from argparse import ArgumentParser
+from typing import Any, Dict, List
+
 from django.core.management.base import BaseCommand
 from django.db import transaction
+
 from apps.lecture.crawlers.inflearn_lecture_crawler import LectureCrawler
-from apps.lecture.models import CrawledLecture, Category
+from apps.lecture.models import Category, CrawledLecture
 
 
 class Command(BaseCommand):
-    def add_arguments(self, parser):
+    def add_arguments(self, parser: ArgumentParser) -> None:
         parser.add_argument("--max-pages", type=int, default=None, help="최대 페이지 수")
 
-    def handle(self, *args, **options):
+    def handle(self, *args: Any, **options: Any) -> None:
         crawler = LectureCrawler()
 
         try:
@@ -36,13 +40,11 @@ class Command(BaseCommand):
 
                         # 강의레코드 생성 (중복 체크 포함)
                         lecture, created = CrawledLecture.objects.update_or_create(
-                            platform=lecture_data["platform"],
-                            title=lecture_data["title"],
-                            defaults=lecture_data
+                            platform=lecture_data["platform"], title=lecture_data["title"], defaults=lecture_data
                         )
 
                         # 중간 테이블에 재조립 메인테이블(강의)-보조테이블(카테고리) > 다대다관계설정
-                        lecture.categories.set(categories) #lecture.categories의 정체: Related Manager
+                        lecture.categories.set(categories)  # lecture.categories의 정체: Related Manager
                         saved_count += 1
 
                 except Exception as e:

@@ -1,7 +1,7 @@
 import logging
 from typing import Any, Dict, List, Optional
 
-from base_crawler import BaseCrawler
+from apps.lecture.crawlers.base_crawler import BaseCrawler
 
 logger = logging.getLogger(__name__)
 
@@ -29,10 +29,7 @@ class LectureCrawler(BaseCrawler):
     def is_it_category(self, lecture: Dict[str, Any]) -> bool:
         """IT 카테고리 여부 체크"""
         categories = lecture.get("course", {}).get("metadata", {}).get("categories", [])
-        return any(
-            cat.get("parent", {}).get("slug") in self.VALID_CATEGORY_SLUGS
-            for cat in categories
-        )
+        return any(cat.get("parent", {}).get("slug") in self.VALID_CATEGORY_SLUGS for cat in categories)
 
     def get_lectures(self, max_pages: Optional[int] = None) -> List[Dict[str, Any]]:
         """IT 카테고리 강의만 크롤링"""
@@ -91,9 +88,7 @@ class LectureCrawler(BaseCrawler):
         # 걸러진 카테고리 정보 추출 (parent slug)
         categories = metadata.get("categories", [])
         category_slugs = [
-            cat.get("parent", {}).get("slug", "")
-            for cat in categories
-            if cat.get("parent", {}).get("slug")
+            cat.get("parent", {}).get("slug", "") for cat in categories if cat.get("parent", {}).get("slug")
         ]
 
         return {
@@ -128,7 +123,7 @@ if __name__ == "__main__":
             estimated_it_count = first_page.get("totalCount", 0) * len(it_lectures) // len(lectures)
 
             print(f"\n전체 페이지: {total_pages}페이지")
-            print(f"예상 IT 강의 수: 약 {estimated_it_count}개\n") #첫 페이지 비율로 추정한 값
+            print(f"예상 IT 강의 수: 약 {estimated_it_count}개\n")  # 첫 페이지 비율로 추정한 값
 
         # 테스트 크롤링
         all_lectures = crawler.get_lectures(max_pages=3)
