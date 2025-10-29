@@ -35,7 +35,7 @@ class AdminUserListView(APIView):
         serializer = AdminUserListSerializer(users, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-
+# 관리자 - 회원 상세 조회, 회원 정보 수정, 회원 정보 삭제
 @extend_schema_view(
     get=extend_schema(
         tags=["Admin"],
