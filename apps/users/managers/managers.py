@@ -26,6 +26,15 @@ class UserManager(BaseUserManager["User"]):
             return self.get_active_user().filter(email=email).exists()
         return self.get_queryset().filter(email=email).exists()
 
+    def exists_phone(self, phone_number: str, check_active: Optional[bool] = False) -> bool:
+        """
+        휴대폰 번호 중복 확인
+        기본적으로 모든 유저를 대상으로 확인하지만, `check_active=True`이면 활성화된 유저만 확인함
+        """
+        if check_active:
+            return self.get_active_user().filter(phone_number=phone_number).exists()
+        return self.get_queryset().filter(phone_number=phone_number).exists()
+
     def exists_nickname(self, nickname: str, check_active: Optional[bool] = False) -> bool:
         """
         닉네임 중복 확인
