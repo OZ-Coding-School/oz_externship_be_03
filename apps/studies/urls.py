@@ -1,6 +1,9 @@
 from django.urls import path
 
-from apps.studies.views.groups import StudyGroupListCreateView, StudyGroupDetailUpdateView
+from apps.studies.views.groups import (
+    StudyGroupDetailUpdateView,
+    StudyGroupListCreateView,
+)
 from apps.studies.views.members import (
     DelegateLeaderAPIView,
     MemberKickAPIView,
