@@ -3,7 +3,6 @@ import logging
 from typing import Any
 
 from django.db.utils import OperationalError, ProgrammingError
-from django.utils import timezone
 from django_celery_beat.models import (  # type: ignore[import-untyped]
     CrontabSchedule,
     PeriodicTask,
@@ -20,7 +19,6 @@ def register_periodic_task(name: str, task_path: str, hour: str, minute: str = "
             defaults={
                 "crontab": schedule,
                 "task": task_path,
-                "start_time": timezone.now(),
                 "one_off": False,
                 "enabled": True,
                 "kwargs": json.dumps(kwargs),
