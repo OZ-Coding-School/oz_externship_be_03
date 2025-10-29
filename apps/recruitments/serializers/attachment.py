@@ -4,14 +4,9 @@ from apps.recruitments.models.attachment import RecruitmentAttachment
 
 
 class AttachmentSerializer(serializers.ModelSerializer[RecruitmentAttachment]):
-    id = serializers.IntegerField(read_only=True)
-    recruitment_id = serializers.IntegerField(read_only=True)
-    file_url = serializers.CharField(max_length=255)
-    file_name = serializers.CharField(max_length=50)
-    created_at = serializers.DateTimeField(read_only=True)
-    updated_at = serializers.DateTimeField(read_only=True)
+    recruitment_id = serializers.IntegerField(source="recruitment_id", read_only=True)
 
-
-class Meta:
-    model = RecruitmentAttachment
-    fields = "__all__"
+    class Meta:
+        model = RecruitmentAttachment
+        fields = ("id", "recruitment_id", "file_url", "file_name", "created_at", "updated_at")
+        read_only_fields = ("id", "recruitment_id", "created_at", "updated_at")

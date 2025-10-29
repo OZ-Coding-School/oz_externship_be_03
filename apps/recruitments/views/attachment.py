@@ -72,7 +72,7 @@ class AttachmentListCreateAPIView(APIView):
 
         # recruitment 유효성 (Mock)
         if recruitment_id in self.MOCK_NONEXISTENT_RECRUITMENT_IDS:
-            return Response({"detail": "존재하지 않는 공고입니다."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": "존재하지 않는 공고입니다."}, status=status.HTTP_404_NOT_FOUND)
 
         # 중복 URL 체크 (Mock)
         if (url := data.get("file_url")) in self.MOCK_DUPLICATE_URLS:
@@ -128,4 +128,4 @@ class AttachmentRetrieveDestroyAPIView(APIView):
     )
     def delete(self, request: Request, attachment_id: int, *args: Any, **kwargs: Any) -> Response:
         # 팀 코드 스타일에 맞춰 204와 메시지를 함께 반환
-        return Response({"detail": "첨부파일이 삭제되었습니다."}, status=status.HTTP_204_NO_CONTENT)
+        return Response({"detail": "첨부파일이 삭제되었습니다."}, status=status.HTTP_200_OK)

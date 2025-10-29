@@ -4,12 +4,9 @@ from apps.recruitments.models.recruitment_images import RecruitmentImage
 
 
 class ImagesSerializer(serializers.ModelSerializer[RecruitmentImage]):
-    id = serializers.IntegerField(read_only=True)
-    recruitment_id = serializers.IntegerField(read_only=True)
-    img_url = serializers.URLField(max_length=255)
-    created_at = serializers.DateTimeField(read_only=True)
-    updated_at = serializers.DateTimeField(read_only=True)
+    recruitment_id = serializers.IntegerField(source="recruitment_id", read_only=True)
 
     class Meta:
         model = RecruitmentImage
-        fields = "__all__"
+        fields = ("id", "recruitment_id", "img_url", "created_at", "updated_at")
+        read_only_fields = ("id", "recruitment_id", "created_at", "updated_at")
