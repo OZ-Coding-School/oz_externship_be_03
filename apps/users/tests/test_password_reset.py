@@ -97,7 +97,7 @@ class PasswordResetIntegrationTests(IsolatedRedisTestClient):
             self._url_with_email(self.user.email),
             data=self._payload(new_pw="Passw0rd!!", new_pw2="Passw0rd!!"),
             format="json",
-            **self._headers(token=token),   # type: ignore[arg-type]
+            **self._headers(token=token),  # type: ignore[arg-type]
         )
         self.assertEqual(r1.status_code, status.HTTP_200_OK)
 
@@ -107,7 +107,7 @@ class PasswordResetIntegrationTests(IsolatedRedisTestClient):
             self._url_with_email(self.user.email),
             data=self._payload(new_pw="OtherPass1!!", new_pw2="OtherPass1!!"),
             format="json",
-            **self._headers(token=token),   # type: ignore[arg-type]
+            **self._headers(token=token),  # type: ignore[arg-type]
         )
         self.assertEqual(r2.status_code, status.HTTP_403_FORBIDDEN)
 
