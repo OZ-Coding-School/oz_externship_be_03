@@ -31,3 +31,10 @@ class ChatMessageService:
         )
         # TODO: 메시지 생성 후 관련 로직 추가 (예: 웹소켓으로 브로드캐스트)
         return chat_message
+
+    @staticmethod
+    async def delete_chat_message(message: ChatMessage) -> None:
+        """
+        채팅 메시지를 삭제합니다.
+        """
+        await message.adelete()
