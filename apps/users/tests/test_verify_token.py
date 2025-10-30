@@ -9,6 +9,7 @@ from django.core.cache import cache
 from django.test import TestCase, override_settings
 from rest_framework.exceptions import AuthenticationFailed
 
+from apps.core.utils.isolated_cache_testcase import IsolatedRedisTestClient
 from apps.users.enums import EmailVerificationPurpose, PhoneVerificationPurpose
 from apps.users.utils.verify_token import (
     _jti_key,
@@ -22,12 +23,7 @@ def _decode_no_verify(token: str) -> Any:
     return jwt.decode(token, options={"verify_signature": False, "verify_exp": False})
 
 
-class VerifyTokenUtilsTests(TestCase):
-    def setUp(self) -> None:
-        cache.clear()
-
-    def tearDown(self) -> None:
-        cache.clear()
+class VerifyTokenUtilsTests(IsolatedRedisTestClient):
 
     # ------------------------------------------------------------------
     # issue_verify_token()

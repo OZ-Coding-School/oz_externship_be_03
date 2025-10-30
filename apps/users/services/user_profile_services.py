@@ -8,6 +8,7 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from rest_framework.exceptions import ValidationError
 
+from apps.core.exceptions import Conflict
 from apps.users.enums import PhoneVerificationPurpose
 from apps.users.utils.verify_token import verify_and_consume  # Response | dict
 
@@ -31,16 +32,17 @@ def update_user_profile(
     - 중복은 본인 제외 기준
     """
 
-    # 닉네임 중복(본인 제외)
-    if nickname is not None and nickname != user.nickname:
-        # 프로젝트 제공 매니저 사용
+    # 닉네임 중복 채크
+    if nickname:
+        if nickname == user.nickname:
+            raise Conflict({"error": "현재 사용 중인 닉네임과 동일합니다."})
         if User.objects.exists_nickname(nickname):
-            raise ValidationError({"error": "이미 사용 중인 닉네임입니다."})
+            raise Conflict({"error": "이미 사용 중인 닉네임입니다."})
 
     if phone_number is not None:
         # 이미 등록된 번호와 동일하면 차단
         if phone_number == user.phone_number:
-            raise ValidationError({"error": "현재 등록된 휴대폰 번호와 동일합니다."})
+            raise Conflict({"error": "현재 등록된 휴대폰 번호와 동일합니다."})
 
         if not verify_token:
             raise ValidationError({"error": "휴대폰 번호 변경에는 verify_token이 필요합니다."})
@@ -51,9 +53,9 @@ def update_user_profile(
             expected_sub=phone_number,
         )
 
-        # 본인 제외 중복
-        if User.objects.filter(is_active=True, phone_number=phone_number).exclude(pk=user.pk).exists():
-            raise ValidationError({"error": "이미 사용 중인 휴대폰 번호입니다."})
+        # 중복 번호 체크
+        if User.objects.exists_phone(phone_number):
+            raise Conflict({"error": "이미 사용 중인 휴대폰 번호입니다."})
 
     with transaction.atomic():
         user.nickname = nickname if nickname is not None else user.nickname
