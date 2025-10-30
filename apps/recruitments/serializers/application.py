@@ -6,6 +6,12 @@ from apps.recruitments.models.application import Application, ApplicationStatus
 
 
 class ApplicationSerializer(serializers.ModelSerializer[Application]):
+from rest_framework.serializers import ModelSerializer
+
+from apps.recruitments.models.application import Application
+
+
+class ApplicationSerializer(ModelSerializer[Application]):
     class Meta:
         model = Application
         fields = [
