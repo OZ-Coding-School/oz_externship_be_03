@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from typing import (
     DefaultDict,
     Dict,
+    Iterator,
     List,
     Optional,
     Set,
@@ -53,12 +54,28 @@ MatrixBundleExtended = Optional[
     ]
 ]
 
+# 배치 처리 크기 상수 (메모리 효율성 개선)
+BATCH_SIZE: int = 1000
+
 
 def _normalize_sparse_rows_l1(matrix: MatrixLike, return_format: str = "coo") -> MatrixLike:
     """
     Scipy 희소 행렬의 각 행(사용자)을 L1 norm (합계 1)으로 안전하게 정규화
     CSR 포맷과 NumPy 벡터화를 사용해 성능 최적화
-    return_format: 'coo' (기본값) 또는 'csr'
+
+    Args:
+        matrix: 정규화할 희소 행렬 (COO 또는 CSR 형식)
+        return_format: 반환 형식 ('coo' 또는 'csr')
+
+    Returns:
+        정규화된 희소 행렬
+
+    Note:
+        - 행별 L1 norm 정규화를 통해 사용자 간의 *상호작용 빈도 편향(Activity Bias)* 제거
+         -> 비교 가능성 향상.
+        - 빈 행렬이나 행 합이 0인 경우 안전하게 처리
+        - CSR 형식으로 변환하여 벡터화 연산 수행
+        - 메모리 효율적인 in-place 연산 사용
     """
     if matrix.shape[0] == 0:
         return matrix.tocsr() if return_format == "csr" else matrix.tocoo()
@@ -79,7 +96,22 @@ def _normalize_sparse_rows_l1(matrix: MatrixLike, return_format: str = "coo") ->
 class DataLoader:
     """
     ALS 학습용 데이터 전처리, 캐싱, 상호작용 피처 엔지니어링 및 행렬 구축 담당
-    시간 감쇠와 Partial Fit을 지원하여 실시간 업데이트 최적화
+
+    주요 기능:
+    - 사용자-강의 상호작용 데이터 로드 (북마크, 검색, 스터디 참여)
+    - 시간 감쇠 적용 (최근 상호작용에 더 높은 가중치)
+    - 아이템 피처 추가 (카테고리 매칭, 평점)
+    - 희소 행렬 구축 및 정규화
+    - Partial Fit 지원 (증분 학습)
+
+    캐싱 전략:
+    - 강의-카테고리 맵: 메모리 → Redis/Django 캐시 → DB
+    - TTL 기반 자동 갱신
+
+    성능 최적화:
+    - 대용량 쿼리셋에 .iterator() 사용
+    - 배치 처리로 메모리 사용량 제어
+    - NumPy 벡터화 연산 활용
     """
 
     def __init__(self) -> None:
@@ -91,28 +123,62 @@ class DataLoader:
         self._lecture_category_map_ttl: Optional[datetime] = None
 
     def _get_current_time(self) -> datetime:
-        """현재 시각을 반환 (일관성 있는 시간 기준 제공)"""
+        """
+        현재 시각을 반환 (일관성 있는 시간 기준 제공)
+
+        Note:
+            timezone-aware datetime을 반환하여 naive datetime 문제 방지
+        """
         return timezone.now()
 
     def _get_decay_factor(self, created_at: datetime, reference_time: datetime) -> float:
         """
         단일 시간 감쇠: 경과일수 기반 점수감쇠 공식 적용
-        0.5 ** (경과일수 / 반감기)
+
+        공식: 0.5 ** (경과일수 / 반감기)
 
         Args:
-            created_at: 상호작용 발생 시각
+            created_at: 상호작용 발생 시각 (timezone-aware)
             reference_time: 기준 시각 (감쇠 계산의 현재 시점)
+
+        Returns:
+            감쇠 계수 (0.0 ~ 1.0)
+
+        Example:
+            - 0일 경과: 1.0 (감쇠 없음)
+            - 7일 경과 (반감기): 0.5
+            - 14일 경과: 0.25
         """
         days_since: float = (reference_time - created_at).total_seconds() / 86400
         return float(0.5 ** (days_since / HALF_LIFE_DAYS))
 
     def _get_decay_factor_array(self, days_since: np.ndarray) -> np.ndarray:
-        """벡터 감쇠: 대량 로그 batch 처리 최적화 (NumPy 배열 입력)"""
+        """
+        벡터 감쇠: 대량 로그 batch 처리 최적화 (NumPy 배열 입력)
+
+        Args:
+            days_since: 경과 일수 배열
+
+        Returns:
+            감쇠 계수 배열
+
+        Note:
+            단일 감쇠 계산 대비 수백~수천 배 빠른 벡터화 연산
+        """
         return np.power(0.5, days_since / HALF_LIFE_DAYS)
 
     @staticmethod
     def _load_lecture_category_map() -> Dict[int, Set[int]]:
-        """DB에서 모든 강의별 카테고리 ID 집합을 로드"""
+        """
+        DB에서 모든 강의별 카테고리 ID 집합을 로드
+
+        Returns:
+            {강의_ID: {카테고리_ID 집합}} 매핑
+
+        Note:
+            - 한 번의 쿼리로 모든 매핑 로드 (N+1 문제 방지)
+            - defaultdict 사용으로 안전한 집합 추가
+        """
         lecture_category_map: DefaultDict[int, Set[int]] = defaultdict(set)
         values_list: List[Tuple[int, int]] = list(LectureCategory.objects.values_list("lecture_id", "category_id"))
         for lec_id, cat_id in values_list:
@@ -120,7 +186,21 @@ class DataLoader:
         return dict(lecture_category_map)
 
     def get_lecture_category_map(self) -> Dict[int, Set[int]]:
-        """강의-카테고리 맵 로드/캐싱: 메모리→캐시→DB 순서로 시도"""
+        """
+        강의-카테고리 맵 로드/캐싱: 메모리→캐시→DB 순서로 시도
+
+        Returns:
+            {강의_ID: {카테고리_ID 집합}} 매핑
+
+        캐싱 전략:
+        1. 메모리 캐시 확인 (TTL 체크)
+        2. Redis/Django 캐시 확인
+        3. DB에서 로드 후 캐시에 저장
+
+        Note:
+            - 캐시 역직렬화 실패 시 자동으로 DB 폴백
+            - 타입 안전성: bytes/string/int 키 모두 처리
+        """
         now: datetime = self._get_current_time()
 
         # 1. 메모리 캐시 TTL 만료 체크
@@ -132,13 +212,12 @@ class DataLoader:
             return self._lecture_category_map
 
         # 2. Redis/Django 캐시 로드
-        cached_data: Optional[Dict[int, List[int]]] = cache.get(LECTURE_CATEGORY_MAP_CACHE_KEY)
+        cached_data: Optional[Dict[Union[int, str, bytes], List[int]]] = cache.get(LECTURE_CATEGORY_MAP_CACHE_KEY)
         if cached_data is not None:
             try:
                 # 캐시 키 타입 안전성 확보: bytes, 문자열, 정수 모두 처리
                 result: Dict[int, Set[int]] = {}
                 for k, v in cached_data.items():
-                    # bytes 타입 처리 추가
                     if isinstance(k, bytes):
                         lecture_id = int(k.decode("utf-8"))
                     elif isinstance(k, str):
@@ -157,7 +236,7 @@ class DataLoader:
         try:
             lecture_category_map: Dict[int, Set[int]] = self._load_lecture_category_map()
 
-            # 캐시에 저장 (Set을 List로 변환)
+            # 캐시에 저장 (Set을 List로 변환 - JSON 직렬화 호환)
             cache_data: Dict[int, List[int]] = {
                 lec_id: list(cat_ids) for lec_id, cat_ids in lecture_category_map.items()
             }
@@ -175,7 +254,24 @@ class DataLoader:
         last_trained_at: Optional[datetime],
         reference_time: datetime,
     ) -> Dict[Tuple[int, int], float]:
-        """유저별 강의 상호작용 점수 (북마크, 스터디 참여) 계산"""
+        """
+        유저별 강의 상호작용 점수 (북마크, 스터디 참여) 계산
+
+        Args:
+            last_trained_at: 마지막 학습 시각 (Partial Fit 시 사용)
+            reference_time: 감쇠 계산 기준 시각
+
+        Returns:
+            {(사용자_ID, 강의_ID): 점수} 매핑
+
+        상호작용 타입별 가중치:
+        - 북마크: 3.0 (명시적 관심 표현)
+        - 스터디 참여: 2.0 (시간 감쇠 적용)
+
+        Note:
+            - 스터디 참여는 그룹 가입 시점 이후 생성된 강의만 점수 부여
+            - 시간 감쇠로 최근 참여에 더 높은 가중치
+        """
         interactions: DefaultDict[Tuple[int, int], float] = defaultdict(float)
         weighted_bookmark: float = self.user_weights.get("bookmark", 0.0)
         weighted_study: float = self.user_weights.get("study_participation", 0.0)
@@ -184,14 +280,14 @@ class DataLoader:
         if last_trained_at:
             query_filter &= Q(created_at__gt=last_trained_at)
 
-        # 북마크 상호작용
+            # 북마크 상호작용
         if weighted_bookmark > 0:
             bookmarks_qs = LectureBookmark.objects.filter(query_filter)
             bookmarks: List[Tuple[int, int]] = list(bookmarks_qs.values_list("user_id", "lecture_id"))
             for user_id, lec_id in bookmarks:
                 interactions[(user_id, lec_id)] += weighted_bookmark
 
-        # 스터디 참여 상호작용 (시간 감쇠 적용)
+                # 스터디 참여 상호작용 (시간 감쇠 적용)
         if weighted_study > 0:
             try:
                 study_lecture_filter: Q = Q()
@@ -215,6 +311,7 @@ class DataLoader:
                     for gm in group_members_qs:
                         group_user_map[gm.study_group_id][gm.user_id] = gm.created_at
 
+                    # 벡터화된 시간 감쇠 계산
                     created_times: np.ndarray = np.array([sp[2].timestamp() for sp in study_participations])
                     days_since: np.ndarray = (reference_time.timestamp() - created_times) / 86400
                     decay_factors: np.ndarray = self._get_decay_factor_array(days_since)
@@ -228,7 +325,7 @@ class DataLoader:
                                 interactions[(user_id, lec_id)] += decayed_score
 
             except (ProgrammingError, OperationalError, IntegrityError) as e:
-                logger.error("[DB] 스터디 참여 로드 오류: %s", e, exc_info=True)
+                logger.error("[DB] 스터디 참여 로드 실패: %s", e, exc_info=True)
 
         return dict(interactions)
 
@@ -237,7 +334,24 @@ class DataLoader:
         all_interactions: Dict[Tuple[int, int], float],
         last_trained_at: Optional[datetime],
     ) -> Dict[Tuple[int, int], float]:
-        """강의 피처 점수(선호 카테고리 일치, 리뷰 평점)를 상호작용에 추가"""
+        """
+        강의 피처 점수(선호 카테고리 일치, 리뷰 평점)를 상호작용에 추가
+
+        Args:
+            all_interactions: 기존 상호작용 점수 매핑
+            last_trained_at: 마지막 학습 시각 (현재 미사용, 향후 확장용)
+
+        Returns:
+            {(사용자_ID, 강의_ID): 피처_점수} 매핑
+
+        피처 타입별 가중치:
+        - 카테고리 매칭: 2.5 (매칭된 카테고리 수 × 가중치)
+        - 평점: 1.5 (정규화된 평점 × 가중치)
+
+        Note:
+            - 상호작용이 있는 (사용자, 강의) 쌍에만 피처 점수 추가
+            - 한 번의 쿼리로 필요한 데이터 일괄 로드 (N+1 문제 방지)
+        """
         scores: DefaultDict[Tuple[int, int], float] = defaultdict(float)
         keys: Set[Tuple[int, int]] = set(all_interactions.keys())
 
@@ -266,7 +380,7 @@ class DataLoader:
                     if matched:
                         scores[(u, lec)] += len(matched) * weighted_category
 
-                        # 2. 강의별 리뷰 평점 피처
+            # 2. 강의별 리뷰 평점 피처
             if weighted_rating > 0:
                 avg_ratings = CrawledLecture.objects.filter(id__in=lec_ids).values("id", "average_rating")
                 avg_map: Dict[int, float] = {
@@ -278,7 +392,7 @@ class DataLoader:
                         scores[(u, lec)] += avg_map[lec] * weighted_rating
 
         except (ProgrammingError, OperationalError, IntegrityError) as e:
-            logger.error("[DB] 아이템 피처 로드 오류: %s", e, exc_info=True)
+            logger.error("[DB] 아이템 피처 로드 실패: %s", e, exc_info=True)
             return {}
 
         return dict(scores)
@@ -288,7 +402,32 @@ class DataLoader:
         last_trained_at: Optional[datetime],
         reference_time: datetime,
     ) -> Dict[Tuple[int, int], float]:
-        """검색 기반 상호작용 점수 산출 (키워드-강의 매칭 및 시간 감쇠 적용)"""
+        """
+        검색 기반 상호작용 점수 산출 (키워드-강의 매칭 및 시간 감쇠 적용)
+
+        Args:
+            last_trained_at: 마지막 학습 시각 (Partial Fit 시 사용)
+            reference_time: 감쇠 계산 기준 시각
+
+        Returns:
+            {(사용자_ID, 강의_ID): 점수} 매핑
+
+        처리 로직:
+        1. 최근 30일 검색 로그 조회 (SEARCH_LOG_DAYS_LIMIT)
+        2. 사용자별 키워드 검색 빈도 집계
+        3. 키워드와 강의 제목 매칭 (대소문자 무시)
+        4. 검색 시점별 시간 감쇠 적용
+        5. 검색 빈도만큼 점수 누적
+
+        메모리 최적화:
+        - 대용량 강의 데이터는 iterator()로 배치 처리
+        - 키워드별 강의 매칭을 메모리 효율적으로 처리
+
+        Note:
+            - 검색 가중치가 0이면 즉시 반환
+            - 키워드 매칭은 부분 문자열 검색 (icontains)
+            - 동일 키워드 여러 번 검색 시 각각 감쇠 적용
+        """
         scores: DefaultDict[Tuple[int, int], float] = defaultdict(float)
         weighted_search: float = self.user_weights.get("search", 0.0)
         if weighted_search == 0:
@@ -327,25 +466,29 @@ class DataLoader:
             if not all_keywords:
                 return {}
 
-                # 키워드와 강의 제목 매칭을 위한 ORM 쿼리 구성
+            # 키워드와 강의 제목 매칭을 위한 ORM 쿼리 구성
             keyword_query: Q = Q()
             for keyword in all_keywords:
                 keyword_query |= Q(title__icontains=keyword)
 
-                # 키워드와 매칭되는 강의 로드
+            # 메모리 최적화: iterator() 사용으로 배치 처리
             matched_lectures_data: DefaultDict[int, Set[str]] = defaultdict(set)
             if keyword_query:
-                matched_lectures: List[Tuple[int, str]] = list(
-                    CrawledLecture.objects.filter(keyword_query).values_list("id", "title")
+                # iterator()로 대용량 데이터를 배치 단위로 처리
+                lecture_iterator: Iterator[Tuple[int, str]] = (
+                    CrawledLecture.objects.filter(keyword_query)
+                    .values_list("id", "title")
+                    .iterator(chunk_size=BATCH_SIZE)
                 )
-                # 실제 제목에 키워드가 포함되는지 최종 확인
-                for lec_id, title in matched_lectures:
+
+                # 배치 단위로 처리하여 메모리 사용량 제어
+                for lec_id, title in lecture_iterator:
                     title_lower = title.lower()
                     for keyword in all_keywords:
                         if keyword.lower() in title_lower:
                             matched_lectures_data[lec_id].add(keyword)
 
-                            # 검색 점수 부여 및 감쇠 적용 (검색 빈도 반영)
+            # 검색 점수 부여 및 감쇠 적용 (검색 빈도 반영)
             for user_id, keyword_data in user_keyword_map.items():
                 for keyword, search_times in keyword_data.items():
                     # 각 검색 시점에 대해 감쇠 적용
@@ -359,7 +502,7 @@ class DataLoader:
                                 scores[(user_id, lec_id)] += decayed_score
 
         except (ProgrammingError, OperationalError, IntegrityError) as e:
-            logger.error("[DB] 검색 상호작용 로드 오류: %s", e, exc_info=True)
+            logger.error("[DB] 검색 상호작용 로드 실패: %s", e, exc_info=True)
             return {}
 
         return dict(scores)
@@ -371,13 +514,39 @@ class DataLoader:
         normalize_rows: bool = True,
         return_format: str = "coo",
     ) -> MatrixBundleExtended:
-        """모든 상호작용 피처를 병합하고 희소 행렬 구축"""
+        """
+        모든 상호작용 피처를 병합하고 희소 행렬 구축
+
+        Args:
+            existing_users: 기존 사용자 ID 리스트 (Partial Fit 시 사용)
+            last_trained_at: 마지막 학습 시각 (Partial Fit 시 사용)
+            normalize_rows: 행별 L1 정규화 여부 (기본값: True)
+            return_format: 반환 행렬 형식 ('coo' 또는 'csr')
+
+        Returns:
+            (행렬, user_to_idx, lecture_to_idx, users, lectures, is_new_user_added) 튜플
+            또는 데이터 없을 시 None
+
+        처리 흐름:
+        1. Full/Partial Fit 모드 결정
+        2. 신규 사용자/강의 조기 검증 (행렬 구축 전)
+        3. 대상 사용자 ID 리스트 구성
+        4. 상호작용 피처 로드 (북마크, 검색, 스터디, 카테고리, 평점)
+        5. 모든 피처 점수 병합
+        6. 희소 행렬 구축 및 정규화
+
+        Note:
+            - Partial Fit 시 신규 사용자 감지하면 is_new_user_added=True 반환
+            - Full Fit 시 모든 강의 ID 포함 (Cold Start 대비)
+            - Partial Fit 시 상호작용 발생한 강의만 포함
+            - 조기 검증으로 불필요한 행렬 구축 방지
+        """
         reference_time: datetime = self._get_current_time()
 
         is_partial_fit: bool = existing_users is not None
         is_new_user_added: bool = False
 
-        # 1. 대상 사용자 ID 리스트 로드 및 신규 사용자 확인
+        # 1. 대상 사용자 ID 리스트 로드 및 조기 신규 사용자 검증
         if is_partial_fit:
             # last_trained_at 유효성 확인
             if last_trained_at and last_trained_at.tzinfo is None:
@@ -390,7 +559,7 @@ class DataLoader:
                 # Partial Fit 시 last_trained_at과 cutoff 중 더 최근 시점 사용
                 effective_start = max(last_trained_at, cutoff)
 
-                # 북마크, 검색 로그, 스터디 멤버에서 신규/갱신 사용자 ID 수집
+                # 조기 검증: 신규 사용자 확인을 행렬 구축 전에 수행
                 user_ids_from_bookmarks: Set[int] = set(
                     LectureBookmark.objects.filter(created_at__gt=last_trained_at).values_list("user_id", flat=True)
                 )
@@ -408,8 +577,25 @@ class DataLoader:
                 existing_users_set: Set[int] = set(existing_users_list)
                 new_users_in_interactions: Set[int] = all_interacting_users - existing_users_set
 
-                users_list: List[int] = existing_users_list + sorted(list(new_users_in_interactions))
-                is_new_user_added = bool(new_users_in_interactions)
+                # 신규 사용자 감지 시 조기 반환
+                if new_users_in_interactions:
+                    logger.warning(
+                        f"[MATRIX][EARLY_CHECK] New user(s) detected: {len(new_users_in_interactions)} users. "
+                        "Returning early to trigger full training."
+                    )
+                    # 신규 사용자가 있으면 is_new_user_added=True로 즉시 반환
+                    # 불필요한 행렬 구축을 방지하여 성능 개선
+                    return (
+                        csr_matrix((0, 0), dtype=np.float32),  # 빈 행렬
+                        {},  # 빈 매핑
+                        {},
+                        [],
+                        [],
+                        True,  # is_new_user_added=True
+                    )
+
+                users_list: List[int] = existing_users_list
+                is_new_user_added = False
 
             else:
                 # existing_users가 주어졌지만 last_trained_at이 없는 경우
@@ -440,19 +626,16 @@ class DataLoader:
         if not combined:
             if is_partial_fit:
                 # Partial Fit에서 신규 데이터 없음
-                if not is_new_user_added:
-                    logger.info("No combined interaction data found for partial fit.")
-                    return None
-                # 신규 사용자는 있지만 상호작용 없음 - 빈 행렬 생성하지 않고 None 반환
-                logger.warning("New users detected but no interactions found. Returning None.")
+                logger.info("[MATRIX] Partial Fit: 신규 상호작용 데이터 없음.")
                 return None
             else:
                 # Full Fit에서 데이터 없음
                 if not users_list:
-                    logger.info("No users found for matrix building.")
+                    logger.info("[MATRIX] Full Fit: 사용자 없음.")
                     return None
-                # 사용자는 있지만 상호작용 없음 - Cold Start 대비 빈 행렬 생성
-                logger.warning("Users exist but no interactions found. Creating empty matrix for cold start.")
+                    # 사용자는 있지만 상호작용 없음 - Cold Start 대비 빈 행렬 생성
+                logger.warning("[MATRIX] 사용자 존재하나 상호작용 없음. Cold Start 대비 빈 행렬 생성.")
+
         # 5. 행렬 매핑 및 데이터 구성
         all_users: List[int] = users_list
 
