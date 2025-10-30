@@ -14,7 +14,7 @@ from drf_spectacular.utils import (
     extend_schema,
     extend_schema_view,
 )
-from rest_framework import generics, permissions, status, serializers
+from rest_framework import generics, permissions, serializers, status
 from rest_framework.exceptions import ValidationError
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -80,7 +80,7 @@ class GroupReviewListCreateView(generics.ListCreateAPIView[Review]):
     permission_classes = [permissions.IsAuthenticated, IsGroupMemberDOP]
     ordering = ["-created_at"]
 
-    def get_serializer_class(self) -> type[serializers. Serializer[Any]]:
+    def get_serializer_class(self) -> type[serializers.Serializer[Any]]:
         return ReviewCreateSerializer if self.request.method == "POST" else ReviewListItemSerializer
 
     def _parse_gid(self) -> UUID:
