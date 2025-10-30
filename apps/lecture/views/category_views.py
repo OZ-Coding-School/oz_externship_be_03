@@ -15,19 +15,10 @@ class CategoryListView(APIView):
     @extend_schema(
         operation_id="v1_category_list",
         tags=["Lectures"],
-        summary="카테고리 조회 API",
+        summary="전체 카테고리 목록 조회 API",
         responses={200: CategoryListSerializer(many=True)},
     )
     def get(self, request: Request) -> Response:
-        mock_data = [
-            {"id": 1, "name": "Django"},
-            {"id": 2, "name": "FastAPI"},
-            {"id": 3, "name": "Spring"},
-        ]
-
-        return Response(mock_data, status=status.HTTP_200_OK)
-
-    # def get(self, request: Request) -> Response:
-    #     categories = Category.objects.all()
-    #     serializer = CategoryListSerializer(categories, many=True)
-    #     return Response(serializer.data, status=status.HTTP_200_OK)
+        categories = Category.objects.all()
+        serializer = CategoryListSerializer(categories, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
