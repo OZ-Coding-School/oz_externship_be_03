@@ -4,6 +4,7 @@ from typing import Any, Iterable
 from django.utils import timezone
 from rest_framework import serializers
 
+from apps.lecture.models import CrawledLecture
 from apps.studies.models.groups import StudyGroup
 
 
@@ -13,6 +14,7 @@ class StudyGroupBaseSerializer(serializers.ModelSerializer[StudyGroup]):
         model = StudyGroup
         fields = [
             "id",
+            "uuid",
             "name",
             "profile_img_url",
             "max_headcount",
@@ -20,7 +22,7 @@ class StudyGroupBaseSerializer(serializers.ModelSerializer[StudyGroup]):
             "end_at",
             "status",
         ]
-        read_only_fields = ["id", "status"]
+        read_only_fields = ["id", "uuid", "status"]
 
 
 # 스터디 그룹 생성 / 수정
@@ -43,12 +45,6 @@ class StudyGroupCreateSerializer(StudyGroupBaseSerializer):
 
     class Meta(StudyGroupBaseSerializer.Meta):
         fields = StudyGroupBaseSerializer.Meta.fields + ["introduction", "lectures"]
-
-    # 그룹명 필수 검증
-    def validate_name(self, value: str) -> str:
-        if not value.strip():
-            raise serializers.ValidationError("스터디 그룹 명칭은 필수 항목입니다.")
-        return value
 
     # 인원 수 제한 (2~10명)
     def validate_max_headcount(self, value: int) -> int:
@@ -75,12 +71,24 @@ class StudyGroupCreateSerializer(StudyGroupBaseSerializer):
         return attrs
 
 
+class StudyGroupListLectureSerializer(serializers.ModelSerializer[CrawledLecture]):
+    price = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CrawledLecture
+        fields = ("id", "title", "instructor", "price")
+
+    def get_price(self, obj: CrawledLecture) -> int:
+        if obj.discount_price and obj.discount_price > 0:
+            return obj.discount_price
+        return obj.original_price
+
+
 # 스터디 그룹 목록 조회
 class StudyGroupListSerializer(StudyGroupBaseSerializer):
-    current_headcount = serializers.SerializerMethodField()
-    # 로그인 사용자가 리더인지 여부
+    current_headcount = serializers.IntegerField()
     is_leader = serializers.SerializerMethodField()
-    lectures = serializers.SerializerMethodField()
+    lectures = StudyGroupListLectureSerializer(source="lectures", many=True)
 
     class Meta(StudyGroupBaseSerializer.Meta):
         fields = StudyGroupBaseSerializer.Meta.fields + [
@@ -89,34 +97,12 @@ class StudyGroupListSerializer(StudyGroupBaseSerializer):
             "lectures",
         ]
 
-    def get_current_headcount(self, obj: StudyGroup) -> int:
-        return len(obj.members.all())
-
     def get_is_leader(self, obj: StudyGroup) -> bool:
         request = self.context.get("request")
         if not request or not hasattr(request, "user"):
             return False
-        user = request.user
-        return obj.members.filter(user_id=user.id, is_leader=True).exists()
-
-    def get_lectures(self, obj: StudyGroup) -> list[dict[str, int | str]]:
-        return [
-            {
-                "id": study_lecture.lecture.id,
-                "title": study_lecture.lecture.title,
-                "instructor": study_lecture.lecture.instructor,
-            }
-            for study_lecture in obj.lectures.all()
-        ]
-
-
-# Spec API용 시리얼라이저
-class StudyGroupLectureSerializer:
-    def __init__(self, data: Iterable[Any], many: bool = False) -> None:
-        # dict 리스트로 변환
-        self.data = [
-            {"id": sl.lecture.id, "title": sl.lecture.title, "instructor": sl.lecture.instructor} for sl in data
-        ]
+        user_id = request.user.id
+        return any(m.user_id == user_id and m.is_leader for m in obj.members.all())
 
 
 # Spec API용 시리얼라이저
