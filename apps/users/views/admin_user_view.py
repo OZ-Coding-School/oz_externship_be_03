@@ -40,7 +40,10 @@ class AdminWithdrawalListView(APIView):
             try:
                 start_dt = datetime.strptime(start_date, "%Y-%m-%d")
                 end_dt = datetime.strptime(end_date, "%Y-%m-%d")
-                withdrawals = withdrawals.filter(created_at__date__gte=start_dt, created_at__date__lte=end_dt)
+                withdrawals = withdrawals.filter(
+                    created_at__date__gte=start_dt,
+                    created_at__date__lte=end_dt,
+                )
             except ValueError:
                 return Response(
                     {"error": "날짜 형식이 잘못되었습니다. YYYY-MM-DD 형식 사용"},
@@ -55,20 +58,21 @@ class AdminWithdrawalListView(APIView):
                 user__email__icontains=keyword
             )
 
-        total_items = withdrawals.count()
+        total_count = withdrawals.count()
 
         if limit > 0:
             offset = (page - 1) * limit
             withdrawals = withdrawals[offset : offset + limit]
 
-        total_pages = (total_items + limit - 1) // limit if limit > 0 else 1
+        total_pages = (total_count + limit - 1) // limit if limit > 0 else 1
 
-        items: List[Dict[str, Any]] = []
+        withdrawal_list: List[Dict[str, Any]] = []
         for withdrawal in withdrawals:
             user = withdrawal.user
             if not user:
                 continue
-            items.append(
+
+            withdrawal_list.append(
                 {
                     "id": user.id,
                     "email": user.email,
@@ -80,10 +84,19 @@ class AdminWithdrawalListView(APIView):
                 }
             )
 
-        pagination = {"page": page, "limit": limit, "total_items": total_items, "total_pages": total_pages}
-        serializer = WithdrawalListResponseSerializer({"users": items, "pagination": pagination})
+        page_info = {
+            "page": page,
+            "limit": limit,
+            "total_items": total_count,
+            "total_pages": total_pages,
+        }
+
+        serializer = WithdrawalListResponseSerializer({"users": withdrawal_list, "pagination": page_info})
 
         return Response(
-            {"detail": "회원 탈퇴 내역 목록 조회에 성공하였습니다.", "data": serializer.data},
+            {
+                "detail": "회원 탈퇴 내역 목록 조회에 성공하였습니다.",
+                "data": serializer.data,
+            },
             status=status.HTTP_200_OK,
         )
