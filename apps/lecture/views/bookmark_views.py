@@ -1,139 +1,140 @@
-import random
-from typing import List, Optional
+from typing import TYPE_CHECKING, List, Optional, cast
 
+from django.db.models import Q, QuerySet
 from drf_spectacular.utils import extend_schema
 from rest_framework import parsers, serializers, status
 from rest_framework.pagination import PageNumberPagination
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.lecture.models import CrawledLecture, LectureBookmark
+from apps.lecture.models import LectureBookmark
 from apps.lecture.serializers.bookmark_serializers import (
     LectureBookmarkCreateSerializer,
     LectureBookmarkListSerializer,
 )
 
+if TYPE_CHECKING:
+    from apps.users.models import User
+else:
+    from django.contrib.auth import get_user_model
+
+    User = get_user_model()
+
+
+class BookmarkPagination(PageNumberPagination):
+    """북마크 목록 조회용 커스텀 페이지네이션"""
+
+    page_size = 10
+    page_size_query_param = "page_size"
+    max_page_size = 100
+
 
 class LectureBookmarkListCreateView(APIView):
     """
-    로그인 유저 북마크 목록 조회 및 북마크 추가 API (Mock 데이터 사용)
+    로그인 유저 북마크 목록 조회 및 북마크 추가 API
     GET: 목록 조회
     POST: 북마크 추가
     """
 
-    permission_classes = [AllowAny]  # TODO: 기능 구현 후 권한 변경
+    permission_classes = [IsAuthenticated]
     parser_classes = [parsers.JSONParser]
-    pagination_class = PageNumberPagination
-    page_size = 10
+    pagination_class = BookmarkPagination
 
     @extend_schema(
         tags=["Lectures"],
-        summary="강의 북마크 목록 조회 API (Mock)",
+        summary="강의 북마크 목록 조회 API",
         responses={
             200: LectureBookmarkListSerializer(many=True),
-            201: {"description": "북마크가 추가되었습니다."},
             400: {"description": "잘못된 요청"},
-            404: {"description": "존재하지 않는 강의입니다."},
+            401: {"description": "인증이 필요합니다."},
         },
-        request=LectureBookmarkCreateSerializer,
     )
     def get(self, request: Request) -> Response:
-        MOCK_COUNT = 15
-        mock_lectures: List[CrawledLecture] = [
-            CrawledLecture(
-                id=i,
-                uuid=f"123e4567-e89b-12d3-a456-4266141740{i:02d}",
-                title=f"Mock 북마크 강의 {i}",
-                instructor=f"강사 {i}",
-                thumbnail_img_url="https://mock.com/thumb.jpg",
-                difficulty="NORMAL",
-                original_price=120000 + i * 100,
-                discount_price=100000 + i * 100,
-                platform="INFLEARN",
-                average_rating=round(random.uniform(3.5, 5.0), 2),
-                duration=random.randint(60, 300),
-                url_link="https://mock.com/course/mock",
-                description="북마크된 강의의 간략 설명",
-            )
-            for i in range(1, MOCK_COUNT + 1)  # 1부터 15까지
-        ]
+        user = cast(User, request.user)
 
-        mock_bookmarks: List[LectureBookmark] = [
-            LectureBookmark(id=i, lecture=mock_lectures[i - 1], user_id=request.user.id or 1)
-            for i in range(1, MOCK_COUNT + 1)
-        ]
+        queryset: QuerySet[LectureBookmark] = (
+            LectureBookmark.objects.filter(user=user).select_related("lecture").order_by("-created_at")
+        )
+
+        search = request.query_params.get("search", None)
+        if search:
+            queryset = queryset.filter(Q(lecture__title__icontains=search) | Q(lecture__instructor__icontains=search))
 
         paginator = self.pagination_class()
-        page: Optional[List[LectureBookmark]] = paginator.paginate_queryset(mock_bookmarks, request, view=self)  # type: ignore
+        page: Optional[List[LectureBookmark]] = paginator.paginate_queryset(queryset, request, view=self)
+
         if page is not None:
             serializer = LectureBookmarkListSerializer(page, many=True)
-            return paginator.get_paginated_response(serializer.data)
+            response_data = paginator.get_paginated_response(serializer.data)
+            return Response(
+                {"detail": "북마크 강의 목록 조회가 완료되었습니다.", "data": response_data.data},
+                status=status.HTTP_200_OK,
+            )
 
-        serializer = LectureBookmarkListSerializer(mock_bookmarks, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        serializer = LectureBookmarkListSerializer(queryset, many=True)
+        return Response(
+            {
+                "detail": "북마크 강의 목록 조회가 완료되었습니다.",
+                "data": {"count": queryset.count(), "next": None, "previous": None, "results": serializer.data},
+            },
+            status=status.HTTP_200_OK,
+        )
 
     @extend_schema(
         tags=["Lectures"],
-        summary="강의 북마크 추가 API (Mock)",
+        summary="강의 북마크 추가 API",
         request=LectureBookmarkCreateSerializer,
         responses={
             201: {"description": "북마크가 추가되었습니다."},
             400: {"description": "잘못된 요청 또는 중복 북마크"},
+            401: {"description": "인증이 필요합니다."},
             404: {"description": "존재하지 않는 강의입니다."},
         },
     )
     def post(self, request: Request) -> Response:
-        # 1. context={"request": request} 제거 (필수 아님, 일반적인 request 정보는 남겨도 무방)
         serializer = LectureBookmarkCreateSerializer(data=request.data)
 
-        # 유효성 검사
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            # 2. serializer.save() 호출 시 user를 명시적으로 전달
-            # 이 request.user가 시리얼라이저의 validated_data['user']가 됨.
-            bookmark = serializer.save(user=request.user)
+            user = cast(User, request.user)
+            serializer.save(user=user)
+            return Response({"detail": "북마크가 추가되었습니다."}, status=status.HTTP_201_CREATED)
 
         except serializers.ValidationError as e:
-            # 시리얼라이저 내부의 get_or_create 중복 검사에서 발생
             return Response(e.detail, status=status.HTTP_400_BAD_REQUEST)
 
-        except Exception as e:
-            # 예상치 못한 다른 DB/시스템 오류 처리
+        except Exception:
             return Response(
-                {"detail": "북마크 생성 중 알 수 없는 오류가 발생했습니다."},
+                {"error": "북마크 생성 중 알 수 없는 오류가 발생했습니다."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-        return Response({"detail": "북마크가 추가되었습니다."}, status=status.HTTP_201_CREATED)
-
 
 class LectureBookmarkDeleteView(APIView):
-    """북마크 삭제 API (Mock 응답)"""
+    """북마크 삭제 API"""
 
-    permission_classes = [AllowAny]  # TODO: 기능 구현 후 권한 변경
+    permission_classes = [IsAuthenticated]
     parser_classes = [parsers.JSONParser]
 
     @extend_schema(
         tags=["Lectures"],
-        summary="강의 북마크 삭제 API (Mock)",
+        summary="강의 북마크 삭제 API",
         responses={
             204: {"description": "북마크가 삭제되었습니다."},
+            401: {"description": "인증이 필요합니다."},
             404: {"description": "존재하지 않는 북마크입니다."},
         },
     )
     def delete(self, request: Request, lecture_id: int) -> Response:
-        if lecture_id == 999:
-            return Response({"error": "존재하지 않는 북마크입니다."}, status=status.HTTP_404_NOT_FOUND)
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        try:
+            user = cast(User, request.user)
 
-    # def delete(self, request, bookmark_id: int):
-    #     try:
-    #         obj = LectureBookmark.objects.get(id=bookmark_id)
-    #     except LectureBookmark.DoesNotExist:
-    #         return Response({"error": "북마크를 찾을 수 없습니다."}, status=status.HTTP_404_NOT_FOUND)
-    #     obj.delete()
-    #     return Response(status=status.HTTP_204_NO_CONTENT)
+            bookmark = LectureBookmark.objects.get(user=user, lecture_id=lecture_id)
+            bookmark.delete()
+            return Response({"detail": "북마크가 삭제되었습니다."}, status=status.HTTP_204_NO_CONTENT)
+        except LectureBookmark.DoesNotExist:
+            return Response({"error": "존재하지 않는 북마크입니다."}, status=status.HTTP_404_NOT_FOUND)
