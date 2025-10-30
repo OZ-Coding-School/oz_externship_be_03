@@ -1,5 +1,6 @@
 from django.urls import URLPattern, URLResolver, path
 
+from apps.users.views.find_email_views import FindEmailView
 from apps.users.views.password_reset_views import PasswordResetView
 from apps.users.views.user_profile_views import (
     MeView,
@@ -27,4 +28,5 @@ urlpatterns: list[URLPattern | URLResolver] = [
     path("users/dup-nickname", UserDupNicknameView.as_view(), name="dup_nickname"),
     # recovery
     path("users/reset-password", PasswordResetView.as_view(), name="user_reset_password"),
+    path("users/find-email", FindEmailView.as_view(), name="user_find_email"),
 ]
