@@ -3,9 +3,6 @@ from typing import TYPE_CHECKING, Any, Dict
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
-if TYPE_CHECKING:
-    from apps.users.models import User as UserModel
-
 User = get_user_model()
 
 
