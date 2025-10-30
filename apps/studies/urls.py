@@ -16,9 +16,6 @@ app_name = "studies"
 
 urlpatterns = [
     path("groups/<uuid:group_id>/reviews/", GroupReviewListCreateView.as_view(), name="group-reviews"),
-    # 테스트/기존 코드 하위호환용 별칭 2개 (같은 뷰/같은 경로)
-    path("groups/<uuid:group_id>/reviews/", GroupReviewListCreateView.as_view(), name="group-review-create"),
-    path("groups/<uuid:group_id>/reviews/", GroupReviewListCreateView.as_view(), name="group-review-list"),
     # REQ-STDY-006: 스터디 그룹 리더 위임 API
     path(
         "groups/<uuid:group_id>/delegate-leader",
