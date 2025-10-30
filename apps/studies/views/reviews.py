@@ -153,8 +153,7 @@ class GroupReviewListCreateView(generics.ListCreateAPIView[Review]):
         if user_id is None:
             return Response(status=status.HTTP_401_UNAUTHORIZED)
 
-        if Review.objects.filter(user_id=user_id, study_group_id=group.id).exists():
-            return Response({"detail": "이미 해당 스터디에 리뷰를 작성했습니다"}, status=status.HTTP_409_CONFLICT)
+
 
         serializer = self.get_serializer(data={**request.data, "study_group": group.pk}, context={"request": request})
         if not serializer.is_valid():
