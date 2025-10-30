@@ -9,14 +9,16 @@ from apps.studies.views.members import (
     MemberKickAPIView,
     MemberLeaveAPIView,
 )
-from apps.studies.views.reviews import GroupReviewListView, ReviewCreateView
+from apps.studies.views.reviews import GroupReviewListCreateView
 
 app_name = "studies"
 
 
 urlpatterns = [
-    # POST /api/v1/studies/groups/{group_id}/reviews/
-    path("groups/<uuid:group_id>/reviews/", ReviewCreateView.as_view(), name="group-review-create"),
+    path("groups/<uuid:group_id>/reviews/", GroupReviewListCreateView.as_view(), name="group-reviews"),
+    # 테스트/기존 코드 하위호환용 별칭 2개 (같은 뷰/같은 경로)
+    path("groups/<uuid:group_id>/reviews/", GroupReviewListCreateView.as_view(), name="group-review-create"),
+    path("groups/<uuid:group_id>/reviews/", GroupReviewListCreateView.as_view(), name="group-review-list"),
     # REQ-STDY-006: 스터디 그룹 리더 위임 API
     path(
         "groups/<uuid:group_id>/delegate-leader",
@@ -36,6 +38,5 @@ urlpatterns = [
         name="study-member-kick",
     ),
     path("groups/", StudyGroupListCreateView.as_view(), name="study-group-list-create"),
-    path("groups/<uuid:group_id>/reviews", GroupReviewListView.as_view(), name="group-review-list"),
     path("groups/<uuid:group_id>/", StudyGroupDetailUpdateView.as_view(), name="study-group-detail-update"),
 ]
