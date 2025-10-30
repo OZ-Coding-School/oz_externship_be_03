@@ -168,6 +168,8 @@ CORS_ALLOW_HEADERS = [
     "user-agent",
     "x-csrftoken",
     "x-requested-with",
+    "X-Phone-Verify-Token",
+    "X-Email-Verify-Token",
 ]
 
 # drf 관련 설정
