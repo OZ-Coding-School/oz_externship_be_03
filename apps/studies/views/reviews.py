@@ -16,6 +16,7 @@ from drf_spectacular.utils import (
 )
 from rest_framework import generics, permissions, serializers, status
 from rest_framework.exceptions import ValidationError
+from rest_framework.permissions import BasePermission
 from rest_framework.request import Request
 from rest_framework.response import Response
 
@@ -77,8 +78,11 @@ from apps.studies.serializers.reviews import (
     ),
 )
 class GroupReviewListCreateView(generics.ListCreateAPIView[Review]):
-    permission_classes = [permissions.IsAuthenticated, IsGroupMemberDOP]
-    ordering = ["-created_at"]
+    ordering: list[str] = ["-created_at"]
+    def get_permissions(self)-> list[BasePermission]:
+        if self.request.method == "GET":
+            return [permissions.IsAuthenticated(), IsGroupMemberDOP()]
+        return [permissions.IsAuthenticated()]
 
     def get_serializer_class(self) -> type[serializers.Serializer[Any]]:
         return ReviewCreateSerializer if self.request.method == "POST" else ReviewListItemSerializer
@@ -90,15 +94,18 @@ class GroupReviewListCreateView(generics.ListCreateAPIView[Review]):
         except (TypeError, ValueError):
             raise ValidationError({"group_id": "유효한 UUID 형태의 group_id가 아닙니다."})
 
-    def get_group(self) -> StudyGroup:
+    def get_group_for_read(self) -> StudyGroup:
         gid = self._parse_gid()
         group = get_object_or_404(StudyGroup, uuid=gid)
-        # 객체 권한 검사 (IsGroupMemberDOP가 object level에서 멤버십 확인)
         self.check_object_permissions(self.request, group)
         return group
 
+    def get_group_for_write(self) -> StudyGroup:
+        gid = self._parse_gid()
+        return get_object_or_404(StudyGroup, uuid=gid)
+
     def get_queryset(self) -> QuerySet[Review]:
-        group = self.get_group()
+        group = self.get_group_for_read()
         qs = (
             Review.objects.filter(study_group_id=group.id)  # 내부 정수 PK
             .only("uuid", "star_rating", "content", "created_at", "updated_at", "user_id", "study_group_id")
@@ -124,7 +131,7 @@ class GroupReviewListCreateView(generics.ListCreateAPIView[Review]):
         return qs
 
     def list(self, request: Request, *args: Any, **kwargs: Any) -> Response:
-        group = self.get_group()
+        group = self.get_group_for_read()
         queryset = self.filter_queryset(self.get_queryset())
 
         page = self.paginate_queryset(queryset)
@@ -140,7 +147,7 @@ class GroupReviewListCreateView(generics.ListCreateAPIView[Review]):
         )
 
     def create(self, request: Request, *args: Any, **kwargs: Any) -> Response:
-        group = self.get_group()
+        group = self.get_group_for_write()
         user_id = getattr(request.user, "pk", None)
         if user_id is None:
             return Response(status=status.HTTP_401_UNAUTHORIZED)
