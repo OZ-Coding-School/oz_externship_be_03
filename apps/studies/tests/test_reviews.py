@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import uuid
-from datetime import timedelta
-from typing import Any, ClassVar
+from datetime import datetime, timedelta
+from typing import TYPE_CHECKING, Any, ClassVar, Optional, Type, cast
 
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError
@@ -12,15 +12,23 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.lecture.models.review import RatingEnum
-from apps.studies.models.groups import StudyGroup, StudyGroupStatus
+from apps.studies.models.groups import GroupMember, StudyGroup, StudyGroupStatus
 from apps.studies.models.reviews import Review
 
-User = get_user_model()
+if TYPE_CHECKING:
+    from apps.users.models.user import User
+else:
+    # Runtime only; for mypy we import concrete type in TYPE_CHECKING above
+    from django.contrib.auth.base_user import (
+        AbstractBaseUser as User,  # type: ignore[assignment]
+    )
+
+UserModel: Type[User] = get_user_model()
 
 
 class _BaseFixtures(TestCase):
-    user: ClassVar[Any]
-    other_user: ClassVar[Any]
+    user: ClassVar[User]
+    other_user: ClassVar[User]
     study_group: ClassVar[StudyGroup]
     client: APIClient
 
@@ -28,7 +36,7 @@ class _BaseFixtures(TestCase):
     @classmethod
     def setUpTestData(cls) -> None:
         # 사용자 1
-        cls.user = User.objects.create(
+        cls.user = UserModel.objects.create(
             email="test@example.com",
             nickname="testuser",
             name="Test User",
@@ -40,7 +48,7 @@ class _BaseFixtures(TestCase):
         cls.user.set_password("pw1234")
         cls.user.save()
 
-        cls.other_user = User.objects.create(
+        cls.other_user = UserModel.objects.create(
             email="other@example.com",
             nickname="otheruser",
             name="Other User",
@@ -69,7 +77,7 @@ class _BaseFixtures(TestCase):
 class ReviewModelsTests(_BaseFixtures):
     def test_review_creation(self) -> None:  # 리뷰 정상 생성 확인
         review = Review.objects.create(
-            user=self.user,
+            user=cast(Any, self.user),
             study_group=self.study_group,
             star_rating=RatingEnum.FIVE,
             content="정말 좋은 스터디였습니다",
@@ -81,7 +89,7 @@ class ReviewModelsTests(_BaseFixtures):
         self.assertIsNotNone(review.updated_at)
 
     def test_review_default_values(self) -> None:  # star_rating 기본값 FIVE로 되어있는지
-        review = Review.objects.create(user=self.user, study_group=self.study_group, content="기본값 테스트")
+        review = Review.objects.create(user=cast(Any, self.user), study_group=self.study_group, content="기본값 테스트")
         self.assertEqual(review.star_rating, RatingEnum.FIVE)
 
     def test_review_unique_constraint(self) -> None:  # 같은 user+group 중복 리뷰 DB 제약
@@ -129,7 +137,7 @@ class ReviewModelsTests(_BaseFixtures):
     def test_review_content_max_length(self) -> None:  # content가 300자까지 허용되는지
         long_content = "a" * 300
         review = Review.objects.create(
-            user=self.user,
+            user=cast(Any, self.user),
             study_group=self.study_group,
             star_rating=RatingEnum.FIVE,
             content=long_content,
@@ -138,7 +146,7 @@ class ReviewModelsTests(_BaseFixtures):
 
     def test_review_relationships(self) -> None:  # User/StudyGroup 역참조 관계 정상동작 확인
         review = Review.objects.create(
-            user=self.user, study_group=self.study_group, star_rating=RatingEnum.FIVE, content="관계 테스트"
+            user=cast(Any, self.user), study_group=self.study_group, star_rating=RatingEnum.FIVE, content="관계 테스트"
         )
         self.assertEqual(review.study_group, self.study_group)
         self.assertIn(review, self.study_group.reviews.all())
@@ -154,7 +162,7 @@ class ReviewCreateAPITests(_BaseFixtures):
         self.client = APIClient()
 
     def _url(self, group: StudyGroup) -> str:
-        return reverse("studies:group-review-create", kwargs={"group_id": group.pk})
+        return reverse("studies:group-reviews", kwargs={"group_id": str(group.uuid)})
 
     # 인증 사용자 + 정상 입력 → 201 생성(본문 없음) 확인
     def test_create_review_201(self) -> None:
@@ -208,8 +216,54 @@ class ReviewCreateAPITests(_BaseFixtures):
     def test_create_review_group_not_found_404(self) -> None:
         self.client.force_authenticate(user=self.user)
         res = self.client.post(
-            reverse("studies:group-review-create", kwargs={"group_id": 999_999_999}),
+            reverse("studies:group-reviews", kwargs={"group_id": "00000000-0000-0000-0000-000000000999"}),
             {"star_rating": 5, "content": "없음"},
             format="json",
+        )
+        self.assertEqual(res.status_code, 404)
+
+
+# 2)API 리뷰생성
+class ReviewListAPITests(_BaseFixtures):
+    def _url(self, group: StudyGroup) -> str:
+        return reverse("studies:group-reviews", kwargs={"group_id": str(group.uuid)})
+
+    def _add_member(self, group: StudyGroup, user: User) -> None:
+        GroupMember.objects.create(study_group=group, user=user)
+
+    def _create_review(
+        self,
+        *,
+        group: StudyGroup,
+        author: User,
+        rating: RatingEnum,
+        content: str,
+        created_at: Optional[datetime] = None,
+    ) -> Review:
+        r = Review.objects.create(
+            user=author,
+            study_group=group,
+            star_rating=rating,
+            content=content,
+        )
+        if created_at is not None:
+            Review.objects.filter(pk=r.pk).update(created_at=created_at, updated_at=created_at)
+            r.refresh_from_db()
+        return r
+
+    def test_unauthenticated_returns_401(self) -> None:  # 비로그인 접근 401 반환
+        res = self.client.get(self._url(self.study_group))
+        self.assertEqual(res.status_code, 401)
+
+    def test_forbidden_if_not_member_returns_403(self) -> None:  # 로그인했지만 그룹멤버가 아니면 403반환
+        self.client.force_authenticate(user=self.user)
+        res = self.client.get(self._url(self.study_group))
+        self.assertEqual(res.status_code, 403)
+        self.assertIn("detail", res.data)
+
+    def test_group_not_found_404(self) -> None:  # 존재하지 않는 group_id 호출 404 반환
+        self.client.force_authenticate(user=self.user)
+        res = self.client.get(
+            reverse("studies:group-reviews", kwargs={"group_id": "00000000-0000-0000-0000-000000000999"})
         )
         self.assertEqual(res.status_code, 404)

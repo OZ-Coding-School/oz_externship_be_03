@@ -9,14 +9,13 @@ from apps.studies.views.members import (
     MemberKickAPIView,
     MemberLeaveAPIView,
 )
-from apps.studies.views.reviews import ReviewCreateView
+from apps.studies.views.reviews import GroupReviewListCreateView
 
 app_name = "studies"
 
 
 urlpatterns = [
-    # POST /api/v1/studies/groups/{group_id}/reviews/
-    path("groups/<int:group_id>/reviews/", ReviewCreateView.as_view(), name="group-review-create"),
+    path("groups/<uuid:group_id>/reviews/", GroupReviewListCreateView.as_view(), name="group-reviews"),
     # REQ-STDY-006: 스터디 그룹 리더 위임 API
     path(
         "groups/<uuid:group_id>/delegate-leader",

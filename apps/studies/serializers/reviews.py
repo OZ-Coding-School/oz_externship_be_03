@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Any, Dict, cast
+from hashlib import blake2b
+from typing import Any, Dict, Optional, cast
 
 from rest_framework import serializers
 from rest_framework.request import Request
@@ -57,3 +58,16 @@ class ReviewCreateSerializer(serializers.ModelSerializer[Review]):
 
     def create(self, validated_data: Dict[str, Any]) -> Review:
         return Review.objects.create(user=self.context["request"].user, **validated_data)
+
+
+class ReviewListItemSerializer(serializers.Serializer[Any]):
+    id = serializers.UUIDField(read_only=True, source="uuid")
+    rating = StarRatingField(read_only=True, source="star_rating")
+    content = serializers.CharField()
+    created_at = serializers.DateTimeField()
+    updated_at = serializers.DateTimeField()
+    is_mine = serializers.SerializerMethodField()
+
+    def get_is_mine(self, obj: Any) -> bool:
+        request = self.context.get("request")
+        return bool(request and getattr(request, "user", None) and obj.user_id == request.user.id)
