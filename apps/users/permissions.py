@@ -7,7 +7,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.users.enums import EmailVerificationPurpose, PhoneVerificationPurpose
+from apps.users.enums import EmailVerificationPurpose, PhoneVerificationPurpose, Role
 from apps.users.utils.verify_token import verify_and_consume
 
 
@@ -100,3 +100,11 @@ class EmailVerifiedPermission(BasePermission):
 
         setattr(request, "email_verify_claims", result)
         return True
+
+
+class IsAdminRole(BasePermission):
+    # superuser만 접근 가능 퍼미션
+
+    def has_permission(self, request: Request, view: APIView) -> bool:
+        user = request.user
+        return bool(user and user.is_authenticated and getattr(user, "role", None) == Role.ADMIN.value)

@@ -41,3 +41,9 @@ class Role(TextChoices):
     ADMIN = "admin", "관리자"
     STAFF = "staff", "스태프"
     USER = "user", "일반회원"
+
+
+class UserStatus(TextChoices):
+    ACTIVE = "active", "활성 회원"
+    INACTIVE = "inactive", "비활성 회원"
+    WITHDRAWAL_PENDING = "WITHDRAWAL_PENDING", "탈퇴 유예중"
