@@ -44,8 +44,8 @@ class RecommendationApiViewTest(APITestCase):
 
     def test_user_id_is_missing_returns_401(self) -> None:
         """
-        [미커버 라인 해결] request.user.id가 None일 때 401 응답을 반환하는지 확인
-        RecommendationView의 get_recommendation_service 경로를 Mocking합니다.
+        request.user.id가 None일 때 401 응답을 반환하는지 확인
+        RecommendationView의 get_recommendation_service 경로를 Mocking.
         """
         self.client.force_authenticate(user=self.user)
 
