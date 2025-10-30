@@ -48,8 +48,6 @@ class PasswordResetView(APIView):
         req_serializer = PasswordResetSerializer(data=request.data)
         req_serializer.is_valid(raise_exception=True)
 
-        idem_key = _header(request, "Idempotency-Key")
-
         reset_password(
             claims=claims,
             new_password=req_serializer.validated_data["new_password"],
