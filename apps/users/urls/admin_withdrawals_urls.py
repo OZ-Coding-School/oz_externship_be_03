@@ -1,9 +1,8 @@
-# apps/users/urls/admin_withdrawals_urls.py
 from django.urls import path
 
 from apps.users.views.admin_user_view import AdminWithdrawalListView
 
-app_name = "users"  # ✅ 추가
+app_name = "users"
 
 urlpatterns = [
     path(
