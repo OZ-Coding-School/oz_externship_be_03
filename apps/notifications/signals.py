@@ -52,3 +52,12 @@ def application_approved_rejected_created(sender: Any, instance: Application, cr
             )
 
         send_to_pubsub.delay(notification.id)
+
+@receiver(post_save, sender=Application)
+def study_member_joined_created(sender: Any, instance: Application, created: bool, **kwargs: Any) -> None:
+    """스터디 그룹 새 멤버 참여 알림"""
+    if not created and instance.status == ApplicationStatus.APPROVED:
+        recruitment = instance.recruitment
+
+        if recruitment.study_group:
+            study_group = recruitment.study_group
