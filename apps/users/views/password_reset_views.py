@@ -61,7 +61,6 @@ class PasswordResetView(APIView):
             claims=claims,
             new_password=req_serializer.validated_data["new_password"],
             new_password_confirm=req_serializer.validated_data["new_password_confirm"],
-            idempotency_key=idem_key,
         )
 
         return Response({"detail": "비밀번호가 재설정되었습니다."}, status=status.HTTP_200_OK)

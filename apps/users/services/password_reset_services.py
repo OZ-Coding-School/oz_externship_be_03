@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Optional
-
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.core.cache import cache
@@ -10,8 +8,7 @@ from rest_framework.exceptions import AuthenticationFailed, Throttled, Validatio
 
 User = get_user_model()
 
-# 멱등 & 레이트리밋
-IDEMPOTENCY_TTL_SECONDS = 10 * 60
+# 레이트리밋
 RATE_LIMIT_SECONDS = 5
 
 
@@ -20,16 +17,10 @@ def reset_password(
     claims: dict[str, str | int | None],
     new_password: str,
     new_password_confirm: str,
-    idempotency_key: Optional[str] = None,
 ) -> None:
     """
     퍼미션이 검증/소비한 토큰의 claims를 받아 비밀번호를 재설정
     """
-    # 같은 키로 이미 성공했으면 no-op
-    if idempotency_key:
-        ikey = f"idemp:password-reset:{idempotency_key}"
-        if cache.get(ikey) == "OK":
-            return
 
     # 레이트 리밋 (클레임의 jti/subject 기반)
     jti = str(claims.get("jti") or "")
@@ -63,7 +54,3 @@ def reset_password(
     # 저장
     user.set_password(new_password)
     user.save(update_fields=["password"])
-
-    # 멱등 성공 마킹
-    if idempotency_key:
-        cache.set(ikey, "OK", timeout=IDEMPOTENCY_TTL_SECONDS)

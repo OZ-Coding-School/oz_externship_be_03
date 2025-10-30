@@ -111,34 +111,6 @@ class PasswordResetIntegrationTests(IsolatedRedisTestClient):
         )
         self.assertEqual(r2.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_idempotency_key_noop_on_second_different_password(self) -> None:
-        # 같은 멱등키로 2회 요청 시, 2번째는 NO-OP
-        token1 = self._issue_reset_token(email=self.user.email)
-        token2 = self._issue_reset_token(email=self.user.email)  # 퍼미션 1회성 때문에 새 토큰 필요
-        idem_key = "00000000-0000-0000-0000-idem00000001"
-
-        # 1회차: 성공
-        r1 = self.client.post(
-            self._url_with_email(self.user.email),
-            data=self._payload(new_pw="FirstOk123!!", new_pw2="FirstOk123!!"),
-            format="json",
-            **self._headers(token=token1, idem=idem_key),  # type: ignore[arg-type]
-        )
-        self.assertEqual(r1.status_code, status.HTTP_200_OK)
-
-        # 2회차: 다른 비밀번호로 시도하지만 같은 멱등키 → NO-OP
-        r2 = self.client.post(
-            self._url_with_email(self.user.email),
-            data=self._payload(new_pw="SecondXX123!!", new_pw2="SecondXX123!!"),
-            format="json",
-            **self._headers(token=token2, idem=idem_key),  # type: ignore[arg-type]
-        )
-        self.assertEqual(r2.status_code, status.HTTP_200_OK)
-
-        self.user.refresh_from_db()
-        self.assertTrue(self.user.check_password("FirstOk123!!"))
-        self.assertFalse(self.user.check_password("SecondXX123!!"))
-
     def test_password_policy_violation_returns_400(self) -> None:
         token = self._issue_reset_token(email=self.user.email)
         resp = self.client.post(
