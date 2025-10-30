@@ -33,9 +33,7 @@ class ChatMessageService:
         return chat_message
 
     @staticmethod
-    async def edit_chat_message(
-        message: ChatMessage, new_content: str
-    ) -> ChatMessage:
+    async def edit_chat_message(message: ChatMessage, new_content: str) -> ChatMessage:
         """
         채팅 메시지 내용을 수정하고 업데이트된 메시지를 반환합니다.
         """

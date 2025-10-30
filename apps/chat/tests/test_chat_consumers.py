@@ -1,6 +1,7 @@
 # apps/chat/tests/test_chat_consumers.py
 import asyncio
 
+from channels.db import database_sync_to_async  # type: ignore[import-untyped]
 from channels.testing import (  # type: ignore[import-untyped]
     AsgiTestCase,
     WebsocketCommunicator,
@@ -22,7 +23,7 @@ class ChatConsumerTest(AsgiTestCase):  # type: ignore[misc]
 
         async def _async_test_logic() -> None:
             # 1. Create test data: 2 users, 1 study group
-            user1 = await User.objects.acreate_user(  # type: ignore[attr-defined]
+            user1 = await database_sync_to_async(User.objects.create_user)(
                 email="testuser1@example.com",
                 password="password123",
                 nickname="testuser1",
@@ -31,7 +32,7 @@ class ChatConsumerTest(AsgiTestCase):  # type: ignore[misc]
                 gender="M",
                 birthday="2000-01-01",
             )
-            user2 = await User.objects.acreate_user(  # type: ignore[attr-defined]
+            user2 = await database_sync_to_async(User.objects.create_user)(
                 email="testuser2@example.com",
                 password="password123",
                 nickname="testuser2",
@@ -103,7 +104,7 @@ class ChatConsumerTest(AsgiTestCase):  # type: ignore[misc]
         """
 
         async def _async_test_logic() -> None:
-            user1 = await User.objects.acreate_user(
+            user1 = await database_sync_to_async(User.objects.create_user)(
                 email="testuser1@example.com",
                 password="password123",
                 nickname="testuser1",
@@ -136,7 +137,9 @@ class ChatConsumerTest(AsgiTestCase):  # type: ignore[misc]
 
             # Edit message
             new_content = "Edited message."
-            await communicator1.send_json_to({"type": "chat.edit_message", "message_id": message_id, "new_content": new_content})
+            await communicator1.send_json_to(
+                {"type": "chat.edit_message", "message_id": message_id, "new_content": new_content}
+            )
             edited_response = await communicator1.receive_json_from()
 
             self.assertEqual(edited_response["type"], "chat.message.edited")
@@ -158,7 +161,7 @@ class ChatConsumerTest(AsgiTestCase):  # type: ignore[misc]
         """
 
         async def _async_test_logic() -> None:
-            user1 = await User.objects.acreate_user(
+            user1 = await database_sync_to_async(User.objects.create_user)(
                 email="testuser1@example.com",
                 password="password123",
                 nickname="testuser1",
@@ -167,7 +170,7 @@ class ChatConsumerTest(AsgiTestCase):  # type: ignore[misc]
                 gender="M",
                 birthday="2000-01-01",
             )
-            user2 = await User.objects.acreate_user(
+            user2 = await database_sync_to_async(User.objects.create_user)(
                 email="testuser2@example.com",
                 password="password123",
                 nickname="testuser2",
@@ -209,7 +212,9 @@ class ChatConsumerTest(AsgiTestCase):  # type: ignore[misc]
 
             # User2 tries to edit User1's message
             new_content = "Edited by User2."
-            await communicator2.send_json_to({"type": "chat.edit_message", "message_id": message_id, "new_content": new_content})
+            await communicator2.send_json_to(
+                {"type": "chat.edit_message", "message_id": message_id, "new_content": new_content}
+            )
             error_response = await communicator2.receive_json_from()
 
             self.assertEqual(error_response["type"], "error")
@@ -230,7 +235,7 @@ class ChatConsumerTest(AsgiTestCase):  # type: ignore[misc]
         """
 
         async def _async_test_logic() -> None:
-            user1 = await User.objects.acreate_user(
+            user1 = await database_sync_to_async(User.objects.create_user)(
                 email="testuser1@example.com",
                 password="password123",
                 nickname="testuser1",
@@ -258,7 +263,9 @@ class ChatConsumerTest(AsgiTestCase):  # type: ignore[misc]
             # Try to edit a non-existent message
             non_existent_message_id = 99999
             new_content = "Edited content."
-            await communicator1.send_json_to({"type": "chat.edit_message", "message_id": non_existent_message_id, "new_content": new_content})
+            await communicator1.send_json_to(
+                {"type": "chat.edit_message", "message_id": non_existent_message_id, "new_content": new_content}
+            )
             error_response = await communicator1.receive_json_from()
 
             self.assertEqual(error_response["type"], "error")
