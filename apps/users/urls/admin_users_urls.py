@@ -6,7 +6,7 @@ from apps.users.views.admin_users_views import (
     AdminUserView,
 )
 
-app_name = "users"
+app_name = "admin_users"
 
 urlpatterns = [
     path("", AdminUserListView.as_view(), name="admin-user-list"),
