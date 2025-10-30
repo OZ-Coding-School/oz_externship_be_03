@@ -162,7 +162,7 @@ class GroupReviewListCreateView(generics.ListCreateAPIView[Review]):
 
         try:
             # perform_create 대신 여기서 명시적으로 저장
-            serializer.save(user=request.user, study_group=group)
+            serializer.save()
         except IntegrityError:
             return Response({"detail": "이미 해당 스터디에 리뷰를 작성했습니다"}, status=status.HTTP_409_CONFLICT)
 
