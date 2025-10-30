@@ -1,4 +1,5 @@
 from datetime import date
+from typing import Any
 
 from django.contrib.auth import get_user_model
 from django.urls import reverse
@@ -14,13 +15,20 @@ from apps.lecture.models import (
     LectureSearchLog,
 )
 
+from .base_lecture import BaseLectureTest
+
 User = get_user_model()
 
 
-class LectureListApiViewTest(APITestCase):
-    def setUp(self) -> None:
-        self.list_url = reverse("lecture-list")
-        self.user = User.objects.create_user(
+class LectureListApiViewTest(BaseLectureTest):
+    list_url: str
+    user: Any
+
+    @classmethod
+    def setUpTestData(cls) -> None:
+        super().setUpTestData()
+        cls.list_url = reverse("lecture-list")
+        cls.user = User.objects.create_user(
             email="test@example.com",
             password="testtest123!",
             nickname="테스트유저",
@@ -29,37 +37,6 @@ class LectureListApiViewTest(APITestCase):
             birthday=date(1990, 1, 1),
             gender="MALE",
         )
-
-        self.category1 = Category.objects.create(name="Python")
-        self.category2 = Category.objects.create(name="C++")
-
-        self.lecture1 = CrawledLecture.objects.create(
-            title="Python 기초",
-            instructor="홍길동",
-            average_rating=4.5,
-            duration=600,
-            difficulty="EASY",
-            description="Python 기초 강의",
-            platform="INFLEARN",
-            original_price=50000,
-            discount_price=30000,
-            url_link="https://www.inflearn.com/python",
-        )
-        LectureCategory.objects.create(lecture=self.lecture1, category=self.category1)
-
-        self.lecture2 = CrawledLecture.objects.create(
-            title="C++ 심화",
-            instructor="김철수",
-            average_rating=4.8,
-            duration=180,
-            difficulty="HARD",
-            description="C++ 심화 강의",
-            platform="INFLEARN",
-            original_price=80000,
-            discount_price=60000,
-            url_link="https://inflearn.com/C",
-        )
-        LectureCategory.objects.create(lecture=self.lecture2, category=self.category2)
 
     def test_lecture_list(self) -> None:
         """강의 목록 조회 성공"""
@@ -122,10 +99,20 @@ class LectureListApiViewTest(APITestCase):
 
 
 class LectureReviewListApiViewTest(APITestCase):
-    def setUp(self) -> None:
-        self.category = Category.objects.create(name="Python")
+    category: Category
+    lecture: CrawledLecture
+    review1: CrawledLectureReview
+    review2: CrawledLectureReview
+    review3: CrawledLectureReview
+    review4: CrawledLectureReview
+    review5: CrawledLectureReview
+    review_url: str
 
-        self.lecture = CrawledLecture.objects.create(
+    @classmethod
+    def setUpTestData(cls) -> None:
+        cls.category = Category.objects.create(name="Python")
+
+        cls.lecture = CrawledLecture.objects.create(
             title="Python 기초",
             instructor="홍길동",
             average_rating=4.5,
@@ -137,35 +124,39 @@ class LectureReviewListApiViewTest(APITestCase):
             discount_price=30000,
             url_link="https://www.inflearn.com/python",
         )
-        LectureCategory.objects.create(lecture=self.lecture, category=self.category)
+        LectureCategory.objects.create(lecture=cls.lecture, category=cls.category)
 
-        self.review1 = CrawledLectureReview.objects.create(
-            lecture=self.lecture,
-            rating="5_OUT_OF_5_STARS",
-            content="최고의 강의",
-        )
-        self.review2 = CrawledLectureReview.objects.create(
-            lecture=self.lecture,
-            rating="1_OUT_OF_5_STARS",
-            content="최악의 강의",
-        )
-        self.review3 = CrawledLectureReview.objects.create(
-            lecture=self.lecture,
-            rating="3_OUT_OF_5_STARS",
-            content="평범한 강의",
-        )
-        self.review4 = CrawledLectureReview.objects.create(
-            lecture=self.lecture,
-            rating="2_OUT_OF_5_STARS",
-            content="나쁜 강의",
-        )
-        self.review5 = CrawledLectureReview.objects.create(
-            lecture=self.lecture,
-            rating="4_OUT_OF_5_STARS",
-            content="좋은 강의",
+        cls.review1, cls.review2, cls.review3, cls.review4, cls.review5 = CrawledLectureReview.objects.bulk_create(
+            [
+                CrawledLectureReview(
+                    lecture=cls.lecture,
+                    rating="5_OUT_OF_5_STARS",
+                    content="최고의 강의",
+                ),
+                CrawledLectureReview(
+                    lecture=cls.lecture,
+                    rating="4_OUT_OF_5_STARS",
+                    content="좋은 강의",
+                ),
+                CrawledLectureReview(
+                    lecture=cls.lecture,
+                    rating="5_OUT_OF_5_STARS",
+                    content="평범한 강의",
+                ),
+                CrawledLectureReview(
+                    lecture=cls.lecture,
+                    rating="5_OUT_OF_5_STARS",
+                    content="나쁜 강의",
+                ),
+                CrawledLectureReview(
+                    lecture=cls.lecture,
+                    rating="5_OUT_OF_5_STARS",
+                    content="최악의 강의",
+                ),
+            ]
         )
 
-        self.review_url = reverse("lecture-review-list", kwargs={"uuid": self.lecture.uuid})
+        cls.review_url = reverse("lecture-review-list", kwargs={"uuid": cls.lecture.uuid})
 
     def test_lecture_review_list(self) -> None:
         """강의 리뷰 조회 확인 (최신4개)"""
