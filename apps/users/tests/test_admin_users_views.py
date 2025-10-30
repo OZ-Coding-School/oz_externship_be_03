@@ -1,4 +1,3 @@
-# apps/users/tests/test_admin_users_views.py
 from django.test import TestCase
 from django.urls import reverse
 from rest_framework import status
