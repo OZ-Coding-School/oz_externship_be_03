@@ -153,8 +153,6 @@ class GroupReviewListCreateView(generics.ListCreateAPIView[Review]):
         if user_id is None:
             return Response(status=status.HTTP_401_UNAUTHORIZED)
 
-
-
         serializer = self.get_serializer(data={**request.data, "study_group": group.pk}, context={"request": request})
         if not serializer.is_valid():
             return Response(serializer.errors, status=422)
