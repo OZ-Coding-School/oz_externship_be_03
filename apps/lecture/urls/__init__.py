@@ -7,5 +7,4 @@ urlpatterns = [
     *lecture_urls,
     *bookmark_urls,
     *category_urls,
-    *admin_urls,
 ]

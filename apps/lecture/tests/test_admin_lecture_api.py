@@ -1,4 +1,5 @@
 from datetime import date
+from typing import Any
 
 from django.contrib.auth import get_user_model
 from django.urls import reverse
@@ -10,9 +11,13 @@ User = get_user_model()
 
 
 class BaseAdminLectureTest(BaseLectureTest):
-    def setUp(self) -> None:
-        super().setUp()
-        self.admin_user = User.objects.create_user(
+    admin_user: Any
+    normal_user: Any
+
+    @classmethod
+    def setUpTestData(cls) -> None:
+        super().setUpTestData()
+        cls.admin_user = User.objects.create_user(
             email="test1@example.com",
             password="testtest123!",
             nickname="테스트스태프",
@@ -23,7 +28,7 @@ class BaseAdminLectureTest(BaseLectureTest):
             is_staff=True,
         )
 
-        self.normal_user = User.objects.create_user(
+        cls.normal_user = User.objects.create_user(
             email="test2@example.com",
             password="testtest123!",
             nickname="테스트유저",
@@ -35,9 +40,12 @@ class BaseAdminLectureTest(BaseLectureTest):
 
 
 class AdminLectureAPITestCase(BaseAdminLectureTest):
-    def setUp(self) -> None:
-        super().setUp()
-        self.admin_lecture_list_url = reverse("admin_lecture:admin-lecture-list")
+    admin_lecture_list_url: str
+
+    @classmethod
+    def setUpTestData(cls) -> None:
+        super().setUpTestData()
+        cls.admin_lecture_list_url = reverse("admin_lecture:admin-lecture-list")
 
     def test_admin_lecture_list(self) -> None:
         """스태프 및 관리자 목록 조회 성공"""
@@ -60,6 +68,8 @@ class AdminLectureAPITestCase(BaseAdminLectureTest):
 
 
 class AdminLectureDetailApiViewTest(BaseAdminLectureTest):
+    detail_url: str
+
     def test_admin_lecture_detail(self) -> None:
         """스태프 및 관리자 상세 조회 성공"""
         self.detail_url = reverse("admin_lecture:admin-lecture-detail", kwargs={"lecture_id": self.lecture1.id})
