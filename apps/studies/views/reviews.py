@@ -79,7 +79,8 @@ from apps.studies.serializers.reviews import (
 )
 class GroupReviewListCreateView(generics.ListCreateAPIView[Review]):
     ordering: list[str] = ["-created_at"]
-    def get_permissions(self)-> list[BasePermission]:
+
+    def get_permissions(self) -> list[BasePermission]:
         if self.request.method == "GET":
             return [permissions.IsAuthenticated(), IsGroupMemberDOP()]
         return [permissions.IsAuthenticated()]
