@@ -89,28 +89,27 @@ class PasswordResetIntegrationTests(IsolatedRedisTestClient):
         self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
         self.assertIn("detail", resp.data)
 
-    # 403 {'error': ErrorDetail(string='검증 토큰이 유효하지 않거나 만료되었습니다.', code='authentication_failed')} 이런식으로 401이 발생한거를 403이 덮고 있음 -> 원인?
-    # def test_token_is_one_time_consumed(self) -> None:
-    #     token = self._issue_reset_token(email=self.user.email)
-    #
-    #     # 1회차: 성공
-    #     r1 = self.client.post(
-    #         self._url_with_email(self.user.email),
-    #         data=self._payload(new_pw="Passw0rd!!", new_pw2="Passw0rd!!"),
-    #         format="json",
-    #         **self._headers(token=token),
-    #     )
-    #     self.assertEqual(r1.status_code, status.HTTP_200_OK)
-    #
-    #     # 2회차: 같은 토큰 재사용 → verify_and_consume에서 401
-    #     r2 = self.client.post(
-    #         self._url_with_email(self.user.email),
-    #         data=self._payload(new_pw="OtherPass1!!", new_pw2="OtherPass1!!"),
-    #         format="json",
-    #         **self._headers(token=token),
-    #     )
-    #     print("2nd resp:", r2.status_code, r2.data if hasattr(r2, "data") else r2.content)
-    #     self.assertEqual(r2.status_code, status.HTTP_401_UNAUTHORIZED)
+    def test_token_is_one_time_consumed(self) -> None:
+        token = self._issue_reset_token(email=self.user.email)
+
+        # 1회차: 성공
+        r1 = self.client.post(
+            self._url_with_email(self.user.email),
+            data=self._payload(new_pw="Passw0rd!!", new_pw2="Passw0rd!!"),
+            format="json",
+            **self._headers(token=token),   # type: ignore[arg-type]
+        )
+        self.assertEqual(r1.status_code, status.HTTP_200_OK)
+
+        # 2회차: 같은 토큰 재사용 → verify_and_consume에서 401 → permission에서 403
+        # DRF 설계 구조상 permission check 중일 때 예외가 발생하면 무조건 403으로 처리하기 때문에 401로 처리 불가
+        r2 = self.client.post(
+            self._url_with_email(self.user.email),
+            data=self._payload(new_pw="OtherPass1!!", new_pw2="OtherPass1!!"),
+            format="json",
+            **self._headers(token=token),   # type: ignore[arg-type]
+        )
+        self.assertEqual(r2.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_idempotency_key_noop_on_second_different_password(self) -> None:
         # 같은 멱등키로 2회 요청 시, 2번째는 NO-OP
