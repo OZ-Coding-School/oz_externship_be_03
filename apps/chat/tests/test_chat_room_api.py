@@ -48,7 +48,11 @@ class ChatRoomAPITestCase(APITestCase):
         room3_data = next((r for r in response.data if r["name"] == "Test Group 3"), None)
 
         assert room1_data is not None
-        self.assertEqual(room1_data["last_message"], self.msg3.content)
+        assert room1_data["last_message"] is not None
+        self.assertEqual(room1_data["last_message"]["content"], self.msg3.content)
+        assert self.msg3.sender is not None  # mypy: sender can be None
+        self.assertEqual(room1_data["last_message"]["sender_nickname"], self.msg3.sender.nickname)
+        self.assertIsNotNone(room1_data["last_message"]["created_at"])
 
     def test_get_chat_room_list_unauthenticated(self) -> None:
         """채팅방 목록 조회 API 비인증 유저 테스트"""

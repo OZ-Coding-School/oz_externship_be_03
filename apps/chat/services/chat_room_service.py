@@ -18,7 +18,13 @@ class ChatRoomService:
 
         # 각 그룹의 마지막 메시지 서브쿼리
         last_message_subquery = (
-            ChatMessage.objects.filter(study_group_id=OuterRef("pk")).order_by("-created_at").values("content")[:1]
+            ChatMessage.objects.filter(study_group_id=OuterRef("pk"))
+            .order_by("-created_at")
+            .values(
+                "content",
+                "sender__nickname",
+                "created_at",
+            )[:1]
         )
 
         # 사용자의 마지막 읽은 메시지 ID 서브쿼리 (존재하지 않을 경우를 대비)
@@ -39,8 +45,17 @@ class ChatRoomService:
 
         # 스터디 그룹 정보와 함께 마지막 메시지, 안 읽은 메시지 수 조합
         chat_rooms = study_groups.annotate(
-            last_message=Subquery(last_message_subquery),
+            last_message_content=Subquery(last_message_subquery.values("content")),
+            last_message_sender_nickname=Subquery(last_message_subquery.values("sender__nickname")),
+            last_message_created_at=Subquery(last_message_subquery.values("created_at")),
             unread_count=Coalesce(Subquery(unread_count_subquery, output_field=models.IntegerField()), 0),
-        ).values("id", "name", "last_message", "unread_count")
+        ).values(
+            "id",
+            "name",
+            "last_message_content",
+            "last_message_sender_nickname",
+            "last_message_created_at",
+            "unread_count",
+        )
 
         return chat_rooms
