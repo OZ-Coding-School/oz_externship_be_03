@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
 
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
+from rest_framework import status
 from rest_framework.exceptions import APIException, ValidationError
 
 from apps.users.enums import Role
@@ -135,8 +135,9 @@ class DefaultSignupService:
         flags = flags_from_role(payload.get("role", Role.USER))
 
         # ---- 필드 검증
-        errors_map: dict[str, list[str]] = {}
-        validators: list[tuple[str, Any, Any]] = [
+        errors_400: dict[str, list[str]] = {}
+
+        validators = [
             ("nickname", validate_nickname, nickname),
             ("name", validate_name, name),
             ("phone_number", validate_korean_phone, phone_number),
@@ -145,17 +146,44 @@ class DefaultSignupService:
             try:
                 validator(value)
             except Exception as exc:
-                errors_map.setdefault(field_name, []).extend(_extract_msgs(exc))
+                errors_400.setdefault(field_name, []).extend(_extract_msgs(exc))
 
         try:
             validate_birthday(birthday)
         except Exception as exc:
-            errors_map.setdefault("birthday", []).extend(_extract_msgs(exc))
+            errors_400.setdefault("birthday", []).extend(_extract_msgs(exc))
 
-        if errors_map:
-            raise ValidationError(detail=errors_map)
+        if errors_400:
+            raise ValidationError(detail=errors_400)
 
-        # ---- 유저 생성
+        # 중복/충돌 체크 (→ 409)
+        conflicts: dict[str, list[str]] = {}
+
+        email = payload["email"]
+        nickname = payload["nickname"]
+        phone_number = payload["phone_number"]
+
+        # 1) 활성 유저 기준 이메일 중복
+        if User.objects.active().exists_email(email):
+            conflicts.setdefault("email", []).append("이미 사용 중인 이메일입니다.")
+
+        # 2) 최근 14일 이내 탈퇴 이메일 차단
+        if User.objects.is_email_blocked_by_recent_withdrawal(email, days=14):
+            conflicts.setdefault("email", []).append("탈퇴 요청 처리중입니다.")
+
+        # 3) 닉네임 중복
+        if User.objects.exists_nickname(nickname):
+            conflicts.setdefault("nickname", []).append("이미 사용 중인 닉네임입니다.")
+
+        # 4) 휴대폰 번호 중복
+        if User.objects.exists_phone(phone_number):
+            conflicts.setdefault("phone_number", []).append("이미 사용 중인 휴대폰 번호입니다.")
+
+        if conflicts:
+            api_exc = APIException(detail=conflicts)
+            api_exc.status_code = status.HTTP_409_CONFLICT
+            raise api_exc
+
         try:
             user = User.objects.create_user(
                 email=email,  # UserManager에서 도메인만 소문자화
@@ -172,7 +200,7 @@ class DefaultSignupService:
         except IntegrityError as exc:
             conflict_map = _map_integrity_error_to_conflicts(exc)
             api_exc = APIException(detail=conflict_map)
-            api_exc.status_code = 409
+            api_exc.status_code = status.HTTP_409_CONFLICT
             raise api_exc
 
         return user
