@@ -42,7 +42,7 @@ class _BaseFixtures(TestCase):
             name="Test User",
             phone_number="010-1234-5678",
             birthday="1990-01-01",
-            gender="MALE",
+            gender="M",
             is_active=True,
         )
         cls.user.set_password("pw1234")
@@ -54,7 +54,7 @@ class _BaseFixtures(TestCase):
             name="Other User",
             phone_number="010-1111-2222",
             birthday="1990-01-01",
-            gender="FEMALE",
+            gender="F",
             is_active=True,
         )
         cls.other_user.set_password("pw1234")

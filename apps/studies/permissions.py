@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+from typing import Any, cast
 import uuid
-from typing import Any
 
 from django.core.exceptions import ObjectDoesNotExist
 from django.http import HttpRequest
@@ -16,22 +16,24 @@ from rest_framework.views import APIView
 from apps.studies.models import Review
 from apps.studies.models.groups import GroupMember, StudyGroup
 from apps.studies.models.notes import StudyNote
+from apps.users.models import User
 
 
 # 리더 여부 권한 확인
 class IsGroupLeader(BasePermission):
     message = "리더만 접근 가능한 기능입니다."
 
-    def has_object_permission(self, request: Request, view: APIView, obj: StudyGroup) -> bool:
-        user = request.user
-        if not user or not user.is_authenticated:
+    def has_permission(self, request: Request, view: APIView, *args: Any, **kwargs: Any) -> bool:
+        group_uuid: str | None = view.kwargs.get("group_uuid")
+        if not group_uuid:
+            return False
+        try:
+            group = StudyGroup.objects.get(uuid=group_uuid)
+        except StudyGroup.DoesNotExist:
             return False
 
-        return GroupMember.objects.filter(
-            study_group=obj,
-            user=user,
-            is_leader=True,
-        ).exists()
+        user = cast(User, request.user)
+        return GroupMember.objects.filter(study_group=group, user=user, is_leader=True).exists()
 
 
 class IsGroupMemberDOP(DjangoObjectPermissions):
