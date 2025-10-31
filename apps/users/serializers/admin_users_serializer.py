@@ -5,6 +5,7 @@ from rest_framework import serializers
 from apps.users.enums import Role, UserStatus
 from apps.users.models import User
 from apps.users.services.admin_users_services import AdminUserService
+from apps.users.validators import validate_korean_phone
 
 
 # [관리자] 회원 목록 조회
@@ -41,6 +42,7 @@ class AdminUserDetailSerializer(serializers.ModelSerializer[User]):
             "email",
             "name",
             "nickname",
+            "birthday",
             "phone_number",
             "is_active",
             "is_staff",
@@ -59,6 +61,9 @@ class AdminUserDetailSerializer(serializers.ModelSerializer[User]):
 class AdminUserUpdateSerializer(serializers.ModelSerializer[User]):
 
     status = serializers.ChoiceField(choices=UserStatus.choices, required=False)
+    phone_number = serializers.CharField(
+        validators=[validate_korean_phone], required=False, help_text="휴대폰 번호 (0100000000) 저장 가능"
+    )
 
     class Meta:
         model = User
