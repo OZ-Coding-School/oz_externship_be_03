@@ -16,7 +16,7 @@ class RedisPubSubService:
         """사용자별 알림 채널명 생성"""
         return f"notifications:user_{user_id}"
 
-    def get_group_channel(self, group_id: int) -> str:
+    def get_group_channel(self, group_id: str) -> str:
         """그룹별 알림 채널명 생성"""
         return f"notifications:group_{group_id}"
 
@@ -31,9 +31,9 @@ class RedisPubSubService:
         except Exception as e:
             logger.error(f"{channel}에 알림을 게시하지 못했습니다.{e}")
 
-    async def publish_group_notification(self, group_id: int, notification_data: Dict[str, Any]) -> None:
+    async def publish_group_notification(self, group_id: str, notification_data: Dict[str, Any]) -> None:
         """특정 그룹 채널에 알림 발행"""
-        channel = self.get_user_channel(group_id)
+        channel = self.get_group_channel(group_id)
         message = json.dumps(notification_data, ensure_ascii=False, default=str)
 
         try:
