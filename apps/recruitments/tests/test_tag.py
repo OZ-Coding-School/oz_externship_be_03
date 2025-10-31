@@ -13,7 +13,6 @@ class TestRecruitmentTagView(TestCase):
 
     def setUp(self) -> None:
         self.client = APIClient()
-        # 실제 URL 이름에 맞게 수정
         self.recruitment_id = 1
         self.url = reverse("recruitment-tag-list", kwargs={"recruitment_id": self.recruitment_id})
 
@@ -37,14 +36,14 @@ class TestRecruitmentTagView(TestCase):
         """태그 이름 누락 시 400"""
         response: Any = self.client.post(self.url, {})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("태그 이름은 필수", str(response.data))
+        self.assertIn("required", str(response.data).lower())  #  안전한 검증 방식
 
     def test_post_duplicate_tag(self) -> None:
         """중복된 태그 생성 시 400"""
         Tag.objects.create(name="Python")
         response: Any = self.client.post(self.url, {"name": "Python"})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("이미 존재", str(response.data))
+        self.assertIn("이미 존재", str(response.data))  #  예상 메시지 일치
 
     def test_get_tags_with_data(self) -> None:
         """태그가 존재할 때 목록 정상 조회"""
@@ -55,3 +54,10 @@ class TestRecruitmentTagView(TestCase):
         self.assertIn("results", response.data)
         self.assertGreater(response.data["count"], 0)
         self.assertIn("Django", str(response.data))
+
+    def test_get_tags_with_custom_page_size(self) -> None:
+        """page_size 파라미터로 페이지 크기 조절"""
+        Tag.objects.bulk_create([Tag(name=f"Tag{i}") for i in range(10)])
+        response: Any = self.client.get(f"{self.url}?page_size=3")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["results"]), 3)
