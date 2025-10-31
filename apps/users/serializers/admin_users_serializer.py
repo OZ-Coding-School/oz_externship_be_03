@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Dict
 
 from rest_framework import serializers
 
@@ -9,24 +9,50 @@ from apps.users.validators import validate_korean_phone
 
 
 # [관리자] 회원 목록 조회
-class AdminUserListSerializer(serializers.ModelSerializer[User]):
+class AdminUserItemSerializer(serializers.Serializer[Dict[str, Any]]):
+    id = serializers.IntegerField()
+    email = serializers.EmailField()
+    nickname = serializers.CharField()
+    name = serializers.CharField()
+    birthday = serializers.DateField()
+    status = serializers.ChoiceField(choices=UserStatus.choices)
+    role = serializers.ChoiceField(choices=Role.choices)
+    created_at = serializers.DateTimeField()
+    withdrawal_requested_at = serializers.DateTimeField(allow_null=True, required=False)
 
-    withdrawal_requested_at = serializers.DateTimeField(read_only=True, allow_null=True)
+    @staticmethod
+    def from_user(user: User) -> Dict[str, Any]:
+        return {
+            "id": user.id,
+            "email": user.email,
+            "nickname": user.nickname,
+            "name": user.name,
+            "birthday": user.birthday,
+            "status": str(AdminUserService.get_user_status(user)),
+            "role": (
+                Role.ADMIN.value if user.is_superuser else (Role.STAFF.value if user.is_staff else Role.USER.value)
+            ),
+            "created_at": user.created_at,
+            # Withdrawal 모델이 따로 있거나 서비스에서 붙여주는 경우가 있으니까 안전하게 getattr
+            "withdrawal_requested_at": getattr(user, "withdrawal_requested_at", None),
+        }
 
-    class Meta:
-        model = User
-        fields = [
-            "id",
-            "email",
-            "nickname",
-            "name",
-            "birthday",
-            "is_active",
-            "is_superuser",
-            "is_staff",
-            "created_at",
-            "withdrawal_requested_at",
-        ]
+
+# [관리자] data: {users: [...]}
+class AdminUserListDataSerializer(serializers.Serializer[Dict[str, Any]]):
+    users = AdminUserItemSerializer(many=True)
+
+
+# [관리자] detail: data: {{users: [...]}}
+class AdminUserListResponseSerializer(serializers.Serializer[Dict[str, Any]]):
+    detail = serializers.CharField()
+    payload = AdminUserListDataSerializer()
+
+    def to_representation(self, instance: Dict[str, Any]) -> Dict[str, Any]:
+        base = super().to_representation(instance)
+        payload = base.pop("payload", {})
+        base["data"] = payload
+        return base
 
 
 # [관리자] 회원 상세 조회
