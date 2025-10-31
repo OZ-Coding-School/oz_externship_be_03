@@ -1,18 +1,18 @@
 # apps/chat/consumers.py
 
 import json
-from typing import Any
+from typing import Any, cast
 
-from channels.db import database_sync_to_async  # type: ignore[import-untyped]
-from channels.generic.websocket import (  # type: ignore[import-untyped]
+from channels.db import database_sync_to_async
+from channels.generic.websocket import (
     AsyncJsonWebsocketConsumer,
 )
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AbstractBaseUser
 
+from apps.chat.models import ChatMessage
 from apps.studies.models.groups import GroupMember, StudyGroup
-
-from .services import ChatMessageService
+from apps.users.models.user import User
 
 
 class ChatConsumer(AsyncJsonWebsocketConsumer):  # type: ignore[misc]
@@ -70,8 +70,8 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):  # type: ignore[misc]
         Asynchronously creates a chat message in the database.
         """
         study_group = await StudyGroup.objects.aget(id=self.study_group_id)
-        await database_sync_to_async(ChatMessageService.create_chat_message)(
-            sender=user,
+        await ChatMessage.objects.acreate(
+            sender=cast(User, user),
             study_group=study_group,
             content=content,
         )
