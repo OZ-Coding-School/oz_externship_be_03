@@ -1,4 +1,4 @@
-from typing import Any, Dict, List
+from typing import Any
 
 from django.db.models import Count
 from django.shortcuts import get_object_or_404
@@ -79,7 +79,7 @@ class StudyGroupDetailUpdateView(APIView):
         },
     )
     def get(self, request: Request, *args: Any, **kwargs: Any) -> Response:
-        obj_uuid = self.kwargs.get("group_id")
+        obj_uuid = self.kwargs.get("group_uuid")
         obj = get_object_or_404(StudyGroup.objects.prefetch_related("members", "lectures__lecture"), uuid=obj_uuid)
 
         serializer = StudyGroupDetailSerializer(obj, context={"request": request})
@@ -96,7 +96,7 @@ class StudyGroupDetailUpdateView(APIView):
         },
     )
     def put(self, request: Request, *args: Any, **kwargs: Any) -> Response:
-        obj_uuid = self.kwargs.get("group_id")
+        obj_uuid = self.kwargs.get("group_uuid")
         obj = get_object_or_404(StudyGroup.objects.prefetch_related("lectures__lecture"), uuid=obj_uuid)
 
         serializer = StudyGroupCreateSerializer(obj, data=request.data, partial=True)
