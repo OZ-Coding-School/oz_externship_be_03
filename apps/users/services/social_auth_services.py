@@ -2,8 +2,8 @@ from typing import Any
 
 import requests
 from django.conf import settings
-from rest_framework_simplejwt.tokens import RefreshToken
 from requests.exceptions import RequestException
+from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.users.models import SocialUser, User
 

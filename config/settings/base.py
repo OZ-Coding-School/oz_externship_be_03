@@ -39,8 +39,7 @@ THIRD_PARTY_APPS = [
     "allauth",
     "allauth.account",
     "allauth.socialaccount",
-
-    #allauth 소셜 프로바이더
+    # allauth 소셜 프로바이더
     "allauth.socialaccount.providers.kakao",
     "allauth.socialaccount.providers.naver",
 ]
