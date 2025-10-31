@@ -4,11 +4,12 @@ from typing import Any
 
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import generics, status
+from rest_framework.exceptions import ValidationError
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny
 from rest_framework.request import Request
 from rest_framework.response import Response
-from rest_framework.serializers import BaseSerializer  #  추가
+from rest_framework.serializers import BaseSerializer
 
 from apps.recruitments.models import Tag
 from apps.recruitments.serializers.tag import TagSerializer
@@ -18,6 +19,7 @@ class TagPagination(PageNumberPagination):
     """태그 목록 페이지네이션"""
 
     page_size: int = 5
+    page_size_query_param: str = "page_size"  #  클라이언트가 페이지 크기 조절 가능
 
 
 @extend_schema(
@@ -32,10 +34,15 @@ class TagPagination(PageNumberPagination):
         )
     ],
 )
-class RecruitmentTagListCreateView(generics.ListCreateAPIView[Tag]):  #  제네릭 타입: 모델 기준
-    """특정 공고의 태그 목록 조회 및 신규 태그 등록"""
+class RecruitmentTagListCreateView(generics.ListCreateAPIView[Tag]):
+    """
+    특정 공고의 태그 목록 조회 및 신규 태그 등록 API.
 
-    serializer_class: type[TagSerializer] = TagSerializer  #  타입 주석 명시
+    - 검색(q) 파라미터로 이름 필터링 지원
+    - 중복 태그 등록 시 400 에러 반환
+    """
+
+    serializer_class: type[TagSerializer] = TagSerializer
     permission_classes = [AllowAny]
     pagination_class = TagPagination
 
@@ -47,24 +54,25 @@ class RecruitmentTagListCreateView(generics.ListCreateAPIView[Tag]):  #  제네�
             queryset = queryset.filter(name__icontains=q)
         return queryset
 
-    def perform_create(self, serializer: BaseSerializer[Any]) -> None:  #  부모 시그니처와 동일
+    def perform_create(self, serializer: BaseSerializer[Any]) -> None:
         """recruitment_id는 URL로만 받되, Tag에는 직접 저장하지 않음"""
         recruitment_id = self.kwargs.get("recruitment_id")
         if not recruitment_id:
-            raise ValueError("URL에 recruitment_id가 누락되었습니다.")
+            raise ValidationError({"detail": "URL에 recruitment_id가 누락되었습니다."})
         serializer.save()
 
     @extend_schema(
         summary="특정 공고의 태그 목록 조회",
-        description="검색(q) 파라미터로 필터링. 없으면 전체 태그 반환.",
+        description="검색(q) 파라미터로 이름을 필터링할 수 있습니다. 없으면 전체 태그를 반환합니다.",
         responses={200: TagSerializer(many=True)},
     )
     def get(self, request: Request, *args: Any, **kwargs: Any) -> Response:
+        """태그 목록 조회"""
         return super().get(request, *args, **kwargs)
 
     @extend_schema(
         summary="신규 태그 등록",
-        description="기존에 없는 새로운 태그를 등록합니다. 이미 존재하면 400 반환.",
+        description="기존에 없는 새로운 태그를 등록합니다. 이미 존재하면 400 응답을 반환합니다.",
         request=TagSerializer,
         responses={
             201: TagSerializer,
@@ -72,6 +80,7 @@ class RecruitmentTagListCreateView(generics.ListCreateAPIView[Tag]):  #  제네�
         },
     )
     def post(self, request: Request, *args: Any, **kwargs: Any) -> Response:
+        """새로운 태그 등록"""
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
