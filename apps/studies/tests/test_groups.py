@@ -10,7 +10,7 @@ from rest_framework import status
 from rest_framework.test import APIClient
 
 from apps.lecture.models import CrawledLecture
-from apps.studies.models.groups import GroupMember, StudyLecture, StudyGroup
+from apps.studies.models.groups import GroupMember, StudyGroup, StudyLecture
 
 User = get_user_model()
 
