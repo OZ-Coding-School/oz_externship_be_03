@@ -42,7 +42,7 @@ class RedisPubSubService:
         except Exception as e:
             logger.error(f"그룹 {channel}에 알림을 게시하지 못했습니다.{e}")
 
-    async def subscribe_notification(self, user_id: int,group_ids: List[str]) -> AsyncGenerator[Dict[str, Any], None]:
+    async def subscribe_notification(self, user_id: int, group_ids: List[str]) -> AsyncGenerator[Dict[str, Any], None]:
         """사용자 알림 채널 구독 및 메시지 스트리밍"""
         personal_channel = self.get_user_channel(user_id)
         group_channel = [self.get_group_channel(group_id) for group_id in group_ids]
