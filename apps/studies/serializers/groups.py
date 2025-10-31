@@ -1,5 +1,5 @@
 from datetime import timedelta
-from typing import Any, Iterable
+from typing import Any, Dict, Iterable
 
 from django.utils import timezone
 from rest_framework import serializers
@@ -47,7 +47,7 @@ class StudyGroupCreateSerializer(StudyGroupBaseSerializer):
     class Meta(StudyGroupBaseSerializer.Meta):
         fields = StudyGroupBaseSerializer.Meta.fields + ["introduction", "lectures"]
 
-    def create(self, validated_data):
+    def create(self, validated_data: Dict[str, Any]) -> StudyGroup:
         lectures = validated_data.pop("lectures", [])
         study_group = StudyGroup.objects.create(**validated_data)
 
@@ -56,13 +56,13 @@ class StudyGroupCreateSerializer(StudyGroupBaseSerializer):
 
         return study_group
 
-    def to_representation(self, instance):
+    def to_representation(self, instance: StudyGroup) -> Dict[str, Any]:
         """출력 시 lecture 객체 → id 리스트로 변환"""
         ret = super().to_representation(instance)
         ret["lectures"] = list(instance.lectures.values_list("lecture_id", flat=True))
         return ret
 
-    def get_lectures(self, obj):
+    def get_lectures(self, obj: StudyGroup) -> Iterable[int]:
         return list(obj.lectures.values_list(flat=True))
 
     # 인원 수 제한 (2~10명)
@@ -89,7 +89,7 @@ class StudyGroupCreateSerializer(StudyGroupBaseSerializer):
             raise serializers.ValidationError({"start_at": "시작일은 오늘 또는 이후여야 합니다."})
         return attrs
 
-    def update(self, instance, validated_data):
+    def update(self, instance: Any, validated_data: Dict[str, Any]) -> Any:
         lectures = validated_data.pop("lectures", None)
 
         # 일반 필드 업데이트

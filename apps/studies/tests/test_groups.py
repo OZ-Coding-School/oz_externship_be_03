@@ -17,7 +17,7 @@ User = get_user_model()
 
 class StudyGroupListCreateViewTest(TestCase):
     def setUp(self) -> None:
-        self.client = APIClient()
+        self.client: APIClient = APIClient()
         self.user = User.objects.create_user(
             email="testuser@example.com",
             password="testpass",
@@ -214,13 +214,13 @@ class StudyGroupListCreateViewTest(TestCase):
         self.assertEqual(group_data["current_headcount"], 1)
         self.assertTrue(group_data["is_leader"])
 
-    def test_list_login_required(self):
+    def test_list_login_required(self) -> None:
         self.client.logout()
         response = self.client.get(self.list_create_url)
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    def test_filter_status_ended(self):
+    def test_filter_status_ended(self) -> None:
         # 상태 변경
         self.group.status = "ENDED"
         self.group.save()
@@ -230,7 +230,7 @@ class StudyGroupListCreateViewTest(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.json()["count"], 1)  # 필터에 걸림
 
-    def test_filter_status_ended_group_ongoing(self):
+    def test_filter_status_ended_group_ongoing(self) -> None:
         response = self.client.get(self.list_create_url + "?status=ENDED")
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -238,7 +238,7 @@ class StudyGroupListCreateViewTest(TestCase):
 
 
 class StudyGroupDetailUpdateViewTest(TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.client = APIClient()
 
         self.user = User.objects.create_user(
