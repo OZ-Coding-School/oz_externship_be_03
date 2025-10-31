@@ -4,8 +4,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from apps.chat.models import ChatMessage, LastReadMessage
-from apps.studies.models import StudyGroup
-from apps.studies.models.groups import GroupMember
+from apps.studies.models.groups import GroupMember, StudyGroup
 
 User = get_user_model()
 
@@ -36,12 +35,8 @@ class ChatMessageListAPIViewTest(APITestCase):
             start_at="2025-01-01T00:00:00Z",
             end_at="2025-12-31T23:59:59Z",
         )
-        self.group_member1 = GroupMember.objects.create(
-            user=self.user1, study_group=self.study_group, is_leader=True
-        )
-        self.group_member2 = GroupMember.objects.create(
-            user=self.user2, study_group=self.study_group
-        )
+        self.group_member1 = GroupMember.objects.create(user=self.user1, study_group=self.study_group, is_leader=True)
+        self.group_member2 = GroupMember.objects.create(user=self.user2, study_group=self.study_group)
 
         # Create 350 messages for pagination testing
         for i in range(1, 351):
@@ -51,9 +46,7 @@ class ChatMessageListAPIViewTest(APITestCase):
                 content=f"Message {i}",
             )
 
-        self.url = reverse(
-            "chat:message-list", kwargs={"study_group_id": self.study_group.id}
-        )
+        self.url = reverse("chat:message-list", kwargs={"study_group_id": self.study_group.id})
 
     def test_message_list_unauthenticated(self) -> None:
         """인증되지 않은 사용자는 메시지 목록을 조회할 수 없습니다."""
@@ -99,9 +92,7 @@ class ChatMessageListAPIViewTest(APITestCase):
         """메시지 읽음 상태를 올바르게 반환합니다."""
         # user1이 메시지 300까지 읽었다고 가정
         last_read_message = ChatMessage.objects.get(content="Message 300")
-        LastReadMessage.objects.create(
-            user=self.user1, study_group=self.study_group, message=last_read_message
-        )
+        LastReadMessage.objects.create(user=self.user1, study_group=self.study_group, message=last_read_message)
 
         self.client.force_authenticate(user=self.user1)
         response = self.client.get(self.url)
