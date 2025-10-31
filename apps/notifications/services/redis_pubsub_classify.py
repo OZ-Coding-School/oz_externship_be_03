@@ -48,14 +48,17 @@ class RedisPubSubService:
         if user_id:
             personal_channel = self.get_user_channel(user_id)
             channels.append(personal_channel)
+
         if group_ids:
             group_channel = [self.get_group_channel(group_id) for group_id in group_ids]
             channels.extend(group_channel)
+        if not channels:
+            raise ValueError("user_id 또는 group_ids 중 하나는 제공되어야 합니다")
 
         pubsub = self.redis_client.pubsub()
-
+        
         try:
-            await pubsub.subscribe(channels)
+            await pubsub.subscribe(*channels)
             logger.info(f"채널 구독:{channels}")
 
             async for message in pubsub.listen():
@@ -65,7 +68,7 @@ class RedisPubSubService:
                         yield notification_data
                     except (json.JSONDecodeError, UnicodeDecodeError) as e:
                         logger.error(f"{channels}에서 메시지를 디코딩하지 못했습니다:{e}")
-
+                        
         except Exception as e:
             logger.error(f"구독 실패:{e}")
         finally:

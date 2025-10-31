@@ -105,13 +105,12 @@ class TestRedisPubSubService(IsolatedRedisTestClient):
 
         async def publish_after_delay() -> None:
             await asyncio.sleep(0.2)
-
             await self.pubsub_service.publish_notification(user_id, self.test_notification)
 
         publish_task = asyncio.create_task(publish_after_delay())
 
         received_count = 0
-        async for notification in self.pubsub_service.subscribe_notification(user_id):
+        async for notification in self.pubsub_service.subscribe_notification(user_id=user_id):
             self.assertEqual(notification["content"], "테스트입니다.")
             received_count += 1
             if received_count >= 1:
@@ -131,7 +130,7 @@ class TestRedisPubSubService(IsolatedRedisTestClient):
             user_id = self.author.id
 
             received_count = 0
-            async for notification in self.pubsub_service.subscribe_notification(user_id):
+            async for notification in self.pubsub_service.subscribe_notification(user_id=user_id):
                 received_count += 1
                 if received_count >= 1:
                     break
