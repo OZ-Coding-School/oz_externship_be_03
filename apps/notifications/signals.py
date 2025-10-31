@@ -61,3 +61,14 @@ def study_member_joined_created(sender: Any, instance: Application, created: boo
 
         if recruitment.study_group:
             study_group = recruitment.study_group
+            new_member = instance.user
+
+            existing_member = study_group.members.exclude(user=new_member).select_related('user')
+
+            for member in existing_member:
+                notification = Notification.objects.create(
+                    user_id=member.user_id,
+                    content = f"{study_group.name}에 {new_member.nickname}님이 참여했습니다. 환영해주세요!",
+                    type=Notification.NotificationType.STUDY_MEMBER_JOINED,
+                    back_url_link=f"{sett}api/v1/applications",
+                )
