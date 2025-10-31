@@ -23,7 +23,7 @@ from apps.users.services.user_profile_services import (
     change_password,
     update_user_profile,
 )
-from apps.users.views.responses import ok
+from apps.users.utils.response_helpers import ok
 
 
 class UserDupNicknameView(ExceptionHandledAPIView):
