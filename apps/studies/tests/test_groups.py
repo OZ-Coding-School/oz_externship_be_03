@@ -9,8 +9,7 @@ from rest_framework import status
 from rest_framework.test import APIClient
 
 from apps.lecture.models import CrawledLecture
-from apps.studies.models import StudyGroup
-from apps.studies.models.groups import GroupMember, StudyLecture
+from apps.studies.models.groups import GroupMember, StudyLecture, StudyGroup
 
 User = get_user_model()
 
@@ -94,7 +93,7 @@ class StudyGroupListCreateViewTest(TestCase):
         self.assertEqual(StudyGroup.objects.count(), 2)
         self.assertEqual(len(response.json()["lectures"]), 2)
 
-    def test_invalid_start_date(self):
+    def test_invalid_start_date(self) -> None:
         """시작일이 오늘 이전이면 400 에러 발생"""
         data = {
             "name": "과거 시작 스터디",
@@ -111,7 +110,7 @@ class StudyGroupListCreateViewTest(TestCase):
         self.assertIn("start_at", response.json())
         self.assertEqual(response.json()["start_at"][0], "시작일은 오늘 또는 이후여야 합니다.")
 
-    def test_invalid_end_date(self):
+    def test_invalid_end_date(self) -> None:
         """종료일이 시작일보다 5일 미만이면 400 에러 발생"""
         start_at = timezone.now() + timedelta(days=1)
         end_at = start_at + timedelta(days=4)  # 5일 미만
@@ -134,7 +133,7 @@ class StudyGroupListCreateViewTest(TestCase):
         self.assertIn("end_at", response.json())
         self.assertEqual(response.json()["end_at"][0], "종료일은 시작일보다 5일 이상 이후여야 합니다.")
 
-    def test_required_field_missing(self):
+    def test_required_field_missing(self) -> None:
         """필수 항목이 비어있으면 400 에러 발생"""
         data = {"introduction": "소개글", "lectures": [str(self.lecture1.uuid)]}
 
@@ -142,7 +141,7 @@ class StudyGroupListCreateViewTest(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_max_headcount_too_low(self):
+    def test_max_headcount_too_low(self) -> None:
         """max_headcount가 2 미만이면 400 에러 발생"""
         data = {
             "name": "최소 인원 미달 스터디",
@@ -156,7 +155,7 @@ class StudyGroupListCreateViewTest(TestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("max_headcount", response.json())
 
-    def test_max_headcount_too_high(self):
+    def test_max_headcount_too_high(self) -> None:
         """max_headcount가 10 초과이면 400 에러 발생"""
         data = {
             "name": "최대 인원 초과 스터디",
@@ -170,7 +169,7 @@ class StudyGroupListCreateViewTest(TestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("max_headcount", response.json())
 
-    def test_login_required(self):
+    def test_login_required(self) -> None:
         """로그인하지 않은 상태에서 401 확인"""
         self.client.logout()  # 현재 테스트에서만 로그아웃
 
@@ -186,7 +185,7 @@ class StudyGroupListCreateViewTest(TestCase):
         response = self.client.post(self.list_create_url, data, content_type="application/json")
         self.assertEqual(response.status_code, 401)
 
-    def test_failed_token_authorize(self):
+    def test_failed_token_authorize(self) -> None:
         """잘못된 토큰으로 요청하면 401 에러 발생"""
         data = {
             "name": "잘못된 토큰 스터디",
@@ -204,7 +203,7 @@ class StudyGroupListCreateViewTest(TestCase):
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
         self.assertIn("detail", response.json())
 
-    def test_list_study_groups(self):
+    def test_list_study_groups(self) -> None:
         response = self.client.get(self.list_create_url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -295,7 +294,7 @@ class StudyGroupDetailUpdateViewTest(TestCase):
 
         self.detail_url = f"/api/v1/studies/groups/{self.group.uuid}/"
 
-    def test_get_study_group_detail(self):
+    def test_get_study_group_detail(self) -> None:
         response = self.client.get(self.detail_url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -311,13 +310,13 @@ class StudyGroupDetailUpdateViewTest(TestCase):
         self.assertEqual(len(data["lectures"]), 2)
         self.assertEqual(data["lectures"][0]["title"], "강의1")
 
-    def test_get_detail_login_required(self):
+    def test_get_detail_login_required(self) -> None:
         self.client.logout()
         response = self.client.get(self.detail_url)
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    def test_update_study_group(self):
+    def test_update_study_group(self) -> None:
         data = {
             "name": "수정된 스터디",
             "introduction": "변경된 소개글",
@@ -335,14 +334,14 @@ class StudyGroupDetailUpdateViewTest(TestCase):
 
         self.assertEqual(updated.lectures.count(), 2)
 
-    def test_update_invalid_max_headcount(self):
+    def test_update_invalid_max_headcount(self) -> None:
         data = {"max_headcount": 1}  # 2 미만 → 오류
         response = self.client.put(self.detail_url, data, content_type="application/json")
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("max_headcount", response.json())
 
-    def test_update_too_many_lectures(self):
+    def test_update_too_many_lectures(self) -> None:
         extra_lectures = [
             CrawledLecture.objects.create(
                 title=f"추가강의{i}",
@@ -366,7 +365,7 @@ class StudyGroupDetailUpdateViewTest(TestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("lectures", response.json())
 
-    def test_update_login_required(self):
+    def test_update_login_required(self) -> None:
         self.client.logout()
 
         data = {"name": "로그인 없이 수정"}
@@ -375,7 +374,7 @@ class StudyGroupDetailUpdateViewTest(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    def test_update_group_not_found(self):
+    def test_update_group_not_found(self) -> None:
         wrong_url = "/api/v1/studies/groups/00000000-0000-0000-0000-999999999999/"
         data = {"name": "존재하지 않는 그룹"}
 
