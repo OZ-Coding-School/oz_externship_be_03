@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import date
-from typing import Any, Dict, Mapping, TypedDict
+from typing import Any, Mapping, TypedDict
 
 from rest_framework import serializers
 
@@ -59,4 +59,5 @@ class UserSignupSerializer(serializers.ModelSerializer[User]):
             "password": {"write_only": True},
             "email": {"validators": []},
             "phone_number": {"validators": []},
+            "nickname": {"validators": []},
         }
