@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Dict, List
 
 from django.http import Http404
 from drf_spectacular.utils import extend_schema, extend_schema_view
@@ -13,7 +13,9 @@ from rest_framework.views import APIView
 
 from apps.users.serializers.admin_users_serializer import (
     AdminUserDetailSerializer,
-    AdminUserListSerializer,
+    AdminUserItemSerializer,
+    AdminUserListDataSerializer,
+    AdminUserListResponseSerializer,
     AdminUserRoleUpdateRequestSerializer,
     AdminUserRoleUpdateResponseSerializer,
     AdminUserUpdateSerializer,
@@ -25,18 +27,22 @@ from apps.users.services.admin_users_services import AdminUserService
 @extend_schema(
     tags=["Admin"],
     summary="관리자 - 회원 목록 조회",
-    responses={200: AdminUserListSerializer(many=True)},
+    responses={200: AdminUserListResponseSerializer},
 )
 class AdminUserListView(APIView):
     permission_classes = [IsAdminUser]
 
     def get(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         users = AdminUserService.get_user_list()
-        serializer = AdminUserListSerializer(users, many=True)
+
+        user_dicts: List[Dict[str, Any]] = [AdminUserItemSerializer.from_user(u) for u in users]
+
+        data_ser = AdminUserListDataSerializer({"users": user_dicts})
+
         return Response(
             {
                 "detail": "회원 목록 조회에 성공하였습니다.",
-                "data": {"users": serializer.data},
+                "data": data_ser.data,
             },
             status=status.HTTP_200_OK,
         )
