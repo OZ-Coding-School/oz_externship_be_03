@@ -1,40 +1,68 @@
 from __future__ import annotations
 
-from typing import Any, Iterable, Mapping
+from typing import Any, Mapping, Type
 
 from django.http import Http404
 from rest_framework import exceptions, status
 from rest_framework.response import Response
 from rest_framework.views import exception_handler as drf_exception_handler
 
+# -------------------------------------------------
+# 1) 공통 메시지
+# -------------------------------------------------
+COMMON_EXCEPTION_MESSAGES: dict[Type[BaseException], tuple[str, int]] = {
+    Http404: ("요청한 리소스를 찾을 수 없습니다.", status.HTTP_404_NOT_FOUND),
+    exceptions.PermissionDenied: ("접근 권한이 없습니다.", status.HTTP_403_FORBIDDEN),
+    exceptions.AuthenticationFailed: ("잘못된 자격 증명입니다.", status.HTTP_401_UNAUTHORIZED),
+    exceptions.NotAuthenticated: ("인증 정보가 제공되지 않았습니다.", status.HTTP_401_UNAUTHORIZED),
+}
 
+
+def match_common_exception(exc: Exception) -> Response | None:
+    """404/401/403 공통 에러"""
+    for exc_type, (msg, code) in COMMON_EXCEPTION_MESSAGES.items():
+        if isinstance(exc, exc_type):
+            return Response({"error": msg}, status=code)
+    return None
+
+
+# -------------------------------------------------
+# 2) 전역 예외 핸들러
+# -------------------------------------------------
 def exception_handler(exc: Exception, context: dict[str, Any]) -> Response:
     """
     DRF 예외를 {"error": "메시지"} 형태로 통일
     """
-    custom_messages = {
-        Http404: ("요청한 리소스를 찾을 수 없습니다.", status.HTTP_404_NOT_FOUND),
-        exceptions.PermissionDenied: ("접근 권한이 없습니다.", status.HTTP_403_FORBIDDEN),
-        exceptions.AuthenticationFailed: ("잘못된 자격 증명입니다.", status.HTTP_401_UNAUTHORIZED),
-        exceptions.NotAuthenticated: ("인증 정보가 제공되지 않았습니다.", status.HTTP_401_UNAUTHORIZED),
-    }
+    # 1) 공통 예외 먼저
+    common = match_common_exception(exc)
+    if common is not None:
+        return common
 
+    # 2) DRF 기본 처리
     response = drf_exception_handler(exc, context)
-
-    for exc_type, (message, code) in custom_messages.items():
-        if isinstance(exc, exc_type):
-            return Response({"error": message}, status=getattr(response, "status_code", code))
-
     if response is not None:
-        message = _build_error_message(getattr(exc, "detail", None) or response.data)
-        return Response({"error": message}, status=response.status_code)
+        data = response.data
+        if isinstance(data, Mapping):
+            return build_error_from_dict(data, response.status_code)
+        return build_error_from_scalar(data, response.status_code)
 
+    # 3) 500 에러
     return Response({"error": str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-# ---------------------------------------------------------------------
-# 메시지 정규화
-# ---------------------------------------------------------------------
+# -------------------------------------------------
+# 3) 메시지 정규화
+# -------------------------------------------------
+def build_error_from_dict(data: Mapping[str, Any], status_code: int) -> Response:
+    text = _build_error_message(data)
+    return Response({"error": text}, status=status_code)
+
+
+def build_error_from_scalar(data: Any, status_code: int) -> Response:
+    text = _safe_str(data, default="요청이 올바르지 않습니다.")
+    return Response({"error": text}, status=status_code)
+
+
 def _build_error_message(data: Any) -> str:
     """
     DRF/Serializer 에러 payload를 문자열로 압축
