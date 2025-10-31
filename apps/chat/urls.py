@@ -1,6 +1,11 @@
 # apps/chat/urls.py
 from django.urls import URLPattern, URLResolver, path
 
-urlpatterns: list[URLPattern | URLResolver] = [
-    # chat-related URLs will be added here.
+from apps.chat.views import ChatMessageListView, ChatRoomListView
+
+app_name = "chat"
+
+urlpatterns = [
+    path("study-groups/<int:study_group_id>/messages", ChatMessageListView.as_view(), name="message-list"),
+    path("rooms", ChatRoomListView.as_view(), name="room-list"),
 ]
