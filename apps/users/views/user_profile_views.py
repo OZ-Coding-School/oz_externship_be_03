@@ -14,7 +14,14 @@ from apps.users.models.user import User
 from apps.users.serializers.user_profile_serializers import (
     DupNicknameQuerySerializer,
     DupNicknameResponseSerializer,
+    UserProfilePasswordUpdateSerializer,
     UserProfileSerializer,
+    UserProfileUpdateResponseSerializer,
+    UserProfileUpdateSerializer,
+)
+from apps.users.services.user_profile_services import (
+    change_password,
+    update_user_profile,
 )
 from apps.users.views.responses import ok
 
@@ -65,18 +72,6 @@ class UserDupNicknameView(ExceptionHandledAPIView):
             data={"nickname": nickname, "available": not is_dup},
             status_code=status.HTTP_200_OK,
         )
-
-
-from apps.users.serializers.user_profile_serializers import (
-    UserProfilePasswordUpdateSerializer,
-    UserProfileSerializer,
-    UserProfileUpdateResponseSerializer,
-    UserProfileUpdateSerializer,
-)
-from apps.users.services.user_profile_services import (
-    change_password,
-    update_user_profile,
-)
 
 
 class MeView(APIView):

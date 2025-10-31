@@ -3,10 +3,7 @@ from __future__ import annotations
 from typing import Any, Dict, Optional, cast
 
 from django.contrib.auth import authenticate
-from rest_framework_simplejwt.exceptions import (
-    ExpiredTokenError,
-    TokenError,
-)
+from rest_framework_simplejwt.exceptions import ExpiredTokenError, TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.users.models.user import User as UserModel
@@ -16,6 +13,9 @@ from apps.users.models.user import User as UserModel
 # 토큰 발급 유틸
 # -------------------------------------------------------------------
 def _issue_tokens(user: UserModel) -> Dict[str, str]:
+    """
+    주어진 사용자에 대한 access/refresh 페어 발급
+    """
     refresh = RefreshToken.for_user(user)
     return {"access": str(refresh.access_token), "refresh": str(refresh)}
 

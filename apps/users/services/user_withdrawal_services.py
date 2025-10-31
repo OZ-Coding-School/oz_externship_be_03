@@ -1,5 +1,5 @@
 from datetime import timedelta
-from typing import TYPE_CHECKING, Mapping, Union, cast
+from typing import TYPE_CHECKING, Mapping, Union
 
 from django.contrib.auth import get_user_model
 from django.db import transaction
