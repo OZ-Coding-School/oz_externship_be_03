@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import Any, AsyncGenerator, Dict, Generator, List
+from typing import Any, AsyncGenerator, Dict, Generator, List, Optional
 
 import redis.asyncio as redis
 from django.conf import settings
@@ -42,7 +42,7 @@ class RedisPubSubService:
         except Exception as e:
             logger.error(f"그룹 {channel}에 알림을 게시하지 못했습니다.{e}")
 
-    async def subscribe_notification(self, user_id: int, group_ids: List[str]) -> AsyncGenerator[Dict[str, Any], None]:
+    async def subscribe_notification(self, user_id: Optional[int]=None, group_ids: Optional[List[str]]=None) -> AsyncGenerator[Dict[str, Any], None]:
         """사용자 알림 채널 구독 및 메시지 스트리밍"""
         channels = []
         if user_id:
