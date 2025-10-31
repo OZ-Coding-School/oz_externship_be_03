@@ -5,7 +5,7 @@ from django.utils import timezone
 from rest_framework import serializers
 
 from apps.lecture.models import CrawledLecture
-from apps.studies.models.groups import StudyGroup
+from apps.studies.models.groups import GroupMember, StudyGroup, StudyLecture
 
 
 class StudyGroupBaseSerializer(serializers.ModelSerializer[StudyGroup]):
@@ -13,7 +13,6 @@ class StudyGroupBaseSerializer(serializers.ModelSerializer[StudyGroup]):
     class Meta:
         model = StudyGroup
         fields = [
-            "id",
             "uuid",
             "name",
             "profile_img_url",
@@ -22,7 +21,7 @@ class StudyGroupBaseSerializer(serializers.ModelSerializer[StudyGroup]):
             "end_at",
             "status",
         ]
-        read_only_fields = ["id", "uuid", "status"]
+        read_only_fields = ["uuid", "status"]
 
 
 # 스터디 그룹 생성 / 수정
@@ -35,16 +34,36 @@ class StudyGroupCreateSerializer(StudyGroupBaseSerializer):
     max_headcount = serializers.IntegerField(help_text="최대 인원 수 (2~10명)")
     start_at = serializers.DateTimeField(help_text="스터디 시작일")
     end_at = serializers.DateTimeField(help_text="스터디 종료일")
-    lectures = serializers.ListField(
-        child=serializers.IntegerField(min_value=1),
+    lectures = serializers.SlugRelatedField(
+        queryset=CrawledLecture.objects.all(),
+        many=True,
         required=False,
         allow_empty=True,
         default=list,
-        help_text="강의 ID 목록 (선택사항, 최대 5개 지정 가능)",
+        help_text="강의 UUID 목록 (선택사항, 최대 5개 지정 가능)",
+        slug_field="uuid",
     )
 
     class Meta(StudyGroupBaseSerializer.Meta):
         fields = StudyGroupBaseSerializer.Meta.fields + ["introduction", "lectures"]
+
+    def create(self, validated_data):
+        lectures = validated_data.pop("lectures", [])
+        study_group = StudyGroup.objects.create(**validated_data)
+
+        for lecture in lectures:
+            StudyLecture.objects.create(study_group=study_group, lecture=lecture)
+
+        return study_group
+
+    def to_representation(self, instance):
+        """출력 시 lecture 객체 → id 리스트로 변환"""
+        ret = super().to_representation(instance)
+        ret["lectures"] = list(instance.lectures.values_list("lecture_id", flat=True))
+        return ret
+
+    def get_lectures(self, obj):
+        return list(obj.lectures.values_list(flat=True))
 
     # 인원 수 제한 (2~10명)
     def validate_max_headcount(self, value: int) -> int:
@@ -70,18 +89,33 @@ class StudyGroupCreateSerializer(StudyGroupBaseSerializer):
             raise serializers.ValidationError({"start_at": "시작일은 오늘 또는 이후여야 합니다."})
         return attrs
 
+    def update(self, instance, validated_data):
+        lectures = validated_data.pop("lectures", None)
 
-class StudyGroupListLectureSerializer(serializers.ModelSerializer[CrawledLecture]):
-    price = serializers.SerializerMethodField()
+        # 일반 필드 업데이트
+        for key, val in validated_data.items():
+            setattr(instance, key, val)
+        instance.save()
+
+        # 중간 테이블 처리
+        if lectures is not None:
+            StudyLecture.objects.filter(study_group=instance).delete()
+            for lecture in lectures:
+                StudyLecture.objects.create(study_group=instance, lecture=lecture)
+
+        return instance
+
+
+class StudyGroupListLectureSerializer(serializers.ModelSerializer[StudyLecture]):
+    uuid = serializers.UUIDField(source="lecture.uuid")
+    title = serializers.CharField(source="lecture.title")
+    instructor = serializers.CharField(source="lecture.instructor")
+    original_price = serializers.IntegerField(source="lecture.original_price")
+    discount_price = serializers.IntegerField(source="lecture.discount_price")
 
     class Meta:
-        model = CrawledLecture
-        fields = ("id", "title", "instructor", "price")
-
-    def get_price(self, obj: CrawledLecture) -> int:
-        if obj.discount_price and obj.discount_price > 0:
-            return obj.discount_price
-        return obj.original_price
+        model = StudyLecture
+        fields = ("uuid", "title", "instructor", "original_price", "discount_price")
 
 
 # 스터디 그룹 목록 조회
@@ -105,16 +139,30 @@ class StudyGroupListSerializer(StudyGroupBaseSerializer):
         return any(m.user_id == user_id and m.is_leader for m in obj.members.all())
 
 
-# Spec API용 시리얼라이저
-class StudyGroupMemberSerializer:
-    def __init__(self, data: Iterable[Any], many: bool = False) -> None:
-        self.data = [{"id": sl.user.id, "nickname": sl.user.nickname, "is_leader": sl.is_leader} for sl in data]
+class StudyGroupDetailLectureSerializer(serializers.ModelSerializer[CrawledLecture]):
+    uuid = serializers.UUIDField(source="lecture.uuid")
+    thumbnail_img_url = serializers.URLField(source="lecture.thumbnail_img_url")
+    title = serializers.CharField(source="lecture.title")
+    instructor = serializers.CharField(source="lecture.instructor")
+    url_link = serializers.URLField(source="lecture.url_link")
+
+    class Meta:
+        model = CrawledLecture
+        fields = ("uuid", "thumbnail_img_url", "title", "instructor", "url_link")
+
+
+class StudyGroupDetailMemberSerializer(serializers.ModelSerializer[GroupMember]):
+    nickname = serializers.CharField(source="user.nickname")
+
+    class Meta:
+        model = GroupMember
+        fields = ("id", "nickname", "is_leader")
 
 
 class StudyGroupDetailSerializer(StudyGroupBaseSerializer):
     current_headcount = serializers.SerializerMethodField()
-    members = serializers.SerializerMethodField()
-    lectures = serializers.SerializerMethodField()
+    members = StudyGroupDetailMemberSerializer(many=True)
+    lectures = StudyGroupDetailLectureSerializer(many=True)
 
     class Meta(StudyGroupBaseSerializer.Meta):
         fields = StudyGroupBaseSerializer.Meta.fields + ["current_headcount", "members", "lectures"]
@@ -130,16 +178,4 @@ class StudyGroupDetailSerializer(StudyGroupBaseSerializer):
                 "is_leader": group_member.is_leader,
             }
             for group_member in obj.members.all()
-        ]
-
-    def get_lectures(self, obj: StudyGroup) -> list[dict[str, int | str | None]]:
-        return [
-            {
-                "id": study_lecture.lecture.id,
-                "thumbnail_img_url": study_lecture.lecture.thumbnail_img_url,
-                "title": study_lecture.lecture.title,
-                "instructor": study_lecture.lecture.instructor,
-                "url_link": study_lecture.lecture.url_link,
-            }
-            for study_lecture in obj.lectures.all()
         ]
