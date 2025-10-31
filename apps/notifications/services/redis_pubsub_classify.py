@@ -44,14 +44,19 @@ class RedisPubSubService:
 
     async def subscribe_notification(self, user_id: int, group_ids: List[str]) -> AsyncGenerator[Dict[str, Any], None]:
         """사용자 알림 채널 구독 및 메시지 스트리밍"""
-        personal_channel = self.get_user_channel(user_id)
-        group_channel = [self.get_group_channel(group_id) for group_id in group_ids]
-        all_channels = group_channel + [personal_channel]
+        channels = []
+        if user_id:
+            personal_channel = self.get_user_channel(user_id)
+            channels.append(personal_channel)
+        if group_ids:
+            group_channel = [self.get_group_channel(group_id) for group_id in group_ids]
+            channels.extend(group_channel)
+
         pubsub = self.redis_client.pubsub()
 
         try:
-            await pubsub.subscribe(all_channels)
-            logger.info(f"채널 구독:{all_channels}")
+            await pubsub.subscribe(channels)
+            logger.info(f"채널 구독:{channels}")
 
             async for message in pubsub.listen():
                 if message["type"] == "message":
@@ -59,7 +64,7 @@ class RedisPubSubService:
                         notification_data = json.loads(message["data"])
                         yield notification_data
                     except (json.JSONDecodeError, UnicodeDecodeError) as e:
-                        logger.error(f"{all_channels}에서 메시지를 디코딩하지 못했습니다:{e}")
+                        logger.error(f"{channels}에서 메시지를 디코딩하지 못했습니다:{e}")
 
         except Exception as e:
             logger.error(f"구독 실패:{e}")
