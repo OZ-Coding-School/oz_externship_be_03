@@ -9,7 +9,7 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny
 from rest_framework.request import Request
 from rest_framework.response import Response
-from rest_framework.serializers import BaseSerializer
+from rest_framework.serializers import BaseSerializer  # ✅ 추가
 
 from apps.recruitments.models import Tag
 from apps.recruitments.serializers.tag import TagSerializer
@@ -20,6 +20,7 @@ class TagPagination(PageNumberPagination):
 
     page_size: int = 5
     page_size_query_param: str = "page_size"  # 클라이언트가 페이지 크기 조절 가능
+    max_page_size: int = 50  # 최대 페이지 크기 제한
 
 
 @extend_schema(
@@ -56,9 +57,11 @@ class RecruitmentTagListCreateView(generics.ListCreateAPIView[Tag]):
     def get_queryset(self) -> Any:
         """특정 공고에 연결된 태그만 필터링"""
         recruitment_id = self.kwargs.get("recruitment_id")
+        if recruitment_id is None:
+            raise ValidationError({"detail": "recruitment_id가 필요합니다."})
+
         q = self.request.query_params.get("q", "").strip()
 
-        #  RecruitmentTag를 통해 해당 공고에 연결된 태그만 조회
         queryset = Tag.objects.filter(recruitment_tags__recruitment_id=recruitment_id).order_by("id")
 
         if q:
@@ -97,19 +100,16 @@ class RecruitmentTagListCreateView(generics.ListCreateAPIView[Tag]):
             400: {"example": {"detail": "이미 존재하는 태그입니다."}},
         },
     )
-    def post(self, request: Request, *args: Any, **kwargs: Any) -> Response:
-        """새로운 태그 등록"""
+    def create(self, request: Request, *args: Any, **kwargs: Any) -> Response:
+        """신규 태그 등록"""
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         name: str = serializer.validated_data["name"]
 
-        #  중복 태그 방지
+        # 중복 태그 방지
         if Tag.objects.filter(name__iexact=name).exists():
-            return Response(
-                {"detail": "이미 존재하는 태그입니다."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            raise ValidationError({"detail": "이미 존재하는 태그입니다."})
 
         self.perform_create(serializer)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
