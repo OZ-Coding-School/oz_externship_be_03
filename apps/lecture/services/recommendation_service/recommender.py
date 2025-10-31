@@ -788,6 +788,22 @@ class RecommendationService:
         if not rec_ids:
             return CrawledLecture.objects.none()
 
+        # 북마크된 강의 제외
+        bookmarked_ids = set(LectureBookmark.objects.filter(user_id=user_id).values_list("lecture_id", flat=True))
+        rec_ids = [lid for lid in rec_ids if lid not in bookmarked_ids]
+
+        # 필터링 후 부족하면 폴백으로 보충
+        if len(rec_ids) < top_n:
+            needed_count = top_n - len(rec_ids)
+            fallback_qs = self._get_category_fallback(user_id, needed_count)
+            fallback_ids = list(fallback_qs.values_list("id", flat=True))
+
+            for lec_id in fallback_ids:
+                if lec_id not in rec_ids and lec_id not in bookmarked_ids:
+                    rec_ids.append(lec_id)
+                    if len(rec_ids) == top_n:
+                        break
+
         qs = (
             CrawledLecture.objects.filter(id__in=rec_ids)
             .order_by(
