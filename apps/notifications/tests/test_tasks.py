@@ -37,7 +37,7 @@ class TasksTest(IsolatedRedisTestClient):
         messages = []
 
         async def message_listener() -> None:
-            async for message in notification_pubsub.subscribe_user_notification(self.user.id):
+            async for message in notification_pubsub.subscribe_notification(self.user.id):
                 messages.append(message)
                 if len(messages) >= 1:
                     break

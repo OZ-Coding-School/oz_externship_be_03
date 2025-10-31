@@ -28,7 +28,7 @@ async def notification_stream(request: HttpRequest, user_id: int) -> StreamingHt
             yield f"data:{json.dumps({'type':'connected'}, ensure_ascii=False)}\n\n"
 
             # Redis 구독 처리
-            async for notification in notification_pubsub.subscribe_user_notification(user_id):
+            async for notification in notification_pubsub.subscribe_notification(user_id):
                 sse_data = json.dumps(notification, ensure_ascii=False)
                 yield f"data:{sse_data}\n\n"
 
