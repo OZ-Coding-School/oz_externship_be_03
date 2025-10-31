@@ -9,9 +9,9 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny
 from rest_framework.request import Request
 from rest_framework.response import Response
-from rest_framework.serializers import BaseSerializer  # ✅ 추가
+from rest_framework.serializers import BaseSerializer
 
-from apps.recruitments.models import Tag
+from apps.recruitments.models import RecruitmentTag, Tag  # 중간 테이블 추가 import
 from apps.recruitments.serializers.tag import TagSerializer
 
 
@@ -19,8 +19,8 @@ class TagPagination(PageNumberPagination):
     """태그 목록 페이지네이션"""
 
     page_size: int = 5
-    page_size_query_param: str = "page_size"  # 클라이언트가 페이지 크기 조절 가능
-    max_page_size: int = 50  # 최대 페이지 크기 제한
+    page_size_query_param: str = "page_size"
+    max_page_size: int = 50
 
 
 @extend_schema(
@@ -45,7 +45,6 @@ class TagPagination(PageNumberPagination):
 class RecruitmentTagListCreateView(generics.ListCreateAPIView[Tag]):
     """
     특정 공고의 태그 목록 조회 및 신규 태그 등록 API.
-
     - 검색(q) 파라미터로 이름 필터링 지원
     - 중복 태그 등록 시 400 에러 반환
     """
@@ -70,11 +69,20 @@ class RecruitmentTagListCreateView(generics.ListCreateAPIView[Tag]):
         return queryset
 
     def perform_create(self, serializer: BaseSerializer[Any]) -> None:
-        """recruitment_id는 URL로만 받되, Tag에는 직접 저장하지 않음"""
+        """Tag를 생성하고 RecruitmentTag를 통해 공고와 연결"""
         recruitment_id = self.kwargs.get("recruitment_id")
         if not recruitment_id:
             raise ValidationError({"detail": "URL에 recruitment_id가 누락되었습니다."})
-        serializer.save()
+
+        # 태그 생성
+        tag = serializer.save()
+
+        #  이미 연결된 관계가 있는지 확인
+        if RecruitmentTag.objects.filter(recruitment_id=recruitment_id, tag=tag).exists():
+            raise ValidationError({"detail": "이미 이 공고에 연결된 태그입니다."})
+
+        #  공고-태그 연결 생성
+        RecruitmentTag.objects.create(recruitment_id=recruitment_id, tag=tag)
 
     @extend_schema(
         summary="특정 공고의 태그 목록 조회",
@@ -107,7 +115,6 @@ class RecruitmentTagListCreateView(generics.ListCreateAPIView[Tag]):
 
         name: str = serializer.validated_data["name"]
 
-        # 중복 태그 방지
         if Tag.objects.filter(name__iexact=name).exists():
             raise ValidationError({"detail": "이미 존재하는 태그입니다."})
 
