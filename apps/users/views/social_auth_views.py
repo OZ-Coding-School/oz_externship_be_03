@@ -1,8 +1,8 @@
-from django.conf import settings
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import status, serializers
 import requests
+from django.conf import settings
+from rest_framework import serializers, status
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from apps.users.services.social_auth_services import SocialAuthService
 
@@ -62,7 +62,9 @@ class SocialAuthView(APIView):
             return Response({"detail": f"{provider} 토큰 요청 실패"}, status=status.HTTP_400_BAD_REQUEST)
 
         if not access_token:
-            return Response({"detail": f"{provider} access_token을 가져오지 못했습니다."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"detail": f"{provider} access_token을 가져오지 못했습니다."}, status=status.HTTP_400_BAD_REQUEST
+            )
 
         # -----------------------------
         # 3️⃣ 통합 소셜 로그인 로직 호출
