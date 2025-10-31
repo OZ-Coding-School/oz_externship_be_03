@@ -11,9 +11,7 @@ from apps.users.validators import validate_korean_phone
 # [관리자] 회원 목록 조회
 class AdminUserListSerializer(serializers.ModelSerializer[User]):
 
-    role = serializers.ChoiceField(choices=Role.choices, read_only=True)
     withdrawal_requested_at = serializers.DateTimeField(read_only=True, allow_null=True)
-    status = serializers.ChoiceField(choices=UserStatus.choices, read_only=True)
 
     class Meta:
         model = User
@@ -23,8 +21,9 @@ class AdminUserListSerializer(serializers.ModelSerializer[User]):
             "nickname",
             "name",
             "birthday",
-            "status",
-            "role",
+            "is_active",
+            "is_superuser",
+            "is_staff",
             "created_at",
             "withdrawal_requested_at",
         ]

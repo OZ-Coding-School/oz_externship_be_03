@@ -33,7 +33,13 @@ class AdminUserListView(APIView):
     def get(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         users = AdminUserService.get_user_list()
         serializer = AdminUserListSerializer(users, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(
+            {
+                "detail": "회원 목록 조회에 성공하였습니다.",
+                "data": {"users": serializer.data},
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 # 관리자 - 회원 상세 조회, 회원 정보 수정, 회원 정보 삭제
@@ -66,7 +72,13 @@ class AdminUserView(APIView):
             return Response({"error": "회원 정보를 찾을 수 없습니다."}, status=status.HTTP_404_NOT_FOUND)
 
         serializer = AdminUserDetailSerializer(user)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(
+            {
+                "detail": "회원 상세 정보를 조회했습니다.",
+                "data": serializer.data,
+            },
+            status=status.HTTP_200_OK,
+        )
 
     def patch(self, request: Request, user_id: int) -> Response:
         # 회원 정보 수정
@@ -75,20 +87,32 @@ class AdminUserView(APIView):
         serializer.is_valid(raise_exception=True)
         updated_user = AdminUserService.update_user_info(user, serializer.validated_data)
         response_data = AdminUserDetailSerializer(updated_user).data
-        return Response(response_data, status=status.HTTP_200_OK)
+        return Response(
+            {
+                "detail": "회원 정보가 수정되었습니다.",
+                "data": response_data,
+            },
+            status=status.HTTP_200_OK,
+        )
 
     def delete(self, request: Request, user_id: int) -> Response:
         # 회원 정보 삭제
         if not request.user.is_superuser:
-            raise PermissionDenied("슈퍼유저만 회원을 삭제할 수 있습니다.")
+            raise PermissionDenied("관리자만 회원을 삭제할 수 있습니다.")
 
         try:
             user = AdminUserService.get_user(user_id)
         except Http404:
-            return Response({"error": "회원 정보를 찾을 수 없습니다."}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"error": "회원 정보를 찾을 수 없습니다."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
 
         AdminUserService.delete_user(user)
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        return Response(
+            {"detail": "회원이 삭제되었습니다."},
+            status=status.HTTP_204_NO_CONTENT,
+        )
 
 
 # 관리자: 회원 권한(role) 변경
@@ -103,6 +127,10 @@ class AdminUserRoleUpdateView(APIView):
     permission_classes = [IsAdminUser]
 
     def patch(self, request: Request, user_id: int, *args: Any, **kwargs: Any) -> Response:
+
+        if not request.user.is_superuser:
+            raise PermissionDenied("관리자만 회원 권한을 변경할 수 있습니다.")
+
         serializer = AdminUserRoleUpdateRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -113,7 +141,7 @@ class AdminUserRoleUpdateView(APIView):
         response_serializer = AdminUserRoleUpdateResponseSerializer(updated_user)
         return Response(
             {
-                "error": "회원 권한이 변경되었습니다.",
+                "detail": "회원 권한이 변경되었습니다.",
                 "data": response_serializer.data,
             },
             status=status.HTTP_200_OK,
