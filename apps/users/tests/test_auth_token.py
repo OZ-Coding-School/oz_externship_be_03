@@ -277,7 +277,7 @@ class AuthViewsTest(TestCase):
         self.assertEqual(resp.status_code, 401)
         self.assertEqual(json.loads(resp.content.decode())["error"], "유효하지 않은 토큰입니다.")
 
-    def test_logout_expired_token_returns_401(self) -> None:
+    def test_logout_expired_token_returns_200(self) -> None:
         # 만료된 토큰인 경우
         refresh_token = RefreshToken.for_user(self.user)
         access_token = refresh_token.access_token
@@ -289,8 +289,8 @@ class AuthViewsTest(TestCase):
             resp = self.client.post(self.logout_url, data=json.dumps({}), content_type="application/json")
 
         # 만료된 토큰 오류
-        self.assertEqual(resp.status_code, 401)
-        self.assertEqual(json.loads(resp.content.decode())["error"], "잘못된 자격 증명입니다.")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(json.loads(resp.content.decode())["detail"], "세션이 유효하지 않습니다. 다시 로그인해주세요.")
 
     def test_logout_already_logged_out_returns_200(self) -> None:
         refresh_token = RefreshToken.for_user(self.user)
@@ -306,15 +306,15 @@ class AuthViewsTest(TestCase):
 
         # 이미 로그아웃된 경우 처리
         self.assertEqual(resp.status_code, 200)
-        self.assertEqual(json.loads(resp.content.decode())["detail"], "이미 로그아웃된 유저입니다.")
+        self.assertEqual(json.loads(resp.content.decode())["detail"], "세션이 유효하지 않습니다. 다시 로그인해주세요.")
 
-    def test_logout_not_logged_in_returns_401(self) -> None:
+    def test_logout_not_logged_in_returns_200(self) -> None:
         # 로그인이 안 된 상태
         resp = self.client.post(self.logout_url, data=json.dumps({}), content_type="application/json")
 
         # 로그인되지 않은 상태에서의 처리
-        self.assertEqual(resp.status_code, 401)
-        self.assertEqual(json.loads(resp.content.decode())["error"], "잘못된 자격 증명입니다.")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(json.loads(resp.content.decode())["detail"], "세션이 유효하지 않습니다. 다시 로그인해주세요.")
 
 
 # ---------------------------------------------------------------------

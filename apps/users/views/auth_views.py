@@ -198,7 +198,7 @@ class LogoutView(ExceptionHandledAPIView):
         access_token = extract_bearer_token(request)
 
         if not refresh_raw or not access_token:
-            raise AuthenticationFailed("로그인된 상태가 아닙니다.")
+            return Response({"detail": "세션이 유효하지 않습니다. 다시 로그인해주세요."}, status=200)
 
         refresh_token = RefreshToken(cast(Any, refresh_raw))
 
@@ -210,7 +210,7 @@ class LogoutView(ExceptionHandledAPIView):
             return Response({"error": "토큰이 만료되었습니다."}, status=401)
         except TokenError:
             # 이미 블랙리스트에 있을 경우 성공 처리
-            return Response({"detail": "이미 로그아웃된 유저입니다."}, status=200)
+            return Response({"detail": "세션이 유효하지 않습니다. 다시 로그인해주세요."}, status=200)
 
         resp = Response({"detail": "로그아웃이 완료되었습니다."}, status=200)
         resp.delete_cookie(settings.AUTH_REFRESH_COOKIE_NAME)
