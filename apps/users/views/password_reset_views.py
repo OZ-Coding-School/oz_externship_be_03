@@ -32,13 +32,6 @@ def _header(request: Request, name: str) -> Optional[str]:
             required=True,
             description="이메일 인증 토큰",
         ),
-        OpenApiParameter(
-            name="Idempotency-Key",
-            type=str,
-            location=OpenApiParameter.HEADER,
-            required=False,
-            description="중복 요청 방지 키 (UUID 권장)",
-        ),
     ],
 )
 class PasswordResetView(APIView):
@@ -54,8 +47,6 @@ class PasswordResetView(APIView):
 
         req_serializer = PasswordResetSerializer(data=request.data)
         req_serializer.is_valid(raise_exception=True)
-
-        idem_key = _header(request, "Idempotency-Key")
 
         reset_password(
             claims=claims,

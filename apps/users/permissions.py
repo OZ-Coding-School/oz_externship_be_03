@@ -44,16 +44,18 @@ class PhoneVerifiedPermission(BasePermission):
             self.message = "휴대폰 검증 토큰이 필요합니다."
             return False
 
-        phone_number = request.data.get("phone_number") or request.query_params.get("phone_number")
-        if not phone_number:
-            self.message = "전화번호가 필요합니다."
-            return False
-
         claims = verify_and_consume(
             token,
             expected_purpose=purpose,
-            expected_sub=phone_number,
         )
+
+        # 토큰 안에 들어있는 휴대폰 번호 사용
+        token_phone = claims.get("to")
+
+        phone_number = request.data.get("phone_number") or request.query_params.get("phone_number") or token_phone
+        if not phone_number:
+            self.message = "전화번호가 필요합니다."
+            return False
 
         setattr(request, "phone_verify_claims", claims)
         return True
