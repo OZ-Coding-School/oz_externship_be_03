@@ -3,8 +3,8 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
 
-from apps.users.models import User, Withdrawal
 from apps.users.enums import UserStatus
+from apps.users.models import User, Withdrawal
 
 
 class TestAdminUserAPI(APITestCase):
