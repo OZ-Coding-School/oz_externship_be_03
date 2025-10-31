@@ -18,7 +18,7 @@ class TestRecruitmentTagView(TestCase):
     def setUp(self) -> None:
         self.client = APIClient()
 
-        # ✅ 테스트용 사용자 생성
+        #  테스트용 사용자 생성
         self.user = User.objects.create_user(
             email="test@example.com",
             password="testpass123",
@@ -26,7 +26,7 @@ class TestRecruitmentTagView(TestCase):
             birthday=date(2000, 1, 1),
         )
 
-        # ✅ Recruitment 모델 필수 필드만 채워 생성
+        #  Recruitment 모델 필수 필드만 채워 생성
         self.recruitment = Recruitment.objects.create(
             author=self.user,
             title="테스트 공고",
@@ -35,10 +35,14 @@ class TestRecruitmentTagView(TestCase):
             expected_headcount=5,
         )
 
+        #  URL 생성
         self.url = reverse(
             "recruitment-tag-list",
             kwargs={"recruitment_id": self.recruitment.id},
         )
+
+        # (선택) 인증이 필요한 경우 대비
+        # self.client.force_authenticate(user=self.user)
 
     def test_get_tags_empty(self) -> None:
         """태그가 없을 때 빈 결과 반환"""
@@ -46,6 +50,7 @@ class TestRecruitmentTagView(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("results", response.data)
         self.assertEqual(response.data["count"], 0)
+        self.assertEqual(len(response.data["results"]), 0)
 
     def test_post_tag_success(self) -> None:
         """태그 생성 성공"""
@@ -60,14 +65,14 @@ class TestRecruitmentTagView(TestCase):
         """태그 이름 누락 시 400"""
         response: Any = self.client.post(self.url, {})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("required", str(response.data).lower())
+        self.assertTrue("required" in str(response.data).lower() or "필수" in str(response.data))
 
     def test_post_duplicate_tag(self) -> None:
         """중복된 태그 생성 시 400"""
         Tag.objects.create(name="Python")
         response: Any = self.client.post(self.url, {"name": "Python"})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("이미 존재", str(response.data))
+        self.assertIn("이미 존재", response.data["detail"])
 
     def test_get_tags_with_data(self) -> None:
         """특정 공고에 연결된 태그 목록 조회"""
@@ -80,7 +85,10 @@ class TestRecruitmentTagView(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("results", response.data)
         self.assertGreater(response.data["count"], 0)
-        self.assertIn("Django", str(response.data))
+
+        results = [tag["name"] for tag in response.data["results"]]
+        self.assertIn("Django", results)
+        self.assertIn("React", results)
 
     def test_get_tags_with_custom_page_size(self) -> None:
         """page_size 파라미터로 페이지 크기 조절"""
@@ -90,4 +98,5 @@ class TestRecruitmentTagView(TestCase):
 
         response: Any = self.client.get(f"{self.url}?page_size=3")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 10)
         self.assertEqual(len(response.data["results"]), 3)
