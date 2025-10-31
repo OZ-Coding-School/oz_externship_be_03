@@ -1,7 +1,7 @@
 # apps/chat/tests/test_chat_consumers.py
 import asyncio
 
-from channels.testing import (  # type: ignore[import-untyped]
+from channels.testing import (
     AsgiTestCase,
     WebsocketCommunicator,
 )
