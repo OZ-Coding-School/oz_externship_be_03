@@ -2,6 +2,7 @@ from datetime import date, datetime, timedelta
 from uuid import UUID
 
 from django.contrib.auth import get_user_model
+from django.test import TestCase
 from django.test import Client, TestCase
 from django.urls import reverse
 from django.utils import timezone
@@ -119,8 +120,6 @@ class StudyGroupListCreateViewTest(TestCase):
             "name": "종료일 짧은 스터디",
             "introduction": "테스트",
             "max_headcount": 5,
-            "start_at": "2027-11-01",  # 날짜 한참 뒤로 수정
-            "end_at": "2028-11-10",  # 동일
             "start_at": start_at.isoformat(),
             "end_at": end_at.isoformat(),
             "status": "PENDING",
