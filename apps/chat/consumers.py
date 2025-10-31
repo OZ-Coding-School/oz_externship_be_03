@@ -10,7 +10,6 @@ from channels.generic.websocket import (  # type: ignore[import-untyped]
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AbstractBaseUser
 
-
 from apps.studies.models.groups import GroupMember, StudyGroup
 
 from .services import ChatMessageService
