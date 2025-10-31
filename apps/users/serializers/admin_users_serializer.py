@@ -33,7 +33,6 @@ class AdminUserItemSerializer(serializers.Serializer[Dict[str, Any]]):
                 Role.ADMIN.value if user.is_superuser else (Role.STAFF.value if user.is_staff else Role.USER.value)
             ),
             "created_at": user.created_at,
-            # Withdrawal 모델이 따로 있거나 서비스에서 붙여주는 경우가 있으니까 안전하게 getattr
             "withdrawal_requested_at": getattr(user, "withdrawal_requested_at", None),
         }
 

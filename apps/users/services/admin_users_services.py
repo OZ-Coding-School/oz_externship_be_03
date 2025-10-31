@@ -1,6 +1,6 @@
 from typing import Any, Dict
 
-from django.db.models import QuerySet
+from django.db.models import OuterRef, QuerySet, Subquery
 from django.shortcuts import get_object_or_404
 
 from apps.users.enums import Role, UserStatus
@@ -13,7 +13,11 @@ class AdminUserService:
 
     @staticmethod
     def get_user_list() -> QuerySet[User]:
-        return User.objects.all().order_by("-created_at")
+        latest_withdrawal = (
+            Withdrawal.objects.filter(user_id=OuterRef("id")).order_by("-created_at").values("created_at")[:1]
+        )
+
+        return User.objects.annotate(withdrawal_requested_at=Subquery(latest_withdrawal)).order_by("-created_at")
 
     # 회원 상세 조회
 
