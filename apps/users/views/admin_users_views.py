@@ -98,7 +98,7 @@ class AdminUserView(APIView):
     def delete(self, request: Request, user_id: int) -> Response:
         # 회원 정보 삭제
         if not request.user.is_superuser:
-            raise PermissionDenied("슈퍼유저만 회원을 삭제할 수 있습니다.")
+            raise PermissionDenied("관리자만 회원을 삭제할 수 있습니다.")
 
         try:
             user = AdminUserService.get_user(user_id)
@@ -129,7 +129,7 @@ class AdminUserRoleUpdateView(APIView):
     def patch(self, request: Request, user_id: int, *args: Any, **kwargs: Any) -> Response:
 
         if not request.user.is_superuser:
-            raise PermissionDenied("슈퍼유저만 회원 권한을 변경할 수 있습니다.")
+            raise PermissionDenied("관리자만 회원 권한을 변경할 수 있습니다.")
 
         serializer = AdminUserRoleUpdateRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
