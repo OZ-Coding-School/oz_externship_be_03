@@ -11,9 +11,7 @@ from apps.users.models import SocialUser, User
 class SocialAuthService:
     """소셜 로그인 처리 서비스"""
 
-    # -------------------------------------
-    # 1️⃣ Provider별 사용자 정보 조회
-    # -------------------------------------
+    # Provider별 사용자 정보 조회
     @staticmethod
     def get_user_info(provider: str, data: dict[str, Any]) -> dict[str, Any]:
         access_token = data.get("access_token")
@@ -54,9 +52,7 @@ class SocialAuthService:
         except KeyError:
             raise ValueError(f"{provider} 사용자 정보 파싱에 실패했습니다.")
 
-    # -------------------------------------
-    # 2️⃣ 메인 소셜 로그인 로직
-    # -------------------------------------
+    # 메인 소셜 로그인 로직
     @staticmethod
     def social_login(provider: str, data: dict[str, Any]) -> dict[str, Any]:
         """소셜 로그인 메인 로직"""
