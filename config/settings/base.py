@@ -22,6 +22,7 @@ DJANGO_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "django.contrib.sites",
 ]
 
 THIRD_PARTY_APPS = [
@@ -34,6 +35,14 @@ THIRD_PARTY_APPS = [
     "django_filters",
     "django_celery_beat",
     "channels",
+    "dj_rest_auth",
+    "allauth",
+    "allauth.account",
+    "allauth.socialaccount",
+
+    #allauth 소셜 프로바이더
+    "allauth.socialaccount.providers.kakao",
+    "allauth.socialaccount.providers.naver",
 ]
 
 LOCAL_APPS = [
