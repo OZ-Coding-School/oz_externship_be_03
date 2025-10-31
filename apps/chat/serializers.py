@@ -7,7 +7,7 @@ from apps.users.models import User
 from apps.users.serializers.user_profile_serializers import UserProfileSerializer
 
 
-class ChatMessageSerializer(serializers.ModelSerializer):
+class ChatMessageSerializer(serializers.ModelSerializer[ChatMessage]):
     sender_id = serializers.IntegerField(source="sender.id", read_only=True)
     sender_nickname = serializers.CharField(source="sender.nickname", read_only=True)
     study_group_id = serializers.IntegerField(source="study_group.id", read_only=True)
