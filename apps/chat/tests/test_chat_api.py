@@ -1,3 +1,5 @@
+from unittest.mock import Mock, patch
+
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 from rest_framework import status
@@ -114,3 +116,84 @@ class ChatMessageListAPIViewTest(APITestCase):
         messages = response.data["data"]["messages"]
         # 첫 번째 메시지 (가장 최근 메시지)의 발신자 닉네임 확인
         self.assertEqual(messages[0]["sender_nickname"], self.user1.nickname)
+
+    def test_message_list_pagination_logic(self) -> None:
+        """페이지네이션 로직이 올바르게 동작하는지 테스트합니다."""
+        self.client.force_authenticate(user=self.user1)
+        # page=1일 때 300개 메시지 반환
+        response = self.client.get(self.url + "?page=1")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["data"]["messages"]), 300)
+        self.assertEqual(response.data["data"]["pagination"]["page"], 1)
+
+        # page=2일 때 100개 메시지 반환 (남은 50개)
+        response = self.client.get(self.url + "?page=2")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["data"]["messages"]), 50)
+        self.assertEqual(response.data["data"]["pagination"]["page"], 2)
+
+    def test_message_list_pagination_none_fallback(self) -> None:
+        """페이지네이션 클래스가 None일 때 ListAPIView의 기본 동작을 테스트합니다."""
+        self.client.force_authenticate(user=self.user1)
+        with patch("apps.chat.views.ChatMessageListView.pagination_class", None):
+            response = self.client.get(self.url)
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            self.assertIsInstance(response.data, list)
+            self.assertEqual(len(response.data), 350)
+
+
+class ChatRoomListAPIViewTest(APITestCase):
+    def setUp(self) -> None:
+        self.user1 = User.objects.create_user(
+            email="user1@example.com",
+            password="password123",
+            nickname="user1",
+            phone_number="01011112222",
+            name="User One",
+            gender="M",
+            birthday="2000-01-01",
+        )
+        self.study_group1 = StudyGroup.objects.create(
+            name="Test Study Group 1",
+            max_headcount=10,
+            start_at="2025-01-01T00:00:00Z",
+            end_at="2025-12-31T23:59:59Z",
+        )
+        GroupMember.objects.create(user=self.user1, study_group=self.study_group1, is_leader=True)
+        self.url = reverse("chat:room-list")
+
+    @patch("apps.chat.views.ChatRoomService.get_chat_rooms_for_user")
+    def test_get_chat_room_list_authenticated(self, mock_get_chat_rooms: Mock) -> None:
+        """인증된 사용자는 채팅방 목록을 조회할 수 있습니다."""
+        mock_get_chat_rooms.return_value = [
+            {
+                "id": self.study_group1.id,
+                "name": self.study_group1.name,
+                "last_message_content": "last message",
+                "last_message_sender_nickname": "sender",
+                "last_message_created_at": "2025-11-01T00:00:00Z",
+                "unread_count": 1,
+            }
+        ]
+        self.client.force_authenticate(user=self.user1)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["name"], self.study_group1.name)
+        mock_get_chat_rooms.assert_called_once_with(self.user1)
+
+    def test_get_chat_room_list_empty(self) -> None:
+        """참여 중인 채팅방이 없는 경우 빈 목록을 반환합니다."""
+        user_no_group = User.objects.create_user(
+            email="nogroup@example.com",
+            password="password123",
+            nickname="nogroup",
+            phone_number="01077778888",
+            name="No Group User",
+            gender="F",
+            birthday="2000-01-04",
+        )
+        self.client.force_authenticate(user=user_no_group)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
