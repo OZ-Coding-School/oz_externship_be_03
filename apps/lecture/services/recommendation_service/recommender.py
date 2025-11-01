@@ -58,52 +58,58 @@ class RecommendationService:
     """
     ALS 기반 강의 추천 서비스 메인 클래스
 
-    주요 기능:
-    - 모델 로드 및 캐싱 (메모리 → Redis → Django 캐시 → 디스크)
+    역할:
+    - 사용자 맞춤 강의 추천 제공
+    - 다단계 폴백 전략 (ALS → 카테고리 → 인기 강의)
+    - 모델 및 메타데이터 캐싱 관리
     - Redis 헬스체크 및 자동 폴백
-    - 사용자 맞춤 추천 (ALS → 카테고리 기반 → 인기 강의)
-    - 추천 점수 후처리 (평점, 카테고리 매칭 보너스)
-    - 강의 메타데이터 일괄 조회 (Redis pipeline 최적화)
-    - 단일 캐시 백엔드 사용 (Redis 우선, Django 캐시 폴백)
 
-    캐싱 전략:
-    - 모델 데이터: Redis 우선, Django 캐시 폴백 (중복 저장 제거)
-    - 강의 메타데이터: Redis pipeline 일괄 조회
-    - 인기 강의: TTL 기반 캐싱
+    캐싱 계층:
+    1. 메모리: 인스턴스 변수 (_model, _user_to_idx 등)
+    2. Redis: 빠른 분산 캐시 (우선 사용)
+    3. Django 캐시: Redis 실패 시 폴백
+    4. 디스크: 영구 저장소 (pickle 파일)
 
-    폴백 전략:
-    1. ALS 추천 (모델 기반)
-    2. 카테고리 기반 추천 (사용자 선호 카테고리)
-    3. 인기 강의 추천 (평점 기준)
-
-    Note:
-        - Redis 연결 실패 시 자동으로 Django 캐시로 폴백
-        - 주기적 헬스체크로 Redis 복구 감지
+    추천 전략:
+    1. ALS 모델 기반 추천 (협업 필터링)
+    2. 사용자 선호 카테고리 기반 추천
+    3. 전체 인기 강의 추천
     """
 
-    REDIS_PING_INTERVAL_SECONDS = 60 * 60  # Redis 헬스체크 주기 (1시간)
+    # Redis 헬스체크 주기 (1시간)
+    REDIS_PING_INTERVAL_SECONDS = 60 * 60
+    # 캐시에 저장할 모델 관련 키 목록
     MODEL_CACHE_KEYS: List[str] = [
-        ALS_MODEL_CACHE_KEY,
-        U_TO_IDX_CACHE_KEY,
-        L_TO_IDX_CACHE_KEY,
-        L_IDX_TO_ID_CACHE_KEY,
-        USER_ITEMS_MATRIX_CACHE_KEY,
+        ALS_MODEL_CACHE_KEY,  # ALS 모델 객체
+        U_TO_IDX_CACHE_KEY,  # 사용자 ID → 행렬 인덱스 매핑
+        L_TO_IDX_CACHE_KEY,  # 강의 ID → 행렬 인덱스 매핑
+        L_IDX_TO_ID_CACHE_KEY,  # 행렬 인덱스 → 강의 ID 매핑
+        USER_ITEMS_MATRIX_CACHE_KEY,  # 사용자-강의 상호작용 행렬
     ]
 
     def __init__(self) -> None:
+        """RecommendationService 초기화 작업:
+        1. DataLoader 및 ModelTrainer 인스턴스 생성
+        2. 모델 관련 인스턴스 변수 초기화 (None)
+        3. Redis 연결 설정 및 헬스체크
+        """
+        # 데이터 로더 및 모델 트레이너 초기화
         self.data_loader = DataLoader()
         self.model_trainer = ModelTrainer(self.data_loader)
 
-        self._model: Optional[AlternatingLeastSquares] = None
-        self._user_to_idx: Optional[Dict[int, int]] = None
-        self._lecture_to_idx: Optional[Dict[int, int]] = None
-        self._lecture_idx_to_id: Optional[Dict[int, int]] = None
-        self._user_items_matrix: Optional[csr_matrix] = None
-        self._last_trained_at: Optional[datetime] = None
-        self.redis_healthy = False
-        self.redis_conn: Optional[RedisConnection] = self._get_redis_cache()
-        self.redis_healthy = self._check_redis_health(log_status=False)
-        self.last_ping: float = time.time()
+        # 모델 관련 인스턴스 변수 (메모리 캐시)
+        self._model: Optional[AlternatingLeastSquares] = None  # ALS 모델
+        self._user_to_idx: Optional[Dict[int, int]] = None  # 사용자 ID → 인덱스
+        self._lecture_to_idx: Optional[Dict[int, int]] = None  # 강의 ID → 인덱스
+        self._lecture_idx_to_id: Optional[Dict[int, int]] = None  # 인덱스 → 강의 ID
+        self._user_items_matrix: Optional[csr_matrix] = None  # 상호작용 행렬
+        self._last_trained_at: Optional[datetime] = None  # 마지막 학습 시각
+
+        # Redis 연결 상태 관리
+        self.redis_healthy = False  # Redis 연결 상태 플래그
+        self.redis_conn: Optional[RedisConnection] = self._get_redis_cache()  # Redis 연결 객체
+        self.redis_healthy = self._check_redis_health(log_status=False)  # 초기 헬스체크
+        self.last_ping: float = time.time()  # 마지막 PING 시각
 
     def _get_redis_cache(self) -> Optional[RedisConnection]:
         """
@@ -113,8 +119,8 @@ class RecommendationService:
             Redis 연결 객체 또는 None (연결 실패 시)
 
         Note:
-            - 연결 실패 시 Django 캐시로 자동 폴백
-            - 에러 로그 출력 후 None 반환
+            - 연결 실패 시 에러 로그 출력 후 None 반환
+            - None 반환 시 Django 캐시로 자동 폴백
         """
         try:
             return get_redis_connection("default")
@@ -132,22 +138,34 @@ class RecommendationService:
         Returns:
             Redis 연결 정상 여부 (True/False)
 
-        Note:
-            - 연결 상태 변경 시에만 로그 출력 (노이즈 감소)
-            - 실패 시 자동으로 Django 캐시로 폴백
+        처리 로직:
+        1. Redis 연결 객체 존재 확인
+        2. PING 명령 실행
+        3. 상태 변경 시에만 로그 출력 (노이즈 감소)
+
+        상태 변경 케이스:
+        - 복구: previous_status=False, new_status=True → INFO 로그
+        - 실패: previous_status=True, new_status=False → WARNING 로그
         """
+        # Redis 연결 객체 없으면 즉시 False 반환
         if not self.redis_conn:
             return False
+        # 이전 상태 저장 (상태 변경 감지용)
         previous_status = self.redis_healthy
         try:
+            # PING 명령으로 연결 상태 확인
             new_status: bool = bool(self.redis_conn.ping())
             self.redis_healthy = new_status
+            # 상태 변경 시 로그 출력
             if not previous_status and new_status:
+                # 복구: 실패 → 성공
                 logger.info("[CACHE] Redis connection recovered.")
             elif previous_status and not new_status and log_status:
+                # 실패: 성공 → 실패
                 logger.warning("[CACHE] Redis PING failed, connection unstable. Falling back to Django cache.")
             return new_status
         except Exception as e:
+            # PING 실패 시 False 반환
             self.redis_healthy = False
             if previous_status and log_status:
                 logger.warning(f"[CACHE] Redis connection error during PING: {e}. Falling back to Django cache.")
@@ -161,18 +179,21 @@ class RecommendationService:
             Redis 사용 가능 여부 (True/False)
 
         처리 로직:
-        1. 최근 PING 성공 시 즉시 True 반환
+        1. 최근 PING 성공 + 1시간 미경과 → 즉시 True 반환
         2. 일정 시간 경과 시 헬스체크 재실행
-        3. 연결 실패 상태에서는 더 자주 체크 (60초 간격)
+        3. 연결 실패 상태에서는 60초마다 복구 시도
 
-        Note:
-            - 정상 상태: 1시간마다 헬스체크
-            - 실패 상태: 60초마다 복구 시도
+        헬스체크 주기:
+        - 정상 상태: 1시간 (REDIS_PING_INTERVAL_SECONDS)
+        - 실패 상태: 60초
         """
         now = time.time()
+        # 최근 PING 성공 + 1시간 미경과 → 즉시 True
         if self.redis_healthy and (now - self.last_ping < self.REDIS_PING_INTERVAL_SECONDS):
             return True
+        # 헬스체크 주기 결정 (실패 상태: 60초, 정상 상태: 1시간)
         status_check_interval = 60 if not self.redis_healthy else self.REDIS_PING_INTERVAL_SECONDS
+        # 주기 경과 시 헬스체크 재실행
         if now - self.last_ping >= status_check_interval:
             self.last_ping = now
             self._check_redis_health()
@@ -189,29 +210,37 @@ class RecommendationService:
         Returns:
             역직렬화된 데이터 또는 None (실패 시)
 
-        처리 로직:
+        처리 흐름:
         1. 지정된 백엔드에서 데이터 조회
         2. pickle.loads()를 통한 역직렬화 시도
-        3. 실패 시 데이터 손상/불일치 방지를 위해 캐시 무효화 및 None 반환
+        3. 실패 시 캐시 무효화 (데이터 손상 방지)
 
         Note:
             - Redis 백엔드는 연결 상태 확인 후 사용
             - 역직렬화 실패 시 자동으로 캐시 삭제
+            - 예외 발생 시 None 반환 (프로세스 계속)
         """
         cached_raw = None
         try:
+            # 백엔드별 데이터 조회
             if backend == "redis" and self._is_redis_ready() and self.redis_conn:
+                # Redis에서 조회
                 cached_raw = self.redis_conn.get(key)
             elif backend == "django":
+                # Django 캐시에서 조회
                 cached_raw = cache.get(key)
 
+            # 데이터 없으면 None 반환
             if cached_raw is None:
                 return None
 
+            # pickle 역직렬화
             return pickle.loads(cached_raw)
 
         except Exception as e:
+            # 역직렬화 실패 시 캐시 무효화
             logger.error(f"[CACHE_FAIL] {key} ({backend}) get/deserialization error: {e}. Invalidating cache.")
+            # 백엔드별 캐시 삭제
             if backend == "redis" and self._is_redis_ready() and self.redis_conn:
                 self.redis_conn.delete(key)
             else:
@@ -228,20 +257,30 @@ class RecommendationService:
             timeout: TTL (초 단위)
             backend: 캐시 백엔드 ('redis' 또는 'django')
 
+        처리 흐름:
+        1. value가 None이면 즉시 반환 (저장 안 함)
+        2. pickle.dumps()로 직렬화 (HIGHEST_PROTOCOL 사용)
+        3. 백엔드별 저장 (Redis 또는 Django 캐시)
+
         Note:
-            - value가 None이면 저장하지 않음
-            - pickle.HIGHEST_PROTOCOL 사용 (최적 성능)
-            - 직렬화/저장 실패 시 에러 로그만 출력 (프로세스 계속)
+            - 직렬화/저장 실패 시 에러 로그만 출력
+            - 예외 발생해도 프로세스 계속 진행
         """
+        # None 값은 저장하지 않음
         if value is None:
             return
         try:
+            # pickle 직렬화 (최고 프로토콜 사용 → 최적 성능)
             serialized_data = pickle.dumps(value, pickle.HIGHEST_PROTOCOL)
+            # 백엔드별 저장
             if backend == "redis" and self._is_redis_ready() and self.redis_conn:
+                # Redis에 저장 (ex: TTL 설정)
                 self.redis_conn.set(key, serialized_data, ex=timeout)
             elif backend == "django":
+                # Django 캐시에 저장
                 cache.set(key, serialized_data, timeout)
         except Exception as e:
+            # 직렬화/저장 실패 시 에러 로그만 출력
             logger.error(f"[CACHE_FAIL] {key} ({backend}) serialization/set error: {e}")
 
     def _metadata_get_safe(self, cache_key: str) -> Optional[LectureMetadata]:
@@ -375,14 +414,19 @@ class RecommendationService:
             - 재시도 간격: 1초, 2초, 4초, 8초, 16초
             - 락 타임아웃: 300초
         """
+        # 1. 메모리에 모델 존재 확인
         if self._model is not None:
             return True
+        # 2. 캐시에서 로드 시도
         if self._load_from_redis():
             return True
 
+        # 3. 디스크에서 로드 시도 (락 기반 동시성 제어)
         for attempt in range(MAX_CACHE_LOAD_RETRIES):
+            # 락 획득 시도 (다른 프로세스가 로드 중이면 대기)
             if cache.add(ALS_TRAINING_LOCK_KEY, True, timeout=300):
                 try:
+                    # 디스크에서 모델 로드
                     model_bundle: ModelBundleReturn = self.model_trainer.load_model_and_mappings()
                     (
                         model,
@@ -394,6 +438,7 @@ class RecommendationService:
                         last_trained_at,
                     ) = model_bundle
 
+                    # 필수 컴포넌트 검증
                     if (
                         model is None
                         or u_to_i is None
@@ -411,11 +456,14 @@ class RecommendationService:
                     self._user_items_matrix = user_items_matrix.tocsr()
                     self._last_trained_at = last_trained_at
 
+                    # 캐시에 저장
                     self._save_to_redis()
                     return True
                 finally:
+                    # 락 해제
                     cache.delete(ALS_TRAINING_LOCK_KEY)
             else:
+                # 락 획득 실패 시 exponential backoff으로 재시도
                 backoff = INITIAL_BACKOFF_SECONDS * (2**attempt)
                 logger.info(f"[CACHE] Lock busy. Retry {attempt + 1}/{MAX_CACHE_LOAD_RETRIES} after {backoff:.1f}s")
                 time.sleep(backoff)
@@ -445,6 +493,7 @@ class RecommendationService:
         metadata_map: LectureMetadataMap = {}
         miss_lecture_ids: List[int] = []
 
+        # Redis pipeline으로 일괄 조회
         if self._is_redis_ready() and self.redis_conn:
             try:
                 pipe = self.redis_conn.pipeline()
@@ -454,6 +503,7 @@ class RecommendationService:
 
                 cached_results = pipe.execute()
 
+                # 캐시 히트/미스 분류
                 for lec_id, cached_raw in zip(lecture_ids, cached_results):
                     if cached_raw:
                         metadata = self._metadata_get_safe(LECTURE_METADATA_CACHE_KEY.format(lec_id))
@@ -469,12 +519,15 @@ class RecommendationService:
         else:
             miss_lecture_ids = lecture_ids
 
+        # 캐시 미스 강의는 DB에서 조회
         if miss_lecture_ids:
+            # 평점 조회
             ratings = CrawledLecture.objects.filter(id__in=miss_lecture_ids).values("id", "average_rating")
             ratings_map: Dict[int, float] = {
                 r["id"]: float(r["average_rating"]) if r["average_rating"] is not None else 0.0 for r in ratings
             }
 
+            # 카테고리 조회
             categories = LectureCategory.objects.filter(lecture_id__in=miss_lecture_ids).values(
                 "lecture_id", "category_id"
             )
@@ -484,6 +537,7 @@ class RecommendationService:
                 cat_id = cat["category_id"]
                 categories_map[lec_id].add(cat_id)
 
+            # 메타데이터 구성 및 캐시 저장
             for lec_id in miss_lecture_ids:
                 avg_rating = ratings_map.get(lec_id, 0.0)
                 category_ids = categories_map.get(lec_id, set())
@@ -520,23 +574,29 @@ class RecommendationService:
         if not recommended_idx_scores:
             return []
 
+        # 강의 인덱스 → 강의 ID 변환
         lecture_indices, als_scores = zip(*recommended_idx_scores)
         lecture_ids = [cast(Dict[int, int], self._lecture_idx_to_id)[idx] for idx in lecture_indices]
 
+        # 강의 메타데이터 일괄 조회
         metadata_map: LectureMetadataMap = self._get_lectures_metadata_bulk(lecture_ids)
+        # 사용자 선호 카테고리 조회
         user_prefer_cats: Set[int] = set(
             UserPreferCategory.objects.filter(user_id=user_id).values_list("category_id", flat=True)
         )
 
+        # ALS 점수 배열 변환 및 power decay 적용
         als_scores_array = np.array(als_scores, dtype=np.float32)
         processed_als_scores = np.power(als_scores_array, ALS_SCORE_POWER_DECAY)
 
+        # ALS 점수 정규화 (0-1 범위)
         if NORMALIZE_ALS_SCORE and processed_als_scores.size > 0:
             min_s = processed_als_scores.min()
             max_s = processed_als_scores.max()
             if max_s > min_s:
                 normalized_als_scores = (processed_als_scores - min_s) / (max_s - min_s)
             else:
+                # 모든 점수가 동일한 경우
                 if settings.DEBUG:
                     logger.debug(
                         "[RECSCORE] All ALS scores identical (%s after decay). Setting normalized scores to 0.",
@@ -546,19 +606,26 @@ class RecommendationService:
         else:
             normalized_als_scores = np.array([])
 
+        # 최종 점수 계산 (ALS + 평점 보너스 + 카테고리 보너스)
         final_scores: List[Tuple[int, float]] = []
         for i, lec_id in enumerate(lecture_ids):
+            # 강의 메타데이터 조회
             avg_rating, lec_cats = metadata_map.get(lec_id, (0.0, set()))
+            # 정규화된 ALS 점수
             final_als_score = (
                 normalized_als_scores[i] if normalized_als_scores.size > 0 and i < normalized_als_scores.size else 0.0
             )
+            # 평점 보너스 (5점 만점 기준 정규화)
             normalized_rating = avg_rating / 5.0
             rating_bonus = normalized_rating * REVIEW_RATING_MULTIPLIER
+            # 카테고리 매칭 보너스 (사용자 선호 카테고리 ∩ 강의 카테고리)
             matched_cats = user_prefer_cats.intersection(lec_cats)
             category_bonus = len(matched_cats) * CATEGORY_MATCH_BONUS
+            # 최종 점수 = ALS 점수 + 평점 보너스 + 카테고리 보너스
             final_score = final_als_score + rating_bonus + category_bonus
             final_scores.append((lec_id, final_score))
 
+            # DEBUG 모드: 점수 분해 로그
             if settings.DEBUG:
                 logger.debug(
                     "[RECSCORE][U:%s] L:%s: ALS_Final(%.3f) + R(%.3f) + C(%.3f) -> Final(%.3f)",
@@ -570,6 +637,7 @@ class RecommendationService:
                     final_score,
                 )
 
+        # 최종 점수 기준 내림차순 정렬
         final_scores.sort(key=lambda x: x[1], reverse=True)
         return [lec_id for lec_id, _ in final_scores]
 
@@ -595,11 +663,14 @@ class RecommendationService:
             - 캐시는 북마크 필터링 전 데이터 저장 (재사용성)
             - DB 조회 실패 시 최신 강의 ID 내림차순으로 폴백
         """
+        # 사용자 북마크 강의 ID 조회
         bookmarked_ids = list(LectureBookmark.objects.filter(user_id=user_id).values_list("lecture_id", flat=True))
 
+        # 캐시에서 인기 강의 ID 조회
         cached_ids = cache.get(POPULAR_LECTURE_CACHE_KEY)
 
         if cached_ids:
+            # 캐시 히트: 북마크 제외 필터링 (메모리에서 처리)
             filtered_ids = [id_ for id_ in cached_ids if id_ not in bookmarked_ids]
             popular_ids = filtered_ids[:top_n]
         else:
@@ -612,6 +683,7 @@ class RecommendationService:
                 )
 
                 if unfiltered_all_ids:
+                    # 캐시에 저장 (북마크 필터링 전 데이터)
                     cache.set(POPULAR_LECTURE_CACHE_KEY, unfiltered_all_ids, POPULAR_LECTURE_TTL)
 
                 # 북마크 필터링은 메모리에서 처리
@@ -627,9 +699,11 @@ class RecommendationService:
                     .values_list("id", flat=True)[:top_n]
                 )
 
+        # 빈 결과 처리
         if not popular_ids:
             return CrawledLecture.objects.none()
 
+        # 정렬 순서 유지하여 QuerySet 반환
         return (
             CrawledLecture.objects.filter(id__in=popular_ids)
             .order_by(
@@ -660,14 +734,18 @@ class RecommendationService:
             - 랜덤 샘플링으로 추천 다양성 향상
             - top_n * 2 조회 후 샘플링 (충분한 후보 확보)
         """
+        # 사용자 북마크 강의 ID 조회
         bookmarked_ids = list(LectureBookmark.objects.filter(user_id=user_id).values_list("lecture_id", flat=True))
 
+        # 사용자 선호 카테고리 조회
         user_prefer_cats = set(UserPreferCategory.objects.filter(user_id=user_id).values_list("category_id", flat=True))
 
+        # 선호 카테고리 없으면 인기 강의로 폴백
         if not user_prefer_cats:
             logger.info(f"[COLD_START] User {user_id} has no preferred categories. Using Popular Fallback.")
             return self._get_popular_lectures(user_id, top_n)
 
+        # 선호 카테고리 강의 조회 (북마크 제외)
         filtered_qs = (
             CrawledLecture.objects.filter(lecture_categories__category_id__in=user_prefer_cats)
             .exclude(id__in=bookmarked_ids)
@@ -676,13 +754,17 @@ class RecommendationService:
         )
 
         try:
+            # top_n * 2 조회 (충분한 후보 확보)
             ids = list(filtered_qs.values_list("id", flat=True)[: top_n * 2])
 
+            # 결과 없으면 인기 강의로 폴백
             if not ids:
                 return self._get_popular_lectures(user_id, top_n)
 
+            # 랜덤 샘플링 (다양성 확보)
             random_ids = sample(ids, min(top_n, len(ids)))
 
+            # 정렬 순서 유지하여 QuerySet 반환
             return (
                 CrawledLecture.objects.filter(id__in=random_ids)
                 .order_by(
@@ -720,10 +802,12 @@ class RecommendationService:
             - 추천 결과 로그 출력 (디버깅용)
             - prefetch_related로 N+1 쿼리 방지
         """
+        # 1. 모델 로드 확인
         if not self._ensure_model_loaded() or self._model is None or self._user_items_matrix is None:
             logger.warning(f"[REC] Model not available for user {user_id}. Using Category Fallback.")
             return self._get_category_fallback(user_id, top_n)
 
+        # 2. 사용자 인덱스 확인
         user_index = cast(Dict[int, int], self._user_to_idx).get(user_id)
 
         if user_index is None:
@@ -732,16 +816,16 @@ class RecommendationService:
 
         rec_ids = []
         try:
-            # implicit 라이브러리의 recommend() 메서드 호출
+            # 3. ALS 추천 실행 (implicit 라이브러리)
             result = self._model.recommend(
                 userid=user_index,
                 user_items=self._user_items_matrix,
-                N=top_n * 5,
-                filter_already_liked_items=True,
-                recalculate_user=True,
+                N=top_n * 5,  # 후처리 여유분 확보
+                filter_already_liked_items=True,  # 이미 상호작용한 강의 제외
+                recalculate_user=True,  # 사용자 벡터 재계산
             )
 
-            # 반환 형식 확인 및 처리
+            # 반환 형식 확인 및 처리 (버전 호환성)
             recommended_idx_scores = []
             if isinstance(result, tuple) and len(result) == 2:
                 # 신버전: (indices, scores) 형태
@@ -760,35 +844,42 @@ class RecommendationService:
                 logger.error(f"[REC] Unexpected result format from recommend(): {type(result)}")
                 return self._get_category_fallback(user_id, top_n)
 
+            # 추천 결과 없으면 폴백
             if not recommended_idx_scores:
                 logger.warning(f"[REC] No recommendations returned for user {user_id}")
                 return self._get_category_fallback(user_id, top_n)
 
+            # 4. 후처리 점수 계산 및 재정렬
             final_ranked_ids = self._get_post_processed_ranking(user_id, recommended_idx_scores)
             rec_ids = final_ranked_ids[:top_n]
         except Exception as e:
+            # ALS 추천 실패 시 카테고리 폴백
             logger.error(f"[REC] ALS recommendation failed for user {user_id}: {e}", exc_info=True)
             return self._get_category_fallback(user_id, top_n)
 
+        # 5. 결과 부족 시 카테고리 폴백으로 보충
         if len(rec_ids) < top_n:
             needed_count = top_n - len(rec_ids)
             logger.info(
                 f"[REC] ALS only returned {len(rec_ids)} results. Filling {needed_count} with Category Fallback."
             )
 
+            # 카테고리 폴백으로 부족한 개수만큼 조회
             fallback_qs = self._get_category_fallback(user_id, needed_count)
             fallback_ids = list(fallback_qs.values_list("id", flat=True))
 
+            # 중복 제거하며 추가
             for lec_id in fallback_ids:
                 if lec_id not in rec_ids:
                     rec_ids.append(lec_id)
                     if len(rec_ids) == top_n:
                         break
 
+        # 빈 결과 처리
         if not rec_ids:
             return CrawledLecture.objects.none()
 
-        # 북마크된 강의 제외
+        # 6. 북마크된 강의 제외
         bookmarked_ids = set(LectureBookmark.objects.filter(user_id=user_id).values_list("lecture_id", flat=True))
         rec_ids = [lid for lid in rec_ids if lid not in bookmarked_ids]
 
@@ -798,12 +889,14 @@ class RecommendationService:
             fallback_qs = self._get_category_fallback(user_id, needed_count)
             fallback_ids = list(fallback_qs.values_list("id", flat=True))
 
+            # 북마크 제외하며 추가
             for lec_id in fallback_ids:
                 if lec_id not in rec_ids and lec_id not in bookmarked_ids:
                     rec_ids.append(lec_id)
                     if len(rec_ids) == top_n:
                         break
 
+        # 7. 최종 QuerySet 반환 (정렬 순서 유지)
         qs = (
             CrawledLecture.objects.filter(id__in=rec_ids)
             .order_by(
@@ -811,5 +904,6 @@ class RecommendationService:
             )
             .prefetch_related("lecture_categories__category")
         )
+        # 추천 결과 로그 출력 (디버깅용)
         logger.info(f"[RECOMMENDATION_RESULT][{user_id}] IDs: {rec_ids}")
         return qs
