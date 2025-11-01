@@ -45,13 +45,17 @@ class ChatMessageSerializer(serializers.ModelSerializer[ChatMessage]):
 
 
 class LastMessageSerializer(serializers.Serializer[Any]):
-    content = serializers.CharField(help_text="마지막 메시지 내용")
-    sender_nickname = serializers.CharField(help_text="마지막 메시지 발신자 닉네임")
-    created_at = serializers.DateTimeField(help_text="마지막 메시지 전송 일시")
+    last_message_content = serializers.CharField(help_text="마지막 메시지 내용", source="last_message_content")
+    last_message_sender_nickname = serializers.CharField(
+        help_text="마지막 메시지 발신자 닉네임", source="last_message_sender_nickname"
+    )
+    last_message_created_at = serializers.DateTimeField(
+        help_text="마지막 메시지 전송 일시", source="last_message_created_at"
+    )
 
 
 class ChatRoomSerializer(serializers.Serializer[Any]):
     id = serializers.IntegerField(help_text="스터디 그룹 ID")
     name = serializers.CharField(help_text="스터디 그룹명")
-    last_message = LastMessageSerializer(allow_null=True, help_text="마지막 메시지 정보")
+    last_message = LastMessageSerializer(source="*", allow_null=True, help_text="마지막 메시지 정보")
     unread_count = serializers.IntegerField(default=0, help_text="안 읽은 메시지 수")
