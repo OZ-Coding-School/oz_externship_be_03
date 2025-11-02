@@ -9,8 +9,6 @@ from apps.studies.views.members import (
     MemberKickAPIView,
     MemberLeaveAPIView,
 )
-from apps.studies.views.reviews import GroupReviewListCreateView
-from apps.studies.views.members import DelegateLeaderAPIView
 from apps.studies.views.notes import (
     StudyNoteDetailAPIView,
     StudyNoteListCreateAPIView,
