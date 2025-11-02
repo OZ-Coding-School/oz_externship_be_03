@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any
 
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
@@ -21,39 +21,50 @@ class StudyNoteAuthorSerializer(serializers.ModelSerializer[Any]):
 class StudyNoteCreateSerializer(serializers.ModelSerializer[StudyNote]):
     """
     스터디 노트 생성용 Serializer
-    - view에서 `study_group`을 주입
+    - Notes 뷰 인스턴스(self)에, 퍼미션이 찾아낸 StudyGroup 객체를 붙여둔 뒤, study_group FK로 저장
+    - author HiddenField 로 현재 사용자 자동 주입
     """
+
+    group_uuid = serializers.UUIDField(write_only=True)
+    author = serializers.HiddenField(default=serializers.CurrentUserDefault())
 
     class Meta:
         model = StudyNote
-        fields = ("title", "content", "study_group")
+        fields = ("title", "content", "group_uuid", "author")
+
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
+        view = self.context.get("view")
+        group = getattr(view, "_group", None) if view else None
+        if group is None:
+            raise serializers.ValidationError({"group_uuid": "그룹 컨텍스트가 없습니다."})
+        attrs["study_group"] = group
+        attrs.pop("group_uuid", None)
+        return attrs
 
     def create(self, validated_data: dict[str, Any]) -> StudyNote:
-        """
-        view에서 author / study_group을 주입
-        """
         return StudyNote.objects.create(**validated_data)
 
 
 class StudyNoteUpdateSerializer(serializers.ModelSerializer[StudyNote]):
     """
     스터디 노트 수정용 Serializer
-    - PATCH 기반 partial 수정만 수행
+    - PATCH 기반 수정만
     """
 
     class Meta:
         model = StudyNote
-        fields = ("title", "content", "study_group")  # mock 단계 일단 필드추가
+        fields = ("title", "content")  # study_group 이동시키는 수정은 아니라고 생각돼서 필드에서 제거
 
 
 class StudyNoteListItemSerializer(serializers.ModelSerializer[StudyNote]):
     """
     스터디 노트 목록 Serializer
-    - group_uuid 제거 (URL 단순화)
-    - author 정보만 최소화 노출
+    - author 최소 정보
+    - files_count: 이미지+첨부 총합(annotate로 주입)
     """
 
     author = StudyNoteAuthorSerializer(read_only=True)
+    files_count = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = StudyNote
@@ -64,6 +75,7 @@ class StudyNoteListItemSerializer(serializers.ModelSerializer[StudyNote]):
             "author",
             "created_at",
             "study_group",
+            "files_count",
         )
         read_only_fields = fields
 
@@ -71,8 +83,6 @@ class StudyNoteListItemSerializer(serializers.ModelSerializer[StudyNote]):
 class StudyNoteDetailSerializer(serializers.ModelSerializer[StudyNote]):
     """
     스터디 노트 단일 조회 Serializer
-    - 그룹 UUID 제거
-    - 작성자 및 요약 정보 포함
     """
 
     author = StudyNoteAuthorSerializer(read_only=True)

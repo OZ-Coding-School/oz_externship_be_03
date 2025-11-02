@@ -15,6 +15,7 @@ from apps.studies.views.notes import (
     StudyNoteDetailAPIView,
     StudyNoteListCreateAPIView,
 )
+from apps.studies.views.reviews import GroupReviewListCreateView
 from apps.studies.views.reviews import ReviewCreateView
 from apps.studies.views.schedules import GroupScheduleCreateView
 
