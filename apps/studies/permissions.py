@@ -1,11 +1,15 @@
 from __future__ import annotations
 
-from django.http import HttpRequest
 import uuid
 from typing import Any
 
-from rest_framework.permissions import BasePermission, DjangoObjectPermissions, SAFE_METHODS
 from django.core.exceptions import ObjectDoesNotExist
+from django.http import HttpRequest
+from rest_framework.permissions import (
+    SAFE_METHODS,
+    BasePermission,
+    DjangoObjectPermissions,
+)
 from rest_framework.request import Request
 from rest_framework.views import APIView
 
