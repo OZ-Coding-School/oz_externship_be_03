@@ -168,8 +168,7 @@ class ModelTrainer:
             # 4. 백업 파일 삭제
             if os.path.exists(MODEL_BACKUP_PATH):
                 os.remove(MODEL_BACKUP_PATH)
-                if settings.DEBUG:
-                    logger.debug("[ALS][BACKUP] Backup file deleted.")
+                logger.debug("[ALS][BACKUP] Backup file deleted.")
 
             # 5. 메타데이터 로깅
             m_size_mb: float = os.path.getsize(MODEL_BUNDLE_PATH) / 1e6  # MB 단위
@@ -444,10 +443,11 @@ class ModelTrainer:
             logger.warning("[ALS][PARTIAL] Base model not found or incomplete. Falling back to full training.")
             return self.train_and_save_full_model()
 
-            # Timezone-aware 변환드
+        # Timezone-aware 변환
+        if last_trained_at.tzinfo is None:
             last_trained_at = timezone.make_aware(last_trained_at)
 
-        # 2. 신규 데이터 로
+        # 2. 신규 데이터 로드
         partial_matrix_bundle_ext: MatrixBundleExtended = self.data_loader.build_user_item_matrix(
             existing_users=old_users,  # 기존 사용자 목록
             last_trained_at=last_trained_at,  # 마지막 학습 시각 이후
@@ -534,11 +534,10 @@ class ModelTrainer:
         # 기존 행렬 + 신규 상호작용 행렬
         updated_matrix_csr: csr_matrix = old_matrix_csr + partial_matrix_csr
 
-        if settings.DEBUG:
-            logger.debug(
-                f"[ALS][PARTIAL] Matrix size updated from {old_matrix_csr.nnz} "
-                f"to {updated_matrix_csr.nnz} non-zero entries."
-            )
+        logger.debug(
+            f"[ALS][PARTIAL] Matrix size updated from {old_matrix_csr.nnz} "
+            f"to {updated_matrix_csr.nnz} non-zero entries."
+        )
 
         # 8. implicit 버전 호환성에 따라 partial_fit 함수 적용
         try:

@@ -7,7 +7,6 @@ from random import sample
 from typing import Any, DefaultDict, Dict, List, Optional, Set, Tuple, cast
 
 import numpy as np
-from django.conf import settings
 from django.core.cache import cache
 from django.db.models import Case, IntegerField, QuerySet, Value, When
 from django_redis import get_redis_connection  # type: ignore
@@ -597,11 +596,10 @@ class RecommendationService:
                 normalized_als_scores = (processed_als_scores - min_s) / (max_s - min_s)
             else:
                 # 모든 점수가 동일한 경우
-                if settings.DEBUG:
-                    logger.debug(
-                        "[RECSCORE] All ALS scores identical (%s after decay). Setting normalized scores to 0.",
-                        f"{min_s:.3f}",
-                    )
+                logger.debug(
+                    "[RECSCORE] All ALS scores identical (%s after decay). Setting normalized scores to 0.",
+                    f"{min_s:.3f}",
+                )
                 normalized_als_scores = processed_als_scores * 0
         else:
             normalized_als_scores = np.array([])
@@ -625,17 +623,16 @@ class RecommendationService:
             final_score = final_als_score + rating_bonus + category_bonus
             final_scores.append((lec_id, final_score))
 
-            # DEBUG 모드: 점수 분해 로그
-            if settings.DEBUG:
-                logger.debug(
-                    "[RECSCORE][U:%s] L:%s: ALS_Final(%.3f) + R(%.3f) + C(%.3f) -> Final(%.3f)",
-                    user_id,
-                    lec_id,
-                    final_als_score,
-                    rating_bonus,
-                    category_bonus,
-                    final_score,
-                )
+            # 점수 분해 로그
+            logger.debug(
+                "[RECSCORE][U:%s] L:%s: ALS_Final(%.3f) + R(%.3f) + C(%.3f) -> Final(%.3f)",
+                user_id,
+                lec_id,
+                final_als_score,
+                rating_bonus,
+                category_bonus,
+                final_score,
+            )
 
         # 최종 점수 기준 내림차순 정렬
         final_scores.sort(key=lambda x: x[1], reverse=True)
