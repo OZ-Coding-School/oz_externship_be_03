@@ -144,4 +144,4 @@ class SignalTest(TestCase):
         assert notification.back_url_link is not None  # mypy 에서 back_url_link가 optional타입으로 정의되어있어 확인
         self.assertIn(f"/api/v1/chat/ws/study-groups/{self.study_group.id}", notification.back_url_link)
 
-        mock_delay.assert_called_once_with(notification.id, self.study_group.id)
+        mock_delay.assert_called_once_with(notification.id, str(self.study_group.id))
