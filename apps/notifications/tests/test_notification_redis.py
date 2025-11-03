@@ -173,13 +173,13 @@ class TestRedisPubSubService(IsolatedRedisTestClient):
 
         message = await pubsub.get_message(timeout=1)
 
-        if message and message["type"] =="subscribe":
+        if message and message["type"] == "subscribe":
             message = await pubsub.get_message(timeout=2)
 
         if message and message["type"] == "message":
             received_data = json.loads(message["data"])
             self.assertEqual(received_data["id"], 1)
-            self.assertEqual(received_data["content"],"테스트입니다.")
+            self.assertEqual(received_data["content"], "테스트입니다.")
         else:
             self.fail("그룹 메시지를 받지 못했습니다.")
 
@@ -187,11 +187,11 @@ class TestRedisPubSubService(IsolatedRedisTestClient):
 
     async def test_redis_subscribe_group(self) -> None:
 
-        group_ids=["group_1","group_2"]
+        group_ids = ["group_1", "group_2"]
 
-        async def publish_after_delay()-> None:
+        async def publish_after_delay() -> None:
             await asyncio.sleep(0.2)
-            await self.pubsub_service.publish_group_notification("group_1",self.test_notification)
+            await self.pubsub_service.publish_group_notification("group_1", self.test_notification)
 
         publish_task = asyncio.create_task(publish_after_delay())
 
@@ -204,5 +204,3 @@ class TestRedisPubSubService(IsolatedRedisTestClient):
 
         await publish_task
         self.assertEqual(received_count, 1)
-
-

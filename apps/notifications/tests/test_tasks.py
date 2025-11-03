@@ -1,12 +1,12 @@
 import asyncio
-from datetime import date, timezone, datetime
+from datetime import date, datetime, timezone
 
 from django.contrib.auth import get_user_model
 
 from apps.core.utils.isolated_cache_testcase import IsolatedRedisTestClient
 from apps.notifications.models import Notification
 from apps.notifications.services.redis_pubsub_classify import notification_pubsub
-from apps.notifications.tasks import send_to_pubsub, send_study_group_notification
+from apps.notifications.tasks import send_study_group_notification, send_to_pubsub
 from apps.studies.models import StudyGroup
 from apps.users.enums import Gender
 
@@ -69,7 +69,7 @@ class TasksTest(IsolatedRedisTestClient):
         self.assertEqual(data["type"], self.notification.type)
         self.assertEqual(data["content"], self.notification.content)
 
-    async def test_send_to_pubsub_group(self)-> None:
+    async def test_send_to_pubsub_group(self) -> None:
         """to redis 그룹 알림 전송 테스트"""
         messages = []
 
