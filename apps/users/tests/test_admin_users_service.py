@@ -86,7 +86,7 @@ class AdminUserServiceTest(TestCase):
         """탈퇴 예정 상태"""
         Withdrawal.objects.create(user=self.user, due_date=timezone.now())
         status = AdminUserService.get_user_status(self.user)
-        self.assertEqual(status, UserStatus.WITHDRAWAL_PENDING)
+        self.assertEqual(status, UserStatus.WITHDRAWAL_PENDING.value)
 
     def test_get_user_status_inactive(self) -> None:
         """비활성 상태"""

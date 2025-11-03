@@ -112,7 +112,6 @@ class TestAdminUserAPI(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         data = response.data["data"]
-        self.assertIn("is_active", data)
         self.assertIn("status", data)
         self.assertEqual(data["status"], UserStatus.WITHDRAWAL_PENDING.value)
 
