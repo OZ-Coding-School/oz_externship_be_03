@@ -1,7 +1,6 @@
 from datetime import date
 from uuid import UUID
 
-from celery import group
 from django.contrib.auth import get_user_model
 from django.test import Client, TestCase
 from django.urls import reverse
