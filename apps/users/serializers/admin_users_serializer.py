@@ -1,63 +1,79 @@
-from typing import Any
+from typing import TYPE_CHECKING, Any, Dict
 
+from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
 from apps.users.enums import Role, UserStatus
-from apps.users.models import User
+from apps.users.models import User as UserModel
 from apps.users.services.admin_users_services import AdminUserService
 from apps.users.validators import validate_korean_phone
 
+User = get_user_model()
+
+if TYPE_CHECKING:
+    from apps.users.models import User as UserModel
+
 
 # [관리자] 회원 목록 조회
-class AdminUserListSerializer(serializers.ModelSerializer[User]):
+class AdminUserItemSerializer(serializers.Serializer[Dict[str, Any]]):
+    id = serializers.IntegerField()
+    email = serializers.EmailField()
+    nickname = serializers.CharField()
+    name = serializers.CharField()
+    birthday = serializers.DateField()
+    status = serializers.SerializerMethodField()
+    role = serializers.SerializerMethodField()
+    created_at = serializers.DateTimeField()
+    withdrawal_requested_at = serializers.DateTimeField(allow_null=True, required=False)
 
-    withdrawal_requested_at = serializers.DateTimeField(read_only=True, allow_null=True)
+    def get_status(self, obj: UserModel) -> str:
+        return AdminUserService.get_user_status(obj)
 
-    class Meta:
-        model = User
-        fields = [
-            "id",
-            "email",
-            "nickname",
-            "name",
-            "birthday",
-            "is_active",
-            "is_superuser",
-            "is_staff",
-            "created_at",
-            "withdrawal_requested_at",
-        ]
+    def get_role(self, obj: UserModel) -> str:
+        return AdminUserService.get_user_role(obj)
+
+
+# [관리자] data: {users: [...]}
+class AdminUserListDataSerializer(serializers.Serializer[Dict[str, Any]]):
+    users = AdminUserItemSerializer(many=True)
+
+
+# [관리자] detail: "", data: {users: [...]}
+class AdminUserListResponseSerializer(serializers.Serializer[Dict[str, Any]]):
+    detail = serializers.CharField()
+    results = AdminUserListDataSerializer(many=True)
+
+    def to_representation(self, instance: Any) -> Dict[str, Any]:
+        rep = super().to_representation(instance)
+        return {
+            "detail": rep["detail"],
+            "data": rep["results"],
+        }
 
 
 # [관리자] 회원 상세 조회
-class AdminUserDetailSerializer(serializers.ModelSerializer[User]):
+class AdminUserDetailSerializer(serializers.Serializer[UserModel]):
+    id = serializers.IntegerField()
+    email = serializers.EmailField()
+    nickname = serializers.CharField()
+    name = serializers.CharField()
+    gender = serializers.CharField()
+    birthday = serializers.DateField()
+    phone_number = serializers.CharField(read_only=True)
+    status = serializers.SerializerMethodField()
+    role = serializers.SerializerMethodField()
+    created_at = serializers.DateTimeField()
+    profile_img_url = serializers.URLField()
 
-    status: serializers.SerializerMethodField = serializers.SerializerMethodField()
+    def get_status(self, obj: UserModel) -> str:
+        return AdminUserService.get_user_status(obj)
 
-    class Meta:
-        model = User
-        fields = [
-            "id",
-            "email",
-            "name",
-            "nickname",
-            "birthday",
-            "phone_number",
-            "is_active",
-            "is_staff",
-            "is_superuser",
-            "status",
-            "created_at",
-            "profile_img_url",
-        ]
-
-    def get_status(self, obj: User) -> str:
-        # 상태값을 문자열로 반환
-        return str(AdminUserService.get_user_status(obj))
+    def get_role(self, obj: UserModel) -> str:
+        return AdminUserService.get_user_role(obj)
 
 
 # [관리자] 회원 정보 수정
-class AdminUserUpdateSerializer(serializers.ModelSerializer[User]):
+class AdminUserUpdateSerializer(serializers.ModelSerializer[UserModel]):
 
     status = serializers.ChoiceField(choices=UserStatus.choices, required=False)
     phone_number = serializers.CharField(
