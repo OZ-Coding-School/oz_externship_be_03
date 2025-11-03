@@ -42,7 +42,9 @@ class RedisPubSubService:
         except Exception as e:
             logger.error(f"그룹 {channel}에 알림을 게시하지 못했습니다.{e}")
 
-    async def subscribe_notification(self, user_id: Optional[int]=None, group_ids: Optional[List[str]]=None) -> AsyncGenerator[Dict[str, Any], None]:
+    async def subscribe_notification(
+        self, user_id: Optional[int] = None, group_ids: Optional[List[str]] = None
+    ) -> AsyncGenerator[Dict[str, Any], None]:
         """사용자 알림 채널 구독 및 메시지 스트리밍"""
         channels = []
         if user_id:
@@ -56,7 +58,7 @@ class RedisPubSubService:
             raise ValueError("user_id 또는 group_ids 중 하나는 제공되어야 합니다")
 
         pubsub = self.redis_client.pubsub()
-        
+
         try:
             await pubsub.subscribe(*channels)
             logger.info(f"채널 구독:{channels}")
@@ -68,7 +70,7 @@ class RedisPubSubService:
                         yield notification_data
                     except (json.JSONDecodeError, UnicodeDecodeError) as e:
                         logger.error(f"{channels}에서 메시지를 디코딩하지 못했습니다:{e}")
-                        
+
         except Exception as e:
             logger.error(f"구독 실패:{e}")
         finally:

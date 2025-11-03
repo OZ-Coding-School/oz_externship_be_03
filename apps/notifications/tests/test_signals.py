@@ -1,4 +1,4 @@
-from datetime import date, timezone, datetime
+from datetime import date, datetime, timezone
 from unittest.mock import MagicMock, patch
 
 from django.contrib.auth import get_user_model
@@ -117,8 +117,8 @@ class SignalTest(TestCase):
         )
         self.assertEqual(mock_task.call_count, 2)
 
-    @patch('apps.notifications.tasks.send_study_group_notification.delay')
-    def test_study_group_notification(self,mock_delay: MagicMock) -> None:
+    @patch("apps.notifications.tasks.send_study_group_notification.delay")
+    def test_study_group_notification(self, mock_delay: MagicMock) -> None:
         """스터디 그룹 멤버 참여 알림 테스트"""
         self.recruitment.study_group = self.study_group
         self.recruitment.save()
@@ -136,14 +136,11 @@ class SignalTest(TestCase):
         application.save()
 
         notification = Notification.objects.get(
-            user=self.applicant,
-            type=Notification.NotificationType.STUDY_MEMBER_JOINED
+            user=self.applicant, type=Notification.NotificationType.STUDY_MEMBER_JOINED
         )
 
         expected_content = f"{self.study_group.name}에 {self.applicant.nickname}님이 참여했습니다. 환영해주세요!"
-        self.assertEqual(notification.content,expected_content)
-        self.assertIn(f"/api/v1/chat/ws/study-groups/{self.study_group.id}",notification.back_url_link)
+        self.assertEqual(notification.content, expected_content)
+        self.assertIn(f"/api/v1/chat/ws/study-groups/{self.study_group.id}", notification.back_url_link)
 
         mock_delay.assert_called_once_with(notification.id, self.study_group.id)
-
-
