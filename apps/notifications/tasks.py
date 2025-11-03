@@ -30,7 +30,7 @@ async def send_to_pubsub(notification_id: int) -> None:
 
 
 @shared_task  # type: ignore[misc]
-async def send_study_group_notification(notification_id: int, study_group_id: int) -> None:
+async def send_study_group_notification(notification_id: int, study_group_id: str) -> None:
     try:
         notification = await Notification.objects.aget(id=notification_id)
 
