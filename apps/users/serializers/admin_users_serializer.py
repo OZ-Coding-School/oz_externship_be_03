@@ -57,6 +57,7 @@ class AdminUserDetailSerializer(serializers.Serializer[UserModel]):
     email = serializers.EmailField()
     nickname = serializers.CharField()
     name = serializers.CharField()
+    gender = serializers.CharField()
     birthday = serializers.DateField()
     phone_number = serializers.CharField(read_only=True)
     status = serializers.SerializerMethodField()
