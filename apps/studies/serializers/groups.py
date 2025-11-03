@@ -114,7 +114,7 @@ class StudyGroupListLectureSerializer(serializers.ModelSerializer[CrawledLecture
 class StudyGroupListSerializer(StudyGroupBaseSerializer):
     current_headcount = serializers.IntegerField()
     is_leader = serializers.SerializerMethodField()
-    lectures = StudyGroupListLectureSerializer(source="study_lectures", many=True)
+    lectures = StudyGroupListLectureSerializer(source="group_lectures", many=True)
 
     class Meta(StudyGroupBaseSerializer.Meta):
         fields = StudyGroupBaseSerializer.Meta.fields + [
@@ -149,8 +149,8 @@ class StudyGroupDetailMemberSerializer(serializers.ModelSerializer[GroupMember])
 
 class StudyGroupDetailSerializer(StudyGroupBaseSerializer):
     current_headcount = serializers.SerializerMethodField()
-    members = StudyGroupDetailMemberSerializer(source="study_members", many=True)
-    lectures = StudyGroupDetailLectureSerializer(source="study_lectures", many=True)
+    members = StudyGroupDetailMemberSerializer(source="group_members", many=True)
+    lectures = StudyGroupDetailLectureSerializer(source="group_lectures", many=True)
 
     class Meta(StudyGroupBaseSerializer.Meta):
         fields = StudyGroupBaseSerializer.Meta.fields + ["current_headcount", "members", "lectures"]

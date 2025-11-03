@@ -56,7 +56,7 @@ class StudyGroupListCreateView(APIView):
 
         queryset = queryset.annotate(current_headcount=Count("members"))
 
-        queryset = queryset.prefetch_related("members", "lectures__lecture")
+        queryset = queryset.prefetch_related("members", "lectures")
 
         paginator = self.pagination_class()
         page = paginator.paginate_queryset(queryset, self.request)
@@ -80,7 +80,7 @@ class StudyGroupDetailUpdateView(APIView):
     )
     def get(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         obj_uuid = self.kwargs.get("group_uuid")
-        obj = get_object_or_404(StudyGroup.objects.prefetch_related("members", "lectures__lecture"), uuid=obj_uuid)
+        obj = get_object_or_404(StudyGroup.objects.prefetch_related("members", "lectures"), uuid=obj_uuid)
 
         serializer = StudyGroupDetailSerializer(obj, context={"request": request})
 
@@ -97,7 +97,7 @@ class StudyGroupDetailUpdateView(APIView):
     )
     def put(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         obj_uuid = self.kwargs.get("group_uuid")
-        obj = get_object_or_404(StudyGroup.objects.prefetch_related("lectures__lecture"), uuid=obj_uuid)
+        obj = get_object_or_404(StudyGroup.objects.prefetch_related("lectures"), uuid=obj_uuid)
 
         serializer = StudyGroupCreateSerializer(obj, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
