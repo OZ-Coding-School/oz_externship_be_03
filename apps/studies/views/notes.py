@@ -38,7 +38,7 @@ class StudyNoteListAPIView(APIView):
     @extend_schema(summary="스터디 노트 목록 조회 API")
     def get(self, request: Request, group_id: UUID) -> Response:
         notes = (
-            StudyNote.objects.filter(study_group__id=str(group_id))
+            StudyNote.objects.filter(study_group__uuid=group_id)
             .select_related("author", "study_group")
             .prefetch_related("attachments")
             .annotate(files_count=Count("attachments", distinct=True))
@@ -61,6 +61,9 @@ class StudyNoteCreateAPIView(APIView):
 
     - POST: IsGroupMember.has_permission() 에서 group_uuid 기반 멤버 검증 + view._group 주입
     """
+
+    permission_classes = [AllowAny, IsGroupMember]  # 나중엔 [IsAuthenticated, IsGroupMember]
+    parser_classes = [parsers.JSONParser, parsers.MultiPartParser]  # S3 도입 후 정리
 
     @extend_schema(summary="스터디 노트 생성 API")
     def post(self, request: Request) -> Response:
