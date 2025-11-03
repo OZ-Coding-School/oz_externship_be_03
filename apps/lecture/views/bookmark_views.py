@@ -127,10 +127,10 @@ class LectureBookmarkDeleteView(APIView):
             404: {"description": "존재하지 않는 북마크입니다."},
         },
     )
-    def delete(self, request: Request, lecture_id: int) -> Response:
+    def delete(self, request: Request, lecture_uuid: str) -> Response:
         try:
             user: User = cast(User, request.user)
-            bookmark = LectureBookmark.objects.get(user=user, lecture_id=lecture_id)
+            bookmark = LectureBookmark.objects.get(user=user, lecture__uuid=lecture_uuid)
             bookmark.delete()
             return Response({"detail": "북마크가 삭제되었습니다."}, status=status.HTTP_204_NO_CONTENT)
         except LectureBookmark.DoesNotExist:

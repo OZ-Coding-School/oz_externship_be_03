@@ -46,7 +46,7 @@ class LectureBookmarkIntegrationTest(BaseLectureTest):
         url: str = reverse("bookmark-list-create")
         response: Response = self.client.post(
             url,
-            {"lecture_id": self.lecture1.id},
+            {"lecture_uuid": self.lecture1.uuid},
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -66,9 +66,8 @@ class LectureBookmarkIntegrationTest(BaseLectureTest):
     def test_bookmark_duplicate_prevention(self) -> None:
         """중복 북마크 방지"""
         url: str = reverse("bookmark-list-create")
-        self.client.post(url, {"lecture_id": self.lecture1.id}, format="json")
-
-        response: Response = self.client.post(url, {"lecture_id": self.lecture1.id}, format="json")
+        self.client.post(url, {"lecture_uuid": self.lecture1.uuid}, format="json")
+        response: Response = self.client.post(url, {"lecture_uuid": self.lecture1.uuid}, format="json")
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data["error"], "이미 북마크한 강의입니다.")
         self.assertEqual(LectureBookmark.objects.filter(user=self.user, lecture=self.lecture1).count(), 1)
@@ -84,14 +83,14 @@ class LectureBookmarkIntegrationTest(BaseLectureTest):
         """북마크 삭제"""
         LectureBookmark.objects.bulk_create([LectureBookmark(user=self.user, lecture=self.lecture1)])
 
-        url: str = reverse("bookmark-delete", kwargs={"lecture_id": self.lecture1.id})
+        url: str = reverse("bookmark-delete", kwargs={"lecture_uuid": self.lecture1.uuid})
         response: Response = self.client.delete(url)
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
         self.assertFalse(LectureBookmark.objects.filter(user=self.user, lecture=self.lecture1).exists())
 
     def test_bookmark_delete_nonexistent(self) -> None:
         """존재하지 않는 북마크 삭제 시도"""
-        url: str = reverse("bookmark-delete", kwargs={"lecture_id": self.lecture1.id})
+        url: str = reverse("bookmark-delete", kwargs={"lecture_uuid": self.lecture1.uuid})
         response: Response = self.client.delete(url)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
         self.assertEqual(response.data["error"], "존재하지 않는 북마크입니다.")
@@ -158,31 +157,31 @@ class LectureBookmarkIntegrationTest(BaseLectureTest):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data["data"]["results"]), 1)
 
-    def test_bookmark_invalid_lecture_id(self) -> None:
-        """존재하지 않는 강의 ID로 북마크 생성 시도"""
+    def test_bookmark_invalid_lecture_uuid(self) -> None:
+        """존재하지 않는 강의 UUID로 북마크 생성 시도"""
         url: str = reverse("bookmark-list-create")
-        response: Response = self.client.post(url, {"lecture_id": 99999}, format="json")
+        response: Response = self.client.post(url, {"lecture_uuid": "invalid-uuid"}, format="json")
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("lecture_id", response.data)
+        self.assertIn("lecture_uuid", response.data)
 
-    def test_bookmark_missing_lecture_id(self) -> None:
-        """lecture_id 누락 시 검증 실패"""
+    def test_bookmark_missing_lecture_uuid(self) -> None:
+        """lecture_uuid 누락 시 검증 실패"""
         url: str = reverse("bookmark-list-create")
         response: Response = self.client.post(url, {}, format="json")
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("lecture_id", response.data)
+        self.assertIn("lecture_uuid", response.data)
 
     def test_bookmark_authentication_required(self) -> None:
         """인증되지 않은 사용자의 접근 차단"""
         self.client.force_authenticate(user=None)
 
         list_url: str = reverse("bookmark-list-create")
-        delete_url: str = reverse("bookmark-delete", kwargs={"lecture_id": self.lecture1.id})
+        delete_url: str = reverse("bookmark-delete", kwargs={"lecture_uuid": self.lecture1.uuid})
 
         response: Response = self.client.get(list_url)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-        response = self.client.post(list_url, {"lecture_id": self.lecture1.id}, format="json")
+        response = self.client.post(list_url, {"lecture_uuid": self.lecture1.uuid}, format="json")
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
         response = self.client.delete(delete_url)
