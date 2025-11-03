@@ -7,7 +7,7 @@ from apps.core.utils.isolated_cache_testcase import IsolatedRedisTestClient
 from apps.notifications.models import Notification
 from apps.notifications.services.redis_pubsub_classify import notification_pubsub
 from apps.notifications.tasks import send_study_group_notification, send_to_pubsub
-from apps.studies.models import StudyGroup
+from apps.studies.models.groups import StudyGroup
 from apps.users.enums import Gender
 
 User = get_user_model()

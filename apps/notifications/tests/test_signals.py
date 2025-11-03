@@ -7,7 +7,7 @@ from django.test import TestCase
 from apps.notifications.models import Notification
 from apps.recruitments.models import Recruitment
 from apps.recruitments.models.application import Application, ApplicationStatus
-from apps.studies.models import StudyGroup
+from apps.studies.models.groups import StudyGroup
 from apps.users.enums import Gender
 
 User = get_user_model()
@@ -141,6 +141,7 @@ class SignalTest(TestCase):
 
         expected_content = f"{self.study_group.name}에 {self.applicant.nickname}님이 참여했습니다. 환영해주세요!"
         self.assertEqual(notification.content, expected_content)
+        self.assertIsNotNone(notification.back_url_link) # mypy 에서 back_url_link가 optional타입으로 정의되어있어 확인
         self.assertIn(f"/api/v1/chat/ws/study-groups/{self.study_group.id}", notification.back_url_link)
 
         mock_delay.assert_called_once_with(notification.id, self.study_group.id)
