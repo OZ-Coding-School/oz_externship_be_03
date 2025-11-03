@@ -68,7 +68,7 @@ def study_member_joined_created(sender: Any, instance: Application, created: boo
                 user_id=new_member.id,
                 content=f"{study_group.name}에 {new_member.nickname}님이 참여했습니다. 환영해주세요!",
                 type=Notification.NotificationType.STUDY_MEMBER_JOINED,
-                back_url_link=f"{settings.FRONTEND_DOMAIN}api/v1/chat/ws/study-groups/{study_group.id}",
+                back_url_link=f"{settings.FRONTEND_DOMAIN}/api/v1/chat/ws/study-groups/{study_group.id}",
             )
 
             send_study_group_notification.delay(notification.id, study_group.id)
