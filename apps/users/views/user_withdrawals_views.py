@@ -1,11 +1,18 @@
 from typing import Any, cast
 
+from django.conf import settings
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework_simplejwt.exceptions import (
+    ExpiredTokenError,
+    InvalidToken,
+    TokenError,
+)
+from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.users.models import User
 from apps.users.permissions import EmailVerifiedPermission
@@ -37,15 +44,23 @@ class UserWithdrawalAPIView(APIView):
             reason_detail=serializer.validated_data["reason_detail"],
         )
 
-        return Response({"detail": "계정이 비활성화되었습니다."}, status=status.HTTP_200_OK)
+        refresh_raw = request.COOKIES.get(settings.AUTH_REFRESH_COOKIE_NAME)
 
-        # TODO : 로그아웃 기능 가져오기
-        # 서버사이드 로그아웃 (토큰 무효화 + 쿠키 삭제)
-        # try:
-        #     invalidate_user_tokens(request.user, request=request)
-        # finally:
-        #     clear_auth_cookies(response)
-        #     return Response({"detail": "계정이 비활성화되었습니다."}, status=status.HTTP_200_OK)
+        if refresh_raw:
+            try:
+                refresh_token = RefreshToken(cast(Any, refresh_raw))
+                refresh_token.blacklist()
+            except InvalidToken:
+                return Response({"error": "유효하지 않은 토큰입니다."}, status=401)
+            except ExpiredTokenError:
+                return Response({"error": "토큰이 만료되었습니다."}, status=401)
+            except TokenError:
+                return Response({"detail": "세션이 유효하지 않습니다. 다시 로그인해주세요."}, status=200)
+
+        resp = Response({"detail": "계정이 비활성화되었습니다."}, status=status.HTTP_200_OK)
+        resp.delete_cookie(settings.AUTH_REFRESH_COOKIE_NAME)
+
+        return resp
 
 
 class UserAccountRecoveryAPIView(APIView):
