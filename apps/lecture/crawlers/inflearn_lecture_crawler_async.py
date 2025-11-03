@@ -145,7 +145,7 @@ class InflearnLectureCrawlerAsync(InflearnCategoryCrawler):
                 "discount_price": list_price.get("payPrice", 0),
                 "url_link": f"https://www.inflearn.com/course/{slug}" if slug else "",
                 "thumbnail_img_url": course.get("thumbnailUrl", ""),
-                "categories_raw": metadata.get("parentCategories", []),
+                # "categories_raw": metadata.get("parentCategories", []),
             }
             processed_data.append(lecture_info)
 

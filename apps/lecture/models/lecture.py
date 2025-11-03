@@ -37,7 +37,7 @@ class CrawledLecture(UUIDBaseModel):
 
     class Meta:
         db_table = "crawled_lectures"
-        unique_together = (("platform", "title"),)
+        unique_together = (("platform", "title", "instructor"),)
         ordering = ["-created_at"]
 
     def __str__(self) -> str:

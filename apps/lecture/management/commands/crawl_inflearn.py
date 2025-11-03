@@ -17,5 +17,23 @@ class Command(BaseCommand):
         db_data: List[Dict[str, Any]] = asyncio.run(crawler.crawl_and_process())
 
         with transaction.atomic():
-            for data in db_data:
-                CrawledLecture.objects.update_or_create(platform=data["platform"], title=data["title"], defaults=data)
+            lectures: List[CrawledLecture] = [CrawledLecture(**data) for data in db_data]
+
+            CrawledLecture.objects.bulk_create(
+                lectures,
+                update_conflicts=True,
+                update_fields=[
+                    "description",
+                    "average_rating",
+                    "duration",
+                    "difficulty",
+                    "original_price",
+                    "discount_price",
+                    "url_link",
+                    "thumbnail_img_url",
+                ],
+                unique_fields=["platform", "title", "instructor"],
+            )
+            self.stdout.write(
+                self.style.SUCCESS(f"Successfully crawled {len(lectures)} lectures from INFLEARN.")
+            )
