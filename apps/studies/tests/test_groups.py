@@ -1,9 +1,10 @@
-from datetime import date
+from datetime import date, timedelta
 from uuid import UUID
 
 from django.contrib.auth import get_user_model
 from django.test import Client, TestCase
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
 
@@ -17,13 +18,17 @@ class StudyGroupListCreateViewTest(TestCase):
 
     def test_post_create_study_group(self) -> None:
         """POST 요청 테스트 - 상태 코드 201"""
+        # 동적 datetime 생성: 현재 시간 기준으로 미래 날짜 설정
+        start_datetime = timezone.now() + timedelta(days=30)
+        end_datetime = timezone.now() + timedelta(days=400)
+
         payload = {
             "name": "Test Group",
             "introduction": "This is Test Group",
             "profile_img_url": "https://example.com/test1.jpg",
             "max_headcount": 5,
-            "start_at": "2027-11-01",  # 날짜 한참 뒤로 수정
-            "end_at": "2028-11-10",  # 동일
+            "start_at": start_datetime.isoformat(),
+            "end_at": end_datetime.isoformat(),
             "status": "PENDING",
             "lectures": [1, 2],
         }
