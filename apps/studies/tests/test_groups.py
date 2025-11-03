@@ -287,10 +287,12 @@ class StudyGroupDetailUpdateViewTest(TestCase):
             end_at=timezone.now() + timedelta(days=7),
         )
 
-        StudyLecture.objects.bulk_create([
-            StudyLecture(study_group=self.group, lecture=self.lecture1),
-            StudyLecture(study_group=self.group, lecture=self.lecture2),
-        ])
+        StudyLecture.objects.bulk_create(
+            [
+                StudyLecture(study_group=self.group, lecture=self.lecture1),
+                StudyLecture(study_group=self.group, lecture=self.lecture2),
+            ]
+        )
 
         GroupMember.objects.create(study_group=self.group, user=self.user, is_leader=True)
 
