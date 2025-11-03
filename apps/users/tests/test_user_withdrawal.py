@@ -11,13 +11,12 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.request import Request
 from rest_framework.views import APIView
+from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken
+from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.core.utils.isolated_cache_testcase import IsolatedRedisTestClient
 from apps.users.enums import Reason
 from apps.users.models import Withdrawal
-
-from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken
 
 User = get_user_model()
 
@@ -83,10 +82,13 @@ class UserWithdrawalAPIViewTests(IsolatedRedisTestClient):
             deleted_cookie,
             "탈퇴 응답에서 refresh 쿠키를 삭제하는 Set-Cookie가 있어야 합니다.",
         )
+
+        # None 아님을 명시 - Mypy 오류 해결용
+        assert deleted_cookie is not None
+
         self.assertEqual(deleted_cookie.value, "")
         # max-age 가 문자열로 올 수도 있어서 둘 다 허용
         self.assertIn(str(deleted_cookie["max-age"]), ("0", "0.0"))
-
 
     def test_withdraw_duplicate_request(self) -> None:
         """
