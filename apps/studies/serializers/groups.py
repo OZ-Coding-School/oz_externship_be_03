@@ -1,7 +1,8 @@
 from datetime import timedelta
-from typing import Any, Dict, Iterable
+from typing import Any, Dict, Iterable, cast
 
 from django.db import transaction
+from django.db.models import QuerySet
 from django.utils import timezone
 from rest_framework import serializers
 
@@ -59,7 +60,7 @@ class StudyGroupCreateSerializer(StudyGroupBaseSerializer):
     def to_representation(self, instance: StudyGroup) -> Dict[str, str]:
         """출력 시 lecture 객체 → uuid 리스트로 변환"""
         ret = super().to_representation(instance)
-        ret["lectures"] = list(instance.lectures.values_list("lecture_uuid", flat=True))
+        ret["lectures"] = list(instance.lectures.values_list("uuid", flat=True))
         return ret
 
     # 인원 수 제한 (2~10명)
@@ -86,7 +87,7 @@ class StudyGroupCreateSerializer(StudyGroupBaseSerializer):
             raise serializers.ValidationError({"start_at": "시작일은 오늘 또는 이후여야 합니다."})
         return attrs
 
-    def update(self, instance: StudyGroup, validated_data: dict) -> StudyGroup:
+    def update(self, instance: StudyGroup, validated_data: Dict[str, Any]) -> StudyGroup:
         lectures = validated_data.pop("lectures", None)
 
         for key, value in validated_data.items():
@@ -126,8 +127,10 @@ class StudyGroupListSerializer(StudyGroupBaseSerializer):
         request = self.context.get("request")
         if not request or not hasattr(request, "user"):
             return False
-        user_id = request.user.id
-        return any(m.user_id == user_id and m.is_leader for m in obj.members.all())
+        req_user_id = request.user.id
+        group_members = cast(QuerySet[GroupMember], obj.members.all())
+
+        return any(group_member.user.id == req_user_id and group_member.is_leader for group_member in group_members)
 
 
 class StudyGroupDetailLectureSerializer(serializers.ModelSerializer[CrawledLecture]):
@@ -156,11 +159,13 @@ class StudyGroupDetailSerializer(StudyGroupBaseSerializer):
         return len(obj.members.all())
 
     def get_members(self, obj: StudyGroup) -> list[dict[str, int | str]]:
+        group_members = cast(QuerySet[GroupMember], obj.members.all())
+
         return [
             {
                 "id": group_member.user.id,
                 "nickname": group_member.user.nickname,
                 "is_leader": group_member.is_leader,
             }
-            for group_member in obj.members.all()
+            for group_member in group_members
         ]
