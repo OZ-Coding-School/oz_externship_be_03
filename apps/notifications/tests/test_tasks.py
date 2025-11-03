@@ -81,7 +81,7 @@ class TasksTest(IsolatedRedisTestClient):
 
         listener_task = asyncio.create_task(group_message_listener())
 
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(0.5)
 
         # 그룹 알림 전송
         await send_study_group_notification(self.notification.id, str(self.study_group.id))
