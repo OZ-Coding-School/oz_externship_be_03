@@ -1,5 +1,5 @@
 import asyncio
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import aiohttp
 
@@ -18,53 +18,81 @@ class InflearnLectureCrawlerAsync(InflearnCategoryCrawler):
         "design",
     ]
 
-    async def fetch_page(self, session: aiohttp.ClientSession, page_number: int) -> Dict[str, Any]:
+    async def fetch_page(self, session: aiohttp.ClientSession, page_number: int) -> Optional[Dict[str, Any]]:
         base_url = "https://course-api.inflearn.com/client/api/v1/course/search"
         parameters = f"pageNumber={page_number}&pageSize=100&sort=POPULAR&lang=ko&categories=" + ",".join(
             self.valid_ctg_slugs
         )
         url = base_url + "?" + parameters
 
-        async with session.get(url) as response:
-            return await response.json()  # type: ignore[no-any-return]
+        try:
+            await asyncio.sleep(0.2)
 
-    async def crawl_all_pages_async(self, max_concurrent: int = 10) -> List[Dict[str, Any]]:
+            timeout = aiohttp.ClientTimeout(total=30)
+            async with session.get(url, timeout=timeout) as response:
+                response.raise_for_status()
+                result: Dict[str, Any] = await response.json()
+                return result
 
-        all_raw_data: List[Dict[str, Any]] = []
+        except asyncio.TimeoutError:
+            print(f"{page_number} 타임아웃 - 스킵")
+            return None
+
+        except aiohttp.ClientResponseError as e:
+            print(f"{page_number} HTTP 에러 {e.status} - 스킵")
+            return None
+
+        except aiohttp.ClientError as e:
+            print(f"{page_number} 네트워크 에러 - 스킵")
+            return None
+
+        except Exception as e:
+            print(f"{page_number} 예상치 못한 에러: {e} - 스킵")
+            return None
+
+    async def crawl_all_pages_async(self, max_concurrent: int = 5, chunk_size: int = 50) -> List[Dict[str, Any]]:
+
+        semaphore = asyncio.Semaphore(max_concurrent)
+
+        async def fetch_with_limit(session: aiohttp.ClientSession, page_num: int) -> Optional[Dict[str, Any]]:
+            async with semaphore:
+                return await self.fetch_page(session, page_num)
 
         async with aiohttp.ClientSession() as session:
-            # 1. 첫페이지만 수집
+
             first_response = await self.fetch_page(session, 1)
+
+            if not first_response:
+                return []
 
             total_count = first_response.get("data", {}).get("totalCount", 0)
             total_pages = (total_count // 100) + (1 if total_count % 100 else 0)
 
-            first_page_items = first_response.get("data", {}).get("items", [])
-            all_raw_data.extend(first_page_items)
+            all_raw_data: List[Dict[str, Any]] = first_response.get("data", {}).get("items", [])
 
-            # 2. 2페이지부터 끝페이지+1 수집
-            remaining_pages = range(2, total_pages + 1)
+            if total_pages > 1:
+                remaining_pages = list(range(2, total_pages + 1))
 
-            if not remaining_pages:
-                return all_raw_data
+                for i in range(0, len(remaining_pages), chunk_size):
+                    chunk = remaining_pages[i : i + chunk_size]
 
-            for i in range(0, len(remaining_pages), max_concurrent):
-                batch_pages = remaining_pages[i : i + max_concurrent]
+                    tasks = [fetch_with_limit(session, page) for page in chunk]
+                    responses = await asyncio.gather(*tasks)
 
-                tasks = [self.fetch_page(session, page) for page in batch_pages]
+                    for response_data in responses:
+                        if response_data:
+                            lecture_items: List[Dict[str, Any]] = response_data.get("data", {}).get("items", [])
+                            all_raw_data.extend(lecture_items)
 
-                responses = await asyncio.gather(*tasks)
+                    if i + chunk_size < len(remaining_pages):
+                        await asyncio.sleep(0.1)
 
-                for response_data in responses:
-                    lecture_items: List[Dict[str, Any]] = response_data.get("data", {}).get("items", [])
-                    all_raw_data.extend(lecture_items)
-
-        return all_raw_data
+            return all_raw_data
 
     def filter_data(self, raw_lecture_items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
         filtered_data: List[Dict[str, Any]] = []
-        # id값으로 중복제거
+
         unique_ids: set[int] = set()
 
         for item in raw_lecture_items:
