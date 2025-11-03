@@ -24,6 +24,21 @@ class Command(BaseCommand):
                 batch_size=1000,
             )
 
+            register_periodic_task(
+                name="train-full-model-weekly",
+                task_path="apps.lecture.tasks.train_full_model_task",
+                hour="2",
+                minute="0",
+                day_of_week="0",  # 일요일
+            )
+
+            register_periodic_task(
+                name="partial-fit-daily",
+                task_path="apps.lecture.tasks.partial_fit_model_task",
+                hour="3",
+                minute="0",
+            )
+
             scheduled_tasks = PeriodicTask.objects.all()
             for i, task in enumerate(scheduled_tasks):
                 crontab = getattr(task, "crontab", None)

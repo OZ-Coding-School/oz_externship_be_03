@@ -1,5 +1,6 @@
 import logging
 import os
+import pickle
 import shutil
 import time
 from datetime import datetime
@@ -15,16 +16,13 @@ from implicit.als import AlternatingLeastSquares  # type: ignore
 from scipy.sparse import csr_matrix
 
 from apps.lecture.services.recommendation_service.constants import (
-    ALS_MODEL_CACHE_KEY,
+    ALS_CACHE_KEYS,
     ALS_PARAMS,
     ALS_TRAINING_LOCK_KEY,
     INITIAL_BACKOFF_SECONDS,
-    L_IDX_TO_ID_CACHE_KEY,
-    L_TO_IDX_CACHE_KEY,
+    LOCK_TIMEOUT_SECONDS,
     MAX_CACHE_LOAD_RETRIES,
     MODEL_VERSION,
-    U_TO_IDX_CACHE_KEY,
-    USER_ITEMS_MATRIX_CACHE_KEY,
     ALS_Hyperparameters,
 )
 from apps.lecture.services.recommendation_service.data_loader import (
@@ -38,13 +36,6 @@ MODEL_DIR: str = settings.MODEL_STORAGE_PATH
 MODEL_BUNDLE_PATH: str = os.path.join(MODEL_DIR, f"als_model_bundle_{ALS_PARAMS.factors}f_{MODEL_VERSION}.joblib")
 MODEL_BACKUP_PATH: str = MODEL_BUNDLE_PATH.replace(".joblib", "_backup.joblib")
 
-ALS_CACHE_KEYS: List[str] = [
-    ALS_MODEL_CACHE_KEY,
-    U_TO_IDX_CACHE_KEY,
-    L_TO_IDX_CACHE_KEY,
-    L_IDX_TO_ID_CACHE_KEY,
-    USER_ITEMS_MATRIX_CACHE_KEY,
-]  # 캐시 무효화 대상 키 목록
 
 ModelBundleReturn = Tuple[
     Optional[AlternatingLeastSquares],
@@ -76,11 +67,13 @@ class ModelTrainer:
         - MODEL_VERSION 변경 시 캐시 자동 무효화
         - implicit 라이브러리 버전 호환성 확인 필요
         - partial_fit은 shape 변경 불가 (신규 사용자/강의 시 Full Training 필수)
+        - lock_key: Redis 락 키 (테스트용, 기본값: ALS_TRAINING_LOCK_KEY)
     """
 
-    def __init__(self, data_loader: DataLoader) -> None:
+    def __init__(self, data_loader: DataLoader, lock_key: Optional[str] = None) -> None:
         self.data_loader: DataLoader = data_loader
         self.params: ALS_Hyperparameters = ALS_PARAMS  # factors, regularization, iterations 등
+        self.lock_key: str = lock_key or ALS_TRAINING_LOCK_KEY  # 테스트에서 주입 가능
         os.makedirs(MODEL_DIR, exist_ok=True)  # 디렉토리 없으면 생성
         logger.info(f"[ALS][INIT] Using implicit library version {implicit.__version__}")
 
@@ -209,6 +202,14 @@ class ModelTrainer:
                 self._clear_redis_cache()
 
             return False
+        finally:
+            # 복구 실패 시에도 백업 파일 정리
+            if not recovery_successful and os.path.exists(MODEL_BACKUP_PATH):
+                try:
+                    os.remove(MODEL_BACKUP_PATH)
+                    logger.debug("[ALS][BACKUP] Backup file cleaned up after recovery failure.")
+                except Exception:
+                    pass
 
     def load_model_and_mappings(self) -> ModelBundleReturn:
         """
@@ -232,6 +233,7 @@ class ModelTrainer:
         if not os.path.exists(MODEL_BUNDLE_PATH):
             logger.info("[ALS][LOAD] Model bundle file not found.")
             return None, None, None, None, None, None, None
+
         try:
             data: Dict[str, Any] = joblib.load(MODEL_BUNDLE_PATH)
 
@@ -253,8 +255,14 @@ class ModelTrainer:
                     last_trained_at,
                 ),
             )
+        except (EOFError, pickle.UnpicklingError) as e:
+            logger.error(f"[ALS][LOAD] Corrupted model file: {e}")
+            return None, None, None, None, None, None, None
+        except PermissionError as e:
+            logger.critical(f"[ALS][LOAD] Permission denied: {e}")
+            return None, None, None, None, None, None, None
         except Exception as e:
-            logger.error(f"[ALS][LOAD] Error loading model bundle: {e}", exc_info=True)
+            logger.error(f"[ALS][LOAD] Unexpected error: {e}", exc_info=True)
             return None, None, None, None, None, None, None
 
     def _acquire_lock_with_retry(self, lock_key: str, timeout: int) -> bool:
@@ -281,12 +289,10 @@ class ModelTrainer:
         - 동시에 여러 프로세스가 모델 학습 시도 방지
         - 락 경합 시 무한 대기 대신 재시도 후 포기
         """
-        redis_cache = cast(Any, cache)
-
         for attempt in range(MAX_CACHE_LOAD_RETRIES):
             try:
                 # cache.add는 키가 없을 때만 성공 (락 획득)
-                if redis_cache.add(lock_key, True, timeout=timeout):
+                if cache.add(lock_key, True, timeout=timeout):
                     logger.debug(f"[ALS][LOCK] Lock acquired on attempt {attempt + 1}")
                     return True
             except Exception as e:
@@ -371,8 +377,8 @@ class ModelTrainer:
             "last_trained_at": timezone.now(),
         }
 
-        # 5. 락 획득 및 저장
-        if not self._acquire_lock_with_retry(ALS_TRAINING_LOCK_KEY, timeout=600):
+        # 5. 락 획득 및 저장 (self.lock_key 사용)
+        if not self._acquire_lock_with_retry(self.lock_key, timeout=LOCK_TIMEOUT_SECONDS):
             logger.error("[ALS][LOCK] Failed to acquire training lock after retries.")
             return False
 
@@ -381,7 +387,7 @@ class ModelTrainer:
         finally:
             # 락 해제 (성공/실패 무관)
             try:
-                cache.delete(ALS_TRAINING_LOCK_KEY)
+                cache.delete(self.lock_key)  # self.lock_key 사용
                 logger.debug("[ALS][LOCK] Training lock released.")
             except Exception as e:
                 logger.warning(f"[ALS][LOCK] Failed to release lock: {e}")
@@ -507,31 +513,26 @@ class ModelTrainer:
                 if new_lec_id in l_to_i:  # 기존 매핑에 존재하는 강의만
                     col_mapping[new_idx] = l_to_i[new_lec_id]  # 신규 인덱스 → 기존 인덱스
 
-            # 유효한 매핑만 필터링
-            valid_mask = col_mapping >= 0  # -1이 아닌 것만 (매핑 성공)
-            valid_new_cols = np.where(valid_mask)[0]  # 부분 행렬의 유효 열 인덱스
-            valid_old_cols = col_mapping[valid_mask]  # 기존 행렬의 대응 열 인덱스
-
-            # partial_matrix_csr를 명시적으로 CSR로 변환: 타입 체커 만족 + 슬라이싱 최적화
+            # COO 형식으로 데이터 재배치
             partial_matrix_csr_typed: csr_matrix = partial_matrix_csr.tocsr()
+            row_indices, col_indices, values = [], [], []
 
-            # 빈 행렬 생성 (기존 행렬과 동일한 shape) - csr_matrix 생성 시 타입 추론 한계 우회
-            expanded_partial_csr: csr_matrix = csr_matrix(  # type: ignore[type-var]
-                (old_matrix_csr.shape[0], old_matrix_csr.shape[1]), dtype=np.float32
-            ).tocsr()
+            for i in range(partial_matrix_csr_typed.shape[0]):
+                start, end = partial_matrix_csr_typed.indptr[i], partial_matrix_csr_typed.indptr[i + 1]
+                for j_idx in range(start, end):
+                    j = partial_matrix_csr_typed.indices[j_idx]
+                    if col_mapping[j] >= 0:
+                        row_indices.append(i)
+                        col_indices.append(col_mapping[j])
+                        values.append(partial_matrix_csr_typed.data[j_idx])
 
-            # 벡터화된 슬라이싱으로 데이터 복사
-            # 부분 행렬의 유효 열을 기존 행렬의 대응 위치에 배치
-            # 슬라이싱 할당 시 타입 불일치 우회
-            expanded_partial_csr[:, valid_old_cols] = partial_matrix_csr_typed[
-                :, valid_new_cols
-            ]  # type: ignore[assignment]
+            expanded_partial_csr = csr_matrix(
+                (values, (row_indices, col_indices)), shape=old_matrix_csr.shape, dtype=np.float32
+            )
 
-            # 확장된 행렬로 교체
             partial_matrix_csr = expanded_partial_csr
 
         # 7. 최종 행렬 합산
-        # 기존 행렬 + 신규 상호작용 행렬
         updated_matrix_csr: csr_matrix = old_matrix_csr + partial_matrix_csr
 
         logger.debug(
@@ -539,58 +540,42 @@ class ModelTrainer:
             f"to {updated_matrix_csr.nnz} non-zero entries."
         )
 
-        # 8. implicit 버전 호환성에 따라 partial_fit 함수 적용
+        # 8. implicit partial_fit 적용
         try:
             logger.info("[ALS][PARTIAL] Applying partial_fit to model.")
             start_time = time.time()
 
-            # 사용자 업데이트
-            # np.arange(N): 0부터 N-1까지의 인덱스 배열
             model.partial_fit_users(np.arange(updated_matrix_csr.shape[0]), updated_matrix_csr)
-            # 강의 업데이트 (전치 행렬 사용)
             model.partial_fit_items(np.arange(updated_matrix_csr.shape[1]), updated_matrix_csr.T)
 
             partial_fit_time = time.time() - start_time
             logger.info(f"[ALS][PARTIAL] Partial fit completed successfully in {partial_fit_time:.2f} seconds.")
         except Exception as e:
-            # Partial fit 실패 시 Full Training으로 폴백
             logger.error(f"[ALS][LIB] Implicit partial_fit error: {e}. Falling back to full training.", exc_info=True)
             return self.train_and_save_full_model()
 
         # 9. 모델 번들 생성
         obj: Dict[str, Any] = {
-            "model": model,  # 업데이트된 모델
-            "user_to_idx": u_to_i,  # 기존 사용자 매핑 유지
-            "lecture_to_idx": l_to_i,  # 기존 강의 매핑 유지
-            "users": old_users,  # 기존 사용자 목록 유지
-            "lectures": old_lectures,  # 기존 강의 목록 유지
-            "matrix": updated_matrix_csr,  # 합산된 행렬
-            "last_trained_at": timezone.now(),  # 현재 시각으로 업데이트
+            "model": model,
+            "user_to_idx": u_to_i,
+            "lecture_to_idx": l_to_i,
+            "users": old_users,
+            "lectures": old_lectures,
+            "matrix": updated_matrix_csr,
+            "last_trained_at": timezone.now(),
         }
 
-        # 10. 락 획득 및 저장
-        # Exponential backoff로 락 획득
-        if not self._acquire_lock_with_retry(ALS_TRAINING_LOCK_KEY, timeout=600):
+        # 10. 락 획득 및 저장 (self.lock_key 사용)
+        if not self._acquire_lock_with_retry(self.lock_key, timeout=LOCK_TIMEOUT_SECONDS):
             logger.error("[ALS][LOCK] Failed to acquire training lock for partial fit after retries.")
             return False
 
         try:
-            result = self._safe_dump_model(obj)
-            # 11. 캐시 무효화
-            # 저장 성공 시 모든 캐시 삭제
-            if result:
-                cache.delete(ALS_MODEL_CACHE_KEY)
-                cache.delete(U_TO_IDX_CACHE_KEY)
-                cache.delete(L_TO_IDX_CACHE_KEY)
-                cache.delete(L_IDX_TO_ID_CACHE_KEY)
-                cache.delete(USER_ITEMS_MATRIX_CACHE_KEY)
-                logger.info("[ALS][CACHE] All caches invalidated after partial fit")
-
-            return result
+            return self._safe_dump_model(obj)
         finally:
-            # 12. 락 해제 (성공/실패 무관)
+            # 락 해제 (성공/실패 무관)
             try:
-                cache.delete(ALS_TRAINING_LOCK_KEY)
+                cache.delete(self.lock_key)  # self.lock_key 사용
                 logger.debug("[ALS][LOCK] Partial fit lock released.")
             except Exception as e:
                 logger.warning(f"[ALS][LOCK] Failed to release lock: {e}")
