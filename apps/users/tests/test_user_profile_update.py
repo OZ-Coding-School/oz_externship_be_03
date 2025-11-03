@@ -138,7 +138,7 @@ class UserProfileUpdateTests(IsolatedRedisTestClient):
             to="me@example.com",
             purpose=PhoneVerificationPurpose.CHANGE_PHONE,
         )
-        resp = self.client.patch(self.url, {"phone_number": "01012345678", "verify_token": wrong}, format="json")
+        resp = self.client.patch(self.url, {"phone_number": "01012345678", "phone_verify_token": wrong}, format="json")
         self.assertEqual(resp.status_code, status.HTTP_401_UNAUTHORIZED)
         self.assertIn("error", resp.json())
 
@@ -153,11 +153,11 @@ class UserProfileUpdateTests(IsolatedRedisTestClient):
             purpose=PhoneVerificationPurpose.CHANGE_PHONE,
         )
         # 1차 성공
-        resp1 = self.client.patch(self.url, {"phone_number": new_phone, "verify_token": token}, format="json")
+        resp1 = self.client.patch(self.url, {"phone_number": new_phone, "phone_verify_token": token}, format="json")
         self.assertEqual(resp1.status_code, status.HTTP_200_OK, msg=resp1.content)
         self.assertEqual(resp1.json()["data"]["phone_number"], new_phone)
         # 동일 토큰 재사용 → 401
-        resp2 = self.client.patch(self.url, {"phone_number": "01077778888", "verify_token": token}, format="json")
+        resp2 = self.client.patch(self.url, {"phone_number": "01077778888", "phone_verify_token": token}, format="json")
         self.assertEqual(resp2.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_change_phone_duplicate_conflict_via_serializer(self) -> None:
@@ -174,7 +174,7 @@ class UserProfileUpdateTests(IsolatedRedisTestClient):
 
         resp = self.client.patch(
             self.url,
-            {"phone_number": dup_phone, "verify_token": token},
+            {"phone_number": dup_phone, "phone_verify_token": token},
             format="json",
         )
         self.assertEqual(resp.status_code, status.HTTP_409_CONFLICT, msg=resp.content)

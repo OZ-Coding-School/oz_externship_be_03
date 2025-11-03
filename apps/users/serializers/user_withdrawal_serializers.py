@@ -33,4 +33,4 @@ class UserAccountRecoverySerializer(serializers.Serializer[Dict[str, Any]]):
     - 토큰 형식 검증만 수행, 비즈니스 로직(토큰 검증/소모, 계정 활성화, withdrawals 삭제)은 서비스에서 처리
     """
 
-    verify_token = serializers.CharField(write_only=True, required=True)
+    email_verify_token = serializers.CharField(write_only=True, required=True)
