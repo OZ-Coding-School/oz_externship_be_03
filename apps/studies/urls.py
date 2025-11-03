@@ -9,6 +9,11 @@ from apps.studies.views.members import (
     MemberKickAPIView,
     MemberLeaveAPIView,
 )
+from apps.studies.views.notes import (
+    StudyNoteCreateAPIView,
+    StudyNoteDetailAPIView,
+    StudyNoteListAPIView,
+)
 from apps.studies.views.reviews import GroupReviewListCreateView
 from apps.studies.views.schedules import GroupScheduleCreateView
 
@@ -42,4 +47,20 @@ urlpatterns = [
     ),
     # Schedule APIs
     path("study-schedules", GroupScheduleCreateView.as_view(), name="study-schedules-create"),
+    # StudyNote APIs
+    path(
+        "groups/<uuid:group_id>/notes/",
+        StudyNoteListAPIView.as_view(),
+        name="study-note-list",
+    ),
+    path(
+        "notes/",
+        StudyNoteCreateAPIView.as_view(),
+        name="study-note-create",
+    ),
+    path(
+        "notes/<int:note_id>/",
+        StudyNoteDetailAPIView.as_view(),
+        name="study-note-detail",
+    ),
 ]
