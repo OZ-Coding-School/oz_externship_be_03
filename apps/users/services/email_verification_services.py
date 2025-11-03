@@ -221,6 +221,6 @@ def email_confirm_code(
     cache.delete(pending_key)
 
     return {
-        "verify_token": verify_token,
+        "email_verify_token": verify_token,
         "expires_in": VERIFY_TOKEN_EXPIRES_SECONDS,
     }

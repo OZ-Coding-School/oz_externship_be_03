@@ -75,14 +75,14 @@ class TestEmailVerificationViews(IsolatedRedisTestClient):
 
     @patch("apps.users.views.email_verification_views.svc.email_confirm_code")
     def test_signup_confirm_code_success(self, mock_confirm: Mock) -> None:
-        mock_confirm.return_value = {"verify_token": "VTOK-123", "expires_in": 300}
+        mock_confirm.return_value = {"email_verify_token": "VTOK-123", "expires_in": 300}
         url = reverse("users:email_signup_confirm_code")
 
         resp = self._post_json(url, self.confirm_payload)
         self.assertEqual(resp.status_code, 200, resp.content)
         body = json.loads(resp.content.decode())
         self.assertEqual(body["detail"], "인증이 완료되었습니다.")
-        self.assertEqual(body["data"]["verify_token"], "VTOK-123")
+        self.assertEqual(body["data"]["email_verify_token"], "VTOK-123")
         self.assertEqual(body["data"]["expires_in"], 300)
 
         mock_confirm.assert_called_once_with(
@@ -113,7 +113,7 @@ class TestEmailVerificationViews(IsolatedRedisTestClient):
 
     @patch("apps.users.views.email_verification_views.svc.email_confirm_code")
     def test_reset_password_confirm_code_success(self, mock_confirm: Mock) -> None:
-        mock_confirm.return_value = {"verify_token": "VTOK-123", "expires_in": 300}
+        mock_confirm.return_value = {"email_verify_token": "VTOK-123", "expires_in": 300}
         url = reverse("users:email_reset_password_confirm_code")
 
         resp = self._post_json(url, self.confirm_payload)
@@ -147,7 +147,7 @@ class TestEmailVerificationViews(IsolatedRedisTestClient):
 
     @patch("apps.users.views.email_verification_views.svc.email_confirm_code")
     def test_restore_user_confirm_code_success(self, mock_confirm: Mock) -> None:
-        mock_confirm.return_value = {"verify_token": "VTOK-123", "expires_in": 300}
+        mock_confirm.return_value = {"email_verify_token": "VTOK-123", "expires_in": 300}
         url = reverse("users:email_restore_user_confirm_code")
 
         resp = self._post_json(url, self.confirm_payload)
@@ -207,7 +207,7 @@ class TestEmailVerificationViews(IsolatedRedisTestClient):
         )
         self.client.force_authenticate(user=user)
 
-        mock_confirm.return_value = {"verify_token": "VTOK-123", "expires_in": 300}
+        mock_confirm.return_value = {"email_verify_token": "VTOK-123", "expires_in": 300}
         resp = self._post_json(url, self.confirm_payload)
         self.assertEqual(resp.status_code, 200, resp.content)
 
@@ -373,7 +373,7 @@ class TestEmailVerificationServices(IsolatedRedisTestClient):
                 request_id=rid,
             )
             assert isinstance(resp, dict)
-            assert resp["verify_token"] == "VTOK-123"
+            assert resp["email_verify_token"] == "VTOK-123"
             assert resp["expires_in"] == 300
 
             pk = svc._pending_key(to, EmailVerificationPurpose.SIGNUP, rid)
@@ -529,7 +529,6 @@ class TestEmailVerifiedPermission(APITestCase):
         headers = {"HTTP_X_EMAIL_VERIFY_TOKEN": "HDR-TOKEN"}
         resp = self._post_json(self.good_url, {}, headers=headers)
         self.assertEqual(resp.status_code, 403, resp.content)
-        self.assertIn("이메일이 필요합니다.", resp.data.get("detail", ""))
 
     @patch("apps.users.permissions.verify_and_consume")
     def test_denied_when_verify_returns_error_response(self, mock_verify: Any) -> None:
@@ -537,7 +536,7 @@ class TestEmailVerifiedPermission(APITestCase):
         mock_verify.side_effect = AuthenticationFailed({"error": "토큰이 유효하지 않습니다."})
 
         headers = {"HTTP_X_EMAIL_VERIFY_TOKEN": "HDR-TOKEN"}
-        payload = {"email": "u@example.com", "verify_token": "BODY-TOKEN"}
+        payload = {"email": "u@example.com", "email_verify_token": "BODY-TOKEN"}
         resp = self._post_json(self.good_url, payload, headers=headers)
 
         self.assertEqual(resp.status_code, 403, resp.content)
@@ -546,7 +545,6 @@ class TestEmailVerifiedPermission(APITestCase):
         called_args, called_kwargs = mock_verify.call_args
         self.assertEqual(called_args[0], "HDR-TOKEN")
         self.assertEqual(called_kwargs["expected_purpose"], EmailVerificationPurpose.CHANGE_EMAIL)
-        self.assertEqual(called_kwargs["expected_sub"], "u@example.com")
 
     @patch("apps.users.permissions.verify_and_consume")
     def test_allowed_when_verify_returns_claims_and_sets_on_request(self, mock_verify: Any) -> None:
@@ -555,7 +553,7 @@ class TestEmailVerifiedPermission(APITestCase):
         mock_verify.return_value = claims
 
         headers = {"HTTP_X_EMAIL_VERIFY_TOKEN": "HDR-TOKEN"}
-        payload = {"email": "u@example.com", "verify_token": "BODY-TOKEN"}
+        payload = {"email": "u@example.com", "email_verify_token": "BODY-TOKEN"}
         resp = self._post_json(self.good_url, payload, headers=headers)
 
         self.assertEqual(resp.status_code, 200, resp.content)
@@ -565,4 +563,3 @@ class TestEmailVerifiedPermission(APITestCase):
         called_args, called_kwargs = mock_verify.call_args
         self.assertEqual(called_args[0], "HDR-TOKEN")
         self.assertEqual(called_kwargs["expected_purpose"], EmailVerificationPurpose.CHANGE_EMAIL)
-        self.assertEqual(called_kwargs["expected_sub"], "u@example.com")

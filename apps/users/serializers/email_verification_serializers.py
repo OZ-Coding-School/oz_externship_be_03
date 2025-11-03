@@ -66,7 +66,7 @@ class EmailVerifyCodeResponseSerializer(serializers.Serializer[Dict[str, Any]]):
     이메일 인증코드 확인 응답
     """
 
-    verify_token = serializers.CharField(help_text="다음 단계에서 1회용으로 소비할 검증 토큰")
+    email_verify_token = serializers.CharField(help_text="다음 단계에서 1회용으로 소비할 검증 토큰")
     expires_in = serializers.IntegerField(help_text="토큰 만료까지 남은 시간(초)")
 
     class Meta:

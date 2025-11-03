@@ -113,7 +113,7 @@ class BasePhoneVerificationTests(IsolatedRedisTestClient):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         data = response.json()
         self.assertEqual(data["detail"], "인증이 완료되었습니다.")
-        self.assertEqual(data["data"]["verify_token"], "mocked-token")
+        self.assertEqual(data["data"]["phone_verify_token"], "mocked-token")
         self.assertIsInstance(data["data"]["expires_in"], int)
 
     @patch("apps.users.services.phone_verification_services._twilio")

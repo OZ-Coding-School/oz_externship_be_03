@@ -38,7 +38,6 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer[Any]):
     - 수정 후 사용자 정보를 반환
     """
 
-    verify_token = serializers.CharField(write_only=True, required=False)
     nickname = serializers.CharField(
         required=False,
         validators=[validate_nickname],
@@ -47,10 +46,11 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer[Any]):
         required=False,
         validators=[validate_korean_phone],
     )
+    phone_verify_token = serializers.CharField(write_only=True, required=False)
 
     class Meta:
         model = User
-        fields = ("nickname", "profile_img_url", "phone_number", "verify_token")
+        fields = ("nickname", "profile_img_url", "phone_number", "phone_verify_token")
         extra_kwargs = {"profile_img_url": {"required": False}}
 
 

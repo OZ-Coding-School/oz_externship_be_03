@@ -180,6 +180,6 @@ def confirm_code(
     cache.delete(pending_key)
 
     return {
-        "verify_token": verify_token,
+        "phone_verify_token": verify_token,
         "expires_in": VERIFY_TOKEN_EXPIRES_SECONDS,
     }
