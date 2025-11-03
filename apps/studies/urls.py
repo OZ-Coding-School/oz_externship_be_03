@@ -15,7 +15,6 @@ from apps.studies.views.notes import (
     StudyNoteListAPIView,
 )
 from apps.studies.views.reviews import GroupReviewListCreateView
-from apps.studies.views.reviews import ReviewCreateView
 from apps.studies.views.schedules import GroupScheduleCreateView
 
 app_name = "studies"
@@ -46,10 +45,8 @@ urlpatterns = [
         MemberKickAPIView.as_view(),
         name="study-member-kick",
     ),
-
     # Schedule APIs
     path("study-schedules", GroupScheduleCreateView.as_view(), name="study-schedules-create"),
-
     # StudyNote APIs
     path(
         "groups/<uuid:group_id>/notes/",
