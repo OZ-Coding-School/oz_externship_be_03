@@ -8,6 +8,38 @@ from apps.users.models import User, Withdrawal
 
 
 class AdminUserService:
+    # 회원 상태 계산
+    @staticmethod
+    def get_user_status(user: User) -> str:
+        """
+        회원 상태 조회
+        ACTLVE - 활성
+        INACTIVE - 비활성
+        WITHDRAWAL_PEDING - 탈퇴요청
+        """
+        has_withdrawal = Withdrawal.objects.filter(user_id=user.id).exists()
+
+        if has_withdrawal:
+            # 탈퇴 테이블에 있으면 탈퇴 요청 중
+            return UserStatus.WITHDRAWAL_PENDING.value
+
+        # 탈퇴 테이블에 없고 활성 상태면 정상
+        if user.is_active:
+            return UserStatus.ACTIVE.value
+
+        # 탈퇴 테이블에 없고 비활성이면 완전 탈퇴
+        return UserStatus.INACTIVE.value
+
+    @staticmethod
+    def get_user_role(user: User) -> str:
+        """
+        유저 권한 계산
+        """
+        if user.is_superuser:
+            return Role.ADMIN.value
+        if user.is_staff:
+            return Role.STAFF.value
+        return Role.USER.value
 
     # 회원 목록 조회
 
@@ -67,27 +99,3 @@ class AdminUserService:
     @staticmethod
     def delete_user(user: User) -> None:
         user.delete()
-
-    # 회원 상태 계산
-
-    @staticmethod
-    def get_user_status(user: User) -> UserStatus:
-        """
-        회원 상태 조회
-        ACTLVE - 활성
-        INACTIVE - 비활성
-        WITHDRAWAL_PEDING - 탈퇴요청
-        """
-
-        has_withdrawal = Withdrawal.objects.filter(user_id=user.id).exists()
-
-        if has_withdrawal:
-            # 탈퇴 테이블에 있으면 탈퇴 요청 중
-            return UserStatus.WITHDRAWAL_PENDING
-
-        # 탈퇴 테이블에 없고 활성 상태면 정상
-        if user.is_active:
-            return UserStatus.ACTIVE
-
-        # 탈퇴 테이블에 없고 비활성이면 완전 탈퇴
-        return UserStatus.INACTIVE
