@@ -14,6 +14,7 @@ from rest_framework_simplejwt.exceptions import (
 )
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from apps.users.enums import EmailVerificationPurpose
 from apps.users.models import User
 from apps.users.permissions import EmailVerifiedPermission
 from apps.users.serializers.user_withdrawal_serializers import (
@@ -56,7 +57,9 @@ class UserWithdrawalAPIView(APIView):
 
 
 class UserAccountRecoveryAPIView(APIView):
+    authentication_classes: list[type] = []
     permission_classes = [EmailVerifiedPermission]
+    purpose = EmailVerificationPurpose.RESTORE_USER
 
     @extend_schema(
         tags=["Users"],
