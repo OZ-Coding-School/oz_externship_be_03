@@ -68,6 +68,7 @@ class StudyGroupListCreateViewTest(TestCase):
             status="ONGOING",
         )
 
+        # 벌크 크리에이트.
         StudyLecture.objects.create(study_group=self.group, lecture=self.lecture1)
         StudyLecture.objects.create(study_group=self.group, lecture=self.lecture2)
 
@@ -286,8 +287,10 @@ class StudyGroupDetailUpdateViewTest(TestCase):
             end_at=timezone.now() + timedelta(days=7),
         )
 
-        StudyLecture.objects.create(study_group=self.group, lecture=self.lecture1)
-        StudyLecture.objects.create(study_group=self.group, lecture=self.lecture2)
+        StudyLecture.objects.bulk_create([
+            StudyLecture(study_group=self.group, lecture=self.lecture1),
+            StudyLecture(study_group=self.group, lecture=self.lecture2),
+        ])
 
         GroupMember.objects.create(study_group=self.group, user=self.user, is_leader=True)
 
@@ -307,7 +310,7 @@ class StudyGroupDetailUpdateViewTest(TestCase):
         self.assertEqual(data["members"][0]["nickname"], "tester")
 
         self.assertEqual(len(data["lectures"]), 2)
-        self.assertEqual(data["lectures"][0]["title"], "강의1")
+        self.assertEqual(data["lectures"][0]["title"], "강의2")
 
     def test_get_detail_login_required(self) -> None:
         self.client.logout()
