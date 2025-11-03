@@ -797,8 +797,15 @@ class RecommendationService:
         Note:
             - ALS 실패 시 자동으로 카테고리 폴백
             - 추천 결과 로그 출력 (디버깅용)
-            - prefetch_related로 N+1 쿼리 방지
         """
+
+        if top_n <= 0:
+            logger.warning(f"[REC] Invalid top_n value: {top_n}. Using default value 10.")
+            top_n = 10
+        elif top_n > 100:
+            logger.warning(f"[REC] top_n too large: {top_n}. Capping at 100.")
+            top_n = 100
+
         # 1. 모델 로드 확인
         if not self._ensure_model_loaded() or self._model is None or self._user_items_matrix is None:
             logger.warning(f"[REC] Model not available for user {user_id}. Using Category Fallback.")
