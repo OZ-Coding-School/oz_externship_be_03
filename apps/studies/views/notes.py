@@ -1,11 +1,8 @@
 from __future__ import annotations
 
-from django.db.models import (  # files_count 계산 타입힌팅, N+1 방지용도
-    Count,
-    ExpressionWrapper,
-    F,
-    IntegerField,
-)
+from uuid import UUID
+
+from django.db.models import Count
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import extend_schema
 from rest_framework import parsers, status
@@ -28,10 +25,10 @@ from apps.studies.serializers.notes import (
 # from apps.studies.services.notes import StudyNoteService # AI요약 관련 사용 때 주석해제
 
 
-class StudyNoteListCreateAPIView(APIView):
+class StudyNoteListAPIView(APIView):
     """
-    스터디 노트 목록 조회 및 생성 API
-    - POST: IsGroupMember.has_permission() 에서 group_uuid 기반 멤버 검증 + view._group 주입
+    스터디 노트 목록 조회 API
+
     - GET: 정책상 공개(지금은 AllowAny) 추후 IsAuthenticated 로 교체
     """
 
@@ -39,21 +36,12 @@ class StudyNoteListCreateAPIView(APIView):
     parser_classes = [parsers.JSONParser, parsers.MultiPartParser]  # S3 도입 후 정리
 
     @extend_schema(summary="스터디 노트 목록 조회 API")
-    def get(self, request: Request) -> Response:
-        # 첨부(attachments) + 이미지(images) 각각 count, 총합 files_count 로 annotate
+    def get(self, request: Request, group_id: UUID) -> Response:
         notes = (
-            StudyNote.objects.select_related("author", "study_group")
-            .prefetch_related("attachments", "images")
-            .annotate(
-                attachment_count=Count("attachments", distinct=True),
-                image_count=Count("images", distinct=True),
-            )
-            .annotate(
-                files_count=ExpressionWrapper(
-                    F("attachment_count") + F("image_count"),
-                    output_field=IntegerField(),
-                )
-            )
+            StudyNote.objects.filter(study_group__id=str(group_id))
+            .select_related("author", "study_group")
+            .prefetch_related("attachments")
+            .annotate(files_count=Count("attachments", distinct=True))
             .order_by("-created_at")
         )
         serializer = StudyNoteListItemSerializer(notes, many=True)
@@ -65,6 +53,14 @@ class StudyNoteListCreateAPIView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
+
+class StudyNoteCreateAPIView(APIView):
+    """
+    스터디 노트 목록 생성 API
+
+    - POST: IsGroupMember.has_permission() 에서 group_uuid 기반 멤버 검증 + view._group 주입
+    """
 
     @extend_schema(summary="스터디 노트 생성 API")
     def post(self, request: Request) -> Response:

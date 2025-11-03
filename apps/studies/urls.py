@@ -10,8 +10,9 @@ from apps.studies.views.members import (
     MemberLeaveAPIView,
 )
 from apps.studies.views.notes import (
+    StudyNoteCreateAPIView,
     StudyNoteDetailAPIView,
-    StudyNoteListCreateAPIView,
+    StudyNoteListAPIView,
 )
 from apps.studies.views.reviews import GroupReviewListCreateView
 from apps.studies.views.reviews import ReviewCreateView
@@ -45,18 +46,24 @@ urlpatterns = [
         MemberKickAPIView.as_view(),
         name="study-member-kick",
     ),
-    path("groups/", StudyGroupListCreateView.as_view(), name="study-group-list-create"),
-    path("groups/<uuid:group_id>/", StudyGroupDetailUpdateView.as_view(), name="study-group-detail-update"),
-    # StudyNote APIs
-    path("notes/", StudyNoteListCreateAPIView.as_view(), name="study-note-list-create"),
-    path("notes/<int:note_id>/", StudyNoteDetailAPIView.as_view(), name="study-note-detail"),
-    path("groups/<uuid:group_id>/notes/", StudyNoteListCreateAPIView.as_view(), name="study-note-list-create"),
-    path("groups/<uuid:group_id>/notes/<int:note_id>/", StudyNoteDetailAPIView.as_view(), name="study-note-detail"),
-    path(
-        "groups/<uuid:group_id>/notes/<int:note_id>/summary/",
-        StudyNoteSummaryAPIView.as_view(),
-        name="study-note-summary",
-    ),
+
     # Schedule APIs
     path("study-schedules", GroupScheduleCreateView.as_view(), name="study-schedules-create"),
+
+    # StudyNote APIs
+    path(
+        "groups/<uuid:group_id>/notes/",
+        StudyNoteListAPIView.as_view(),
+        name="study-note-list",
+    ),
+    path(
+        "notes/",
+        StudyNoteCreateAPIView.as_view(),
+        name="study-note-create",
+    ),
+    path(
+        "notes/<int:note_id>/",
+        StudyNoteDetailAPIView.as_view(),
+        name="study-note-detail",
+    ),
 ]
