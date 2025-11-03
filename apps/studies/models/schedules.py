@@ -4,10 +4,10 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import CheckConstraint, Q
 
-from apps.core.models import BaseModel
+from apps.core.models import UUIDBaseModel
 
 
-class GroupSchedule(BaseModel):
+class GroupSchedule(UUIDBaseModel):
     if TYPE_CHECKING:
         id: int
 
@@ -26,7 +26,8 @@ class GroupSchedule(BaseModel):
     class Meta:
         db_table = "group_schedules"
         app_label = "studies"
-        ordering = ["session_date", "start_time", "created_at"]
+        # 최신순 정렬이 기본 -> but. created_at이 극악의 확률로 겹칠 것을 대비해서 id 필드를 내림차순 정렬로 secondary ordering 으로 추가.
+        ordering = ["-created_at", "-id"]
         indexes = [
             models.Index(fields=["study_group", "session_date"], name="idx_by_group_date"),
             models.Index(fields=["session_date", "-created_at"], name="idx_by_date_created_desc"),
@@ -43,7 +44,7 @@ class GroupSchedule(BaseModel):
             raise ValidationError("스터디 종료 시간은 시작 시간보다 늦어야 합니다.")
 
     def __str__(self) -> str:
-        return f"StudySchedule(id={self.id}, group={self.study_group_id}, title={self.title})"
+        return f"StudySchedule(id={self.id}, group={self.study_group.id}, title={self.title})"
 
 
 class ScheduleParticipant(models.Model):

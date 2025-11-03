@@ -1,18 +1,20 @@
 from datetime import time
+from typing import Any
+
 from rest_framework import serializers
-from apps.studies.models.schedules import StudySchedule, ScheduleParticipant
+
 from apps.studies.models.groups import StudyGroup
+from apps.studies.models.schedules import GroupSchedule, ScheduleParticipant
 
 
 # Base Serializer
-class StudyScheduleBaseSerializer(serializers.ModelSerializer):
-    study_group = serializers.PrimaryKeyRelatedField(
-        queryset=StudyGroup.objects.all(),
-        help_text="스터디 그룹 ID"
+class StudyScheduleBaseSerializer(serializers.ModelSerializer[GroupSchedule]):
+    study_group = serializers.SlugRelatedField(
+        queryset=StudyGroup.objects.all(), slug_field="uuid", help_text="스터디 그룹 ID", required=True
     )
 
     class Meta:
-        model = StudySchedule
+        model = GroupSchedule
         fields = [
             "id",
             "study_group",
@@ -27,18 +29,10 @@ class StudyScheduleBaseSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "created_at", "updated_at"]
 
 
-#생성 Serializer
-class StudyScheduleCreateSerializer(StudyScheduleBaseSerializer):
-    title = serializers.CharField(
-        required=True,
-        allow_blank=False,
-        help_text="스터디 일정 제목 (필수)"
-    )
-    objective = serializers.CharField(
-        required=True,
-        allow_blank=False,
-        help_text="스터디 목표 (필수)"
-    )
+# 생성 Serializer
+class GroupScheduleCreateSerializer(StudyScheduleBaseSerializer):
+    title = serializers.CharField(required=True, allow_blank=False, help_text="스터디 일정 제목 (필수)")
+    objective = serializers.CharField(required=True, allow_blank=False, help_text="스터디 목표 (필수)")
     session_date = serializers.DateField(help_text="스터디 진행일 (YYYY-MM-DD)")
     start_time = serializers.TimeField(help_text="시작 시간 (HH:MM)")
     end_time = serializers.TimeField(help_text="종료 시간 (HH:MM)")
@@ -46,18 +40,18 @@ class StudyScheduleCreateSerializer(StudyScheduleBaseSerializer):
     class Meta(StudyScheduleBaseSerializer.Meta):
         fields = StudyScheduleBaseSerializer.Meta.fields
 
-    def validate(self, attrs: dict) -> dict:
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         """시간 관계 검증"""
-        start: time = attrs.get("start_time")
-        end: time = attrs.get("end_time")
+        start = attrs.get("start_time")
+        end = attrs.get("end_time")
 
         if start and end and start >= end:
             raise serializers.ValidationError({"end_time": "종료 시간은 시작 시간보다 이후여야 합니다."})
         return attrs
 
 
-#참여자 Serializer
-class ScheduleParticipantSerializer(serializers.ModelSerializer):
+# 참여자 Serializer
+class ScheduleParticipantSerializer(serializers.ModelSerializer[ScheduleParticipant]):
     member_name = serializers.CharField(source="member.username", read_only=True)
 
     class Meta:
@@ -66,14 +60,9 @@ class ScheduleParticipantSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "created_at", "updated_at"]
 
 
-
-#조회 Serializer (상세)
+# 조회 Serializer (상세)
 class StudyScheduleDetailSerializer(StudyScheduleBaseSerializer):
-    participants = ScheduleParticipantSerializer(
-        many=True,
-        read_only=True,
-        help_text="참여자 목록"
-    )
+    participants = ScheduleParticipantSerializer(many=True, read_only=True, help_text="참여자 목록")
 
     class Meta(StudyScheduleBaseSerializer.Meta):
         fields = StudyScheduleBaseSerializer.Meta.fields + ["participants"]
