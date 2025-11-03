@@ -24,16 +24,17 @@ class LectureBookmarkListSerializer(serializers.ModelSerializer[LectureBookmark]
 class LectureBookmarkCreateSerializer(serializers.ModelSerializer[LectureBookmark]):
     """북마크 추가 Serializer."""
 
-    lecture_id = serializers.PrimaryKeyRelatedField(
+    lecture_uuid = serializers.SlugRelatedField(
+        slug_field="uuid",
         queryset=CrawledLecture.objects.all(),
         source="lecture",
         write_only=True,
-        help_text="북마크할 강의의 ID",
+        help_text="북마크할 강의의 UUID",
     )
 
     class Meta:
         model = LectureBookmark
-        fields = ["lecture_id"]
+        fields = ["lecture_uuid"]
 
     def create(self, validated_data: Dict[str, Any]) -> LectureBookmark:
         # 1. DRF 표준: 뷰에서 serializer.save(user=request.user)로 전달된

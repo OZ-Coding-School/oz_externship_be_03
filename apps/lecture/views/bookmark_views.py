@@ -1,6 +1,5 @@
 from typing import TYPE_CHECKING, cast
 
-from django.db.models import Q, QuerySet
 from drf_spectacular.utils import extend_schema
 from rest_framework import parsers, status
 from rest_framework.exceptions import ValidationError
@@ -56,14 +55,7 @@ class LectureBookmarkListCreateView(APIView):
         user: User = cast(User, request.user)
         search: str = request.GET.get("search", "").strip()
 
-        # 사용자의 북마크 목록 조회 (최신순 정렬)
-        queryset: QuerySet[LectureBookmark] = (
-            LectureBookmark.objects.filter(user=user).select_related("lecture").order_by("-created_at")
-        )
-
-        # 검색어가 있는 경우 강의명 또는 강사명으로 필터링
-        if search:
-            queryset = queryset.filter(Q(lecture__title__icontains=search) | Q(lecture__instructor__icontains=search))
+        queryset = LectureBookmark.objects.for_user(user).search(search)
 
         paginator = self.pagination_class()
 
@@ -127,10 +119,10 @@ class LectureBookmarkDeleteView(APIView):
             404: {"description": "존재하지 않는 북마크입니다."},
         },
     )
-    def delete(self, request: Request, lecture_id: int) -> Response:
+    def delete(self, request: Request, lecture_uuid: str) -> Response:
         try:
             user: User = cast(User, request.user)
-            bookmark = LectureBookmark.objects.get(user=user, lecture_id=lecture_id)
+            bookmark = LectureBookmark.objects.get(user=user, lecture__uuid=lecture_uuid)
             bookmark.delete()
             return Response({"detail": "북마크가 삭제되었습니다."}, status=status.HTTP_204_NO_CONTENT)
         except LectureBookmark.DoesNotExist:
