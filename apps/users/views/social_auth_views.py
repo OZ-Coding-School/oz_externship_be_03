@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from typing import Any, Dict
 
 import requests
@@ -11,20 +9,22 @@ from drf_spectacular.utils import (
     extend_schema,
 )
 from rest_framework import serializers, status
+from rest_framework.permissions import AllowAny
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.users.services.social_auth_services import SocialAuthService
 
+# from __future__ import annotations
+
+
+
+
 
 class SocialAuthView(APIView):
-    """
-    ✅ 카카오 / 네이버 소셜 로그인 APIView
-    - 인가코드(code) 기반 access_token 요청
-    - access_token으로 사용자 정보 조회 및 회원 자동 생성 or 로그인
-    - JWT 토큰 발급
-    """
+
+    permission_classes = [AllowAny]
 
     @extend_schema(
         tags=["Auth"],
@@ -85,9 +85,7 @@ class SocialAuthView(APIView):
         },
     )
     def post(self, request: Request, provider: str) -> Response:
-        # -----------------------------
-        # 1️⃣ provider 유효성 검증
-        # -----------------------------
+        # 유효성 검증
         if provider not in ("kakao", "naver"):
             return Response(
                 {"detail": "지원하지 않는 provider입니다."},
@@ -100,9 +98,7 @@ class SocialAuthView(APIView):
         if not code:
             raise serializers.ValidationError({"code": "인가 코드(code)가 필요합니다."})
 
-        # -----------------------------
-        # 2️⃣ provider별 Access Token 요청
-        # -----------------------------
+        #Access Token 요청
         try:
             token_url: str
             payload: Dict[str, Any]
@@ -142,9 +138,7 @@ class SocialAuthView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # -----------------------------
-        # 3️⃣ 통합 소셜 로그인 서비스 호출
-        # -----------------------------
+        # 서비스 호출
         try:
             result: Dict[str, Any] = SocialAuthService.social_login(provider, {"access_token": access_token})
             return Response(result, status=status.HTTP_200_OK)

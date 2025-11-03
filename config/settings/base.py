@@ -72,7 +72,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    "allauth.account.middleware.AccountMiddleware"#(수정함),
+    "allauth.account.middleware.AccountMiddleware",  # (수정함),
 ]
 
 ROOT_URLCONF = "config.urls"
