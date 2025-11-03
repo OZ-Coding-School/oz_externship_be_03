@@ -91,16 +91,20 @@ class EmailVerifiedPermission(BasePermission):
             self.message = "이메일 검증 토큰이 필요합니다."
             return False
 
-        email = request.data.get("email") or request.query_params.get("email")
+        claims = verify_and_consume(
+            token,
+            expected_purpose=purpose,
+        )
+
+        # 토큰 안에 들어있는 이메일 사용
+        token_email = claims.get("to")
+
+        email = request.data.get("email") or request.query_params.get("email") or token_email
         if not email:
             self.message = "이메일이 필요합니다."
             return False
 
-        result: Union[dict[str, Any], Response] = verify_and_consume(
-            token, expected_purpose=purpose, expected_sub=email
-        )
-
-        setattr(request, "email_verify_claims", result)
+        setattr(request, "email_verify_claims", claims)
         return True
 
 
