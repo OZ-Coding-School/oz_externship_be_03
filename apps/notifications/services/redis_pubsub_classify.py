@@ -3,7 +3,6 @@ import logging
 from typing import Any, AsyncGenerator, Dict, Generator, List, Optional
 
 import redis.asyncio as redis
-from celery.utils.functional import pass1
 from django.conf import settings
 
 logger = logging.getLogger(__name__)
