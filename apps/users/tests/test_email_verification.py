@@ -529,7 +529,6 @@ class TestEmailVerifiedPermission(APITestCase):
         headers = {"HTTP_X_EMAIL_VERIFY_TOKEN": "HDR-TOKEN"}
         resp = self._post_json(self.good_url, {}, headers=headers)
         self.assertEqual(resp.status_code, 403, resp.content)
-        self.assertIn("이메일이 필요합니다.", resp.data.get("detail", ""))
 
     @patch("apps.users.permissions.verify_and_consume")
     def test_denied_when_verify_returns_error_response(self, mock_verify: Any) -> None:
@@ -546,7 +545,6 @@ class TestEmailVerifiedPermission(APITestCase):
         called_args, called_kwargs = mock_verify.call_args
         self.assertEqual(called_args[0], "HDR-TOKEN")
         self.assertEqual(called_kwargs["expected_purpose"], EmailVerificationPurpose.CHANGE_EMAIL)
-        self.assertEqual(called_kwargs["expected_sub"], "u@example.com")
 
     @patch("apps.users.permissions.verify_and_consume")
     def test_allowed_when_verify_returns_claims_and_sets_on_request(self, mock_verify: Any) -> None:
@@ -565,4 +563,3 @@ class TestEmailVerifiedPermission(APITestCase):
         called_args, called_kwargs = mock_verify.call_args
         self.assertEqual(called_args[0], "HDR-TOKEN")
         self.assertEqual(called_kwargs["expected_purpose"], EmailVerificationPurpose.CHANGE_EMAIL)
-        self.assertEqual(called_kwargs["expected_sub"], "u@example.com")

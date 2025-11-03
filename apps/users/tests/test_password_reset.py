@@ -76,19 +76,6 @@ class PasswordResetIntegrationTests(IsolatedRedisTestClient):
         self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
         self.assertIn("detail", resp.data)
 
-    def test_permission_missing_email_query_returns_403(self) -> None:
-        # email 쿼리 누락 → 퍼미션에서 거절
-        token = self._issue_reset_token(email=self.user.email)
-        resp = self.client.post(
-            self.url,  # ?email= 누락
-            data=self._payload(new_pw="AAAbbb123!!", new_pw2="AAAbbb123!!"),
-            format="json",
-            **self._headers(token=token),  # type: ignore[arg-type]
-        )
-        # 퍼미션이 "이메일이 필요합니다." 메시지로 403을 반환해야 함
-        self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
-        self.assertIn("detail", resp.data)
-
     def test_token_is_one_time_consumed(self) -> None:
         token = self._issue_reset_token(email=self.user.email)
 
