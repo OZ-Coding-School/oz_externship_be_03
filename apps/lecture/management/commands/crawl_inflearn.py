@@ -34,6 +34,4 @@ class Command(BaseCommand):
                 ],
                 unique_fields=["platform", "title", "instructor"],
             )
-            self.stdout.write(
-                self.style.SUCCESS(f"Successfully crawled {len(lectures)} lectures from INFLEARN.")
-            )
+            self.stdout.write(self.style.SUCCESS(f"Successfully crawled {len(lectures)} lectures from INFLEARN."))
