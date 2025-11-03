@@ -3,6 +3,7 @@ import logging
 from typing import Any, AsyncGenerator, Dict, Generator, List, Optional
 
 import redis.asyncio as redis
+from celery.utils.functional import pass1
 from django.conf import settings
 
 logger = logging.getLogger(__name__)
@@ -74,7 +75,10 @@ class RedisPubSubService:
         except Exception as e:
             logger.error(f"구독 실패:{e}")
         finally:
-            await pubsub.close()
+            try:
+                await pubsub.close()
+            except Exception:
+                pass
 
 
 notification_pubsub: RedisPubSubService = RedisPubSubService()
