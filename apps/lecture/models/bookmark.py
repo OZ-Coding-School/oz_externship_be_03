@@ -2,6 +2,7 @@ from django.conf import settings
 from django.db import models
 
 from apps.core.models import BaseModel
+from apps.lecture.managers import LectureBookmarkQuerySet
 
 
 class LectureBookmark(BaseModel):
@@ -11,6 +12,8 @@ class LectureBookmark(BaseModel):
     lecture = models.ForeignKey(
         "lecture.CrawledLecture", on_delete=models.CASCADE, null=False, related_name="bookmarks"
     )
+
+    objects = LectureBookmarkQuerySet.as_manager()
 
     class Meta:
         db_table = "lecture_bookmarks"
