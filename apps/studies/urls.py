@@ -18,6 +18,10 @@ from apps.studies.views.notes import (
 )
 from apps.studies.views.reviews import GroupReviewListCreateView, GroupReviewUpdateView
 from apps.studies.views.schedules import GroupScheduleCreateView
+from apps.studies.views.s3_studies import (
+    StudyGroupS3PresignedView,
+    StudyNoteS3PresignedView,
+)
 
 app_name = "studies"
 
@@ -81,5 +85,17 @@ urlpatterns = [
         "admin/groups/<uuid:group_uuid>",
         AdminStudyGroupDetailView.as_view(),
         name="admin-study-group-detail",
+    ),
+    # 그룹 대표 이미지 Presigned URL 발급
+    path(
+        "group/s3-presigned-url/",
+        StudyGroupS3PresignedView.as_view(),
+        name="study_group_s3_presigned",
+    ),
+    # 노트 첨부파일 / 이미지 Presigned URL 발급
+    path(
+        "notes/s3-presigned-url/",
+        StudyNoteS3PresignedView.as_view(),
+        name="study_note_s3_presigned",
     ),
 ]
