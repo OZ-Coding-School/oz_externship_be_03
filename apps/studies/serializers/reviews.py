@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from hashlib import blake2b
 from typing import Any, Dict, Optional, cast
 
 from rest_framework import serializers
@@ -44,11 +43,10 @@ class StarRatingField(serializers.ChoiceField):
 
 class ReviewCreateSerializer(serializers.ModelSerializer[Review]):
     star_rating = StarRatingField(represent="int")
-    study_group = serializers.PrimaryKeyRelatedField(queryset=StudyGroup.objects.all())
 
     class Meta:
         model = Review
-        fields = ("study_group", "star_rating", "content")
+        fields = ("star_rating", "content")
 
     def validate(self, attrs: Dict[str, Any]) -> Dict[str, Any]:
         content = attrs.get("content")
@@ -57,7 +55,7 @@ class ReviewCreateSerializer(serializers.ModelSerializer[Review]):
         return attrs
 
     def create(self, validated_data: Dict[str, Any]) -> Review:
-        return Review.objects.create(user=self.context["request"].user, **validated_data)
+        return Review.objects.create(**validated_data)
 
 
 class ReviewListItemSerializer(serializers.Serializer[Any]):
@@ -69,8 +67,10 @@ class ReviewListItemSerializer(serializers.Serializer[Any]):
     is_mine = serializers.SerializerMethodField()
 
     def get_is_mine(self, obj: Any) -> bool:
-        request = self.context.get("request")
-        return bool(request and getattr(request, "user", None) and obj.user_id == request.user.id)
+        request: Optional[Request] = cast(Optional[Request], self.context.get("request"))
+        user_id = getattr(getattr(request, "user", None), "id", None)
+        return bool(user_id is not None and getattr(obj, "user_id", None) == user_id)
+
 
 
 class ReviewUpdateSerializer(serializers.ModelSerializer[Review]):
