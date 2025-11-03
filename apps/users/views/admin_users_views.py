@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any
 
 from django.http import Http404
 from drf_spectacular.utils import extend_schema, extend_schema_view
@@ -34,10 +34,7 @@ class AdminUserListView(APIView):
 
     def get(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         users = AdminUserService.get_user_list()
-
-        user_dicts: List[Dict[str, Any]] = [AdminUserItemSerializer.from_user(u) for u in users]
-
-        data_ser = AdminUserListDataSerializer({"users": user_dicts})
+        data_ser = AdminUserListDataSerializer({"users": users})
 
         return Response(
             {
