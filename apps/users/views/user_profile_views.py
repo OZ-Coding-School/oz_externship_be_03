@@ -125,7 +125,7 @@ class UserProfileUpdateView(APIView):
             nickname=req_serializer.validated_data.get("nickname"),
             profile_img_url=req_serializer.validated_data.get("profile_img_url"),
             phone_number=req_serializer.validated_data.get("phone_number"),
-            verify_token=req_serializer.validated_data.get("verify_token"),
+            phone_verify_token=req_serializer.validated_data.get("phone_verify_token"),
         )
 
         resp_serializer = UserProfileUpdateResponseSerializer(updated)

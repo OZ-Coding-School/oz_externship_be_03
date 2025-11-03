@@ -164,7 +164,7 @@ class UserAccountRecoveryTests(IsolatedRedisTestClient):
         # 대체 함수 지정
         mock_has_permission.side_effect = _allow_and_inject
 
-        resp = self.client.post(self.url, {"verify_token": "dummy-token"}, format="json")
+        resp = self.client.post(self.url, {"email_verify_token": "dummy-token"}, format="json")
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         self.assertEqual(resp.data.get("detail"), "계정 복구가 완료되었습니다.")
 
@@ -185,6 +185,6 @@ class UserAccountRecoveryTests(IsolatedRedisTestClient):
 
         mock_has_permission.side_effect = _allow_and_inject
 
-        resp = self.client.post(self.url, {"verify_token": "dummy-token"}, format="json")
+        resp = self.client.post(self.url, {"email_verify_token": "dummy-token"}, format="json")
         self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND)
         self.assertIn("해당 이메일의 사용자를 찾을 수 없습니다.", str(resp.data))

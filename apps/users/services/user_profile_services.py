@@ -24,7 +24,7 @@ def update_user_profile(
     nickname: Optional[str],
     profile_img_url: Optional[str],
     phone_number: Optional[str],
-    verify_token: Optional[str],
+    phone_verify_token: Optional[str],
 ) -> UserModel:
     """
     - 닉네임/프로필 이미지만 오면 그대로 부분 수정
@@ -44,11 +44,11 @@ def update_user_profile(
         if phone_number == user.phone_number:
             raise Conflict({"error": "현재 등록된 휴대폰 번호와 동일합니다."})
 
-        if not verify_token:
+        if not phone_verify_token:
             raise ValidationError({"error": "휴대폰 번호 변경에는 verify_token이 필요합니다."})
 
         verify_and_consume(
-            verify_token,
+            phone_verify_token,
             expected_purpose=PhoneVerificationPurpose.CHANGE_PHONE,
             expected_sub=phone_number,
         )
