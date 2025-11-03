@@ -22,8 +22,8 @@ class StudyGroupListCreateViewTest(TestCase):
             "introduction": "This is Test Group",
             "profile_img_url": "https://example.com/test1.jpg",
             "max_headcount": 5,
-            "start_at": "2025-11-01",
-            "end_at": "2025-11-10",
+            "start_at": "2027-11-01",  # 날짜 한참 뒤로 수정
+            "end_at": "2028-11-10",  # 동일
             "status": "PENDING",
             "lectures": [1, 2],
         }
