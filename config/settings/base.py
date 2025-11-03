@@ -14,6 +14,11 @@ SECRET_KEY = os.getenv("DJANGO_SECRET_KEY")
 if not SECRET_KEY:
     raise ValueError("DJANGO_SECRET_KEY environment variable not set")
 
+# dj_rest_auth 기본 설정 (allauth) 내가 넣음
+REST_USE_JWT = True
+DJ_REST_AUTH = {
+    "TOKEN_MODEL": None,
+}
 
 # Application definition
 DJANGO_APPS = [
@@ -23,6 +28,7 @@ DJANGO_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "django.contrib.sites",
+    "rest_framework.authtoken",
 ]
 
 THIRD_PARTY_APPS = [
@@ -66,6 +72,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "allauth.account.middleware.AccountMiddleware"#(수정함),
 ]
 
 ROOT_URLCONF = "config.urls"
