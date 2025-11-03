@@ -48,7 +48,6 @@ class StudyNoteCRUDRefactoredTestCase(APITestCase):
         self.create_url = reverse("studies:study-note-create")
         self.list_url = reverse("studies:study-note-list", kwargs={"group_id": self.group.uuid})
 
-
     # ----------------------------------------------------------------------
 
     def test_create_and_retrieve_study_note(self) -> None:
