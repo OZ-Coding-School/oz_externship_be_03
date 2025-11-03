@@ -18,6 +18,4 @@ class LectureBookmarkQuerySet(QuerySet["LectureBookmark"]):
         """강의명 또는 강사명으로 검색"""
         if not search_term:
             return self
-        return self.filter(
-            Q(lecture__title__icontains=search_term) | Q(lecture__instructor__icontains=search_term)
-        )
+        return self.filter(Q(lecture__title__icontains=search_term) | Q(lecture__instructor__icontains=search_term))
