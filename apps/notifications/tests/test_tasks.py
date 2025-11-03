@@ -84,7 +84,7 @@ class TasksTest(IsolatedRedisTestClient):
         await asyncio.sleep(0.1)
 
         # 그룹 알림 전송
-        await send_study_group_notification(self.notification.id, self.study_group.id)
+        await send_study_group_notification(self.notification.id, str(self.study_group.id))
 
         try:
             await asyncio.wait_for(listener_task, timeout=5.0)
