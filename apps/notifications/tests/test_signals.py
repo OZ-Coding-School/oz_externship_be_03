@@ -141,7 +141,7 @@ class SignalTest(TestCase):
 
         expected_content = f"{self.study_group.name}에 {self.applicant.nickname}님이 참여했습니다. 환영해주세요!"
         self.assertEqual(notification.content, expected_content)
-        self.assertIsNotNone(notification.back_url_link) # mypy 에서 back_url_link가 optional타입으로 정의되어있어 확인
+        assert notification.back_url_link is not None # mypy 에서 back_url_link가 optional타입으로 정의되어있어 확인
         self.assertIn(f"/api/v1/chat/ws/study-groups/{self.study_group.id}", notification.back_url_link)
 
         mock_delay.assert_called_once_with(notification.id, self.study_group.id)
