@@ -13,7 +13,7 @@ User = get_user_model()
 class StudyGroupListCreateViewTest(TestCase):
     def setUp(self) -> None:
         self.client = Client()
-        self.url = "/api/v1/studies/groups/"
+        self.url = reverse("studies:study-group-list-create")
 
     def test_post_create_study_group(self) -> None:
         """POST 요청 테스트 - 상태 코드 201"""
@@ -55,7 +55,7 @@ class StudyGroupDetailUpdateViewTest(TestCase):
     def setUp(self) -> None:
         self.client = Client()
         group_id = "00000000-0000-0000-0000-000000000003"
-        self.url = f"/api/v1/studies/groups/{group_id}/"
+        self.url = reverse("studies:study-group-detail-update", kwargs={"group_id": group_id})
 
     def test_get_detail_study_group(self) -> None:
         response = self.client.get(self.url)
