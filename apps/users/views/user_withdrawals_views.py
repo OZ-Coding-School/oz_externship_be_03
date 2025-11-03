@@ -46,16 +46,8 @@ class UserWithdrawalAPIView(APIView):
 
         refresh_raw = request.COOKIES.get(settings.AUTH_REFRESH_COOKIE_NAME)
 
-        if refresh_raw:
-            try:
-                refresh_token = RefreshToken(cast(Any, refresh_raw))
-                refresh_token.blacklist()
-            except InvalidToken:
-                return Response({"error": "유효하지 않은 토큰입니다."}, status=401)
-            except ExpiredTokenError:
-                return Response({"error": "토큰이 만료되었습니다."}, status=401)
-            except TokenError:
-                return Response({"detail": "세션이 유효하지 않습니다. 다시 로그인해주세요."}, status=200)
+        refresh_token = RefreshToken(cast(Any, refresh_raw))
+        refresh_token.blacklist()
 
         resp = Response({"detail": "계정이 비활성화되었습니다."}, status=status.HTTP_200_OK)
         resp.delete_cookie(settings.AUTH_REFRESH_COOKIE_NAME)
