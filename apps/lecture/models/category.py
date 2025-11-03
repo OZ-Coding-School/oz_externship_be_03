@@ -2,6 +2,7 @@ from django.conf import settings
 from django.db import models
 
 from apps.core.models import BaseModel
+from apps.lecture.managers import UserPreferCategoryQuerySet
 
 
 class Category(BaseModel):
@@ -34,6 +35,8 @@ class UserPreferCategory(BaseModel):
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, null=False, related_name="prefer_categories"
     )
     category = models.ForeignKey("Category", on_delete=models.CASCADE, null=False, related_name="preferred_by_users")
+
+    objects = UserPreferCategoryQuerySet.as_manager()
 
     class Meta:
         db_table = "user_prefer_categories"

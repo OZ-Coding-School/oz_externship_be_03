@@ -279,7 +279,6 @@ class DataLoader:
 
         상호작용 타입별 가중치:
         - 북마크: 3.0 (명시적 관심 표현)
-        - 스터디 참여: 2.0 (시간 감쇠 적용)
 
         Note:
             - 스터디 참여는 그룹 가입 시점 이후 생성된 강의만 점수 부여
@@ -323,7 +322,9 @@ class DataLoader:
                     study_group_ids: List[int] = list({sp[0] for sp in study_participations})
 
                     # 그룹 멤버 로드 시 가입 시점 필터링 추가
-                    group_members_qs = GroupMember.objects.filter(study_group_id__in=study_group_ids)
+                    group_members_qs = GroupMember.objects.filter(study_group_id__in=study_group_ids).select_related(
+                        "study_group"
+                    )
 
                     # 그룹별 멤버와 가입 시점 매핑
                     group_user_map: DefaultDict[int, Dict[int, datetime]] = defaultdict(dict)

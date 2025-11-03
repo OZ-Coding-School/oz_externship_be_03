@@ -3,6 +3,8 @@ from typing import TYPE_CHECKING
 from django.db import models
 from django.db.models import ManyToManyField
 
+from apps.lecture.managers import CrawledLectureQuerySet
+
 if TYPE_CHECKING:
     from apps.lecture.models.category import Category
 
@@ -34,6 +36,8 @@ class CrawledLecture(UUIDBaseModel):
     categories: "ManyToManyField[Category,Category]" = models.ManyToManyField(
         "Category", through="LectureCategory", related_name="crawled_lecture_categories"
     )
+
+    objects = CrawledLectureQuerySet.as_manager()
 
     class Meta:
         db_table = "crawled_lectures"
