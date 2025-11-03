@@ -4,12 +4,15 @@ from datetime import date, timedelta
 from typing import Any
 from unittest.mock import patch
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.request import Request
 from rest_framework.views import APIView
+from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken
+from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.core.utils.isolated_cache_testcase import IsolatedRedisTestClient
 from apps.users.enums import Reason
@@ -40,6 +43,14 @@ class UserWithdrawalAPIViewTests(IsolatedRedisTestClient):
         """
         정상 탈퇴 요청
         """
+
+        refresh = RefreshToken.for_user(self.user)
+        access = str(refresh.access_token)
+        refresh_str = str(refresh)
+        jti = refresh["jti"]
+
+        self.client.cookies[settings.AUTH_REFRESH_COOKIE_NAME] = refresh_str
+
         payload = {
             "reason": Reason.LACK_OF_INTEREST,
             "reason_detail": "이용이 어렵습니다.",
@@ -59,7 +70,25 @@ class UserWithdrawalAPIViewTests(IsolatedRedisTestClient):
         self.assertEqual(withdrawal.reason_detail, "이용이 어렵습니다.")
         self.assertEqual(withdrawal.due_date, timezone.now().date() + timedelta(days=14))
 
-        # TODO: 로그아웃 처리 검증 (토큰 무효화, 쿠키 삭제 등) → 추후 추가 예정
+        # refresh 토큰이 블랙리스트에 들어갔는지 확인
+        self.assertTrue(
+            BlacklistedToken.objects.filter(token__jti=jti).exists(),
+            "탈퇴 시점에 refresh 토큰이 블랙리스트로 등록되어야 합니다.",
+        )
+
+        # 응답에서 쿠키가 삭제됐는지 확인
+        deleted_cookie = response.cookies.get(settings.AUTH_REFRESH_COOKIE_NAME)
+        self.assertIsNotNone(
+            deleted_cookie,
+            "탈퇴 응답에서 refresh 쿠키를 삭제하는 Set-Cookie가 있어야 합니다.",
+        )
+
+        # None 아님을 명시 - Mypy 오류 해결용
+        assert deleted_cookie is not None
+
+        self.assertEqual(deleted_cookie.value, "")
+        # max-age 가 문자열로 올 수도 있어서 둘 다 허용
+        self.assertIn(str(deleted_cookie["max-age"]), ("0", "0.0"))
 
     def test_withdraw_duplicate_request(self) -> None:
         """
