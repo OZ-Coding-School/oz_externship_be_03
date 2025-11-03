@@ -44,7 +44,7 @@ async def send_study_group_notification(notification_id: int, study_group_id: st
         }
 
         await notification_pubsub.publish_group_notification(
-            group_id=str(study_group_id), notification_data=notification_data
+            group_id=study_group_id, notification_data=notification_data
         )
     except Exception as e:
         logging.error(f"스터디 그룹 알림 발송 오류:{e}")

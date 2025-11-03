@@ -71,4 +71,4 @@ def study_member_joined_created(sender: Any, instance: Application, created: boo
                 back_url_link=f"{settings.FRONTEND_DOMAIN}/api/v1/chat/ws/study-groups/{study_group.id}",
             )
 
-            send_study_group_notification.delay(notification.id, study_group.id)
+            send_study_group_notification.delay(notification.id, str(study_group.id))
