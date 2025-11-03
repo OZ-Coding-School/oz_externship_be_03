@@ -36,7 +36,7 @@ class PhoneVerifiedPermission(BasePermission):
             return False
 
         # 헤더 우선, 본문 대체 허용
-        token = request.headers.get(self.header_name)
+        token = request.headers.get(self.header_name) or request.data.get("verify_token")
         if not token:
             token = request.data.get("phone_verify_token")
 
@@ -86,7 +86,7 @@ class EmailVerifiedPermission(BasePermission):
             return False
 
         # 헤더 우선, 본문 대체 허용
-        token = request.headers.get(self.header_name) or request.data.get("email_verify_token")
+        token = request.headers.get(self.header_name) or request.data.get("verify_token")
         if not token:
             self.message = "이메일 검증 토큰이 필요합니다."
             return False
