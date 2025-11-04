@@ -57,8 +57,8 @@ class ReviewListItemSerializer(serializers.Serializer[Any]):
     id = serializers.UUIDField(read_only=True, source="uuid")
     rating = StarRatingField(read_only=True, source="star_rating")
     content = serializers.CharField()
-    created_at = serializers.DateTimeField()
-    updated_at = serializers.DateTimeField()
+    created_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M")
+    updated_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M")
     is_mine = serializers.SerializerMethodField()
 
     def get_is_mine(self, obj: Any) -> bool:
