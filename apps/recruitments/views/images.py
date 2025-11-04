@@ -79,7 +79,7 @@ class ImageListCreateAPIView(APIView):
             return Response({"detail": "존재하지 않는 공고입니다."}, status=status.HTTP_400_BAD_REQUEST)
 
         # 입력값 정리 (공백 제거)
-        if (url := data.get("img_url")):
+        if url := data.get("img_url"):
             url = url.strip()
         if url in self.MOCK_DUPLICATE_URLS:
             return Response({"detail": "이미 등록된 이미지입니다."}, status=status.HTTP_400_BAD_REQUEST)
