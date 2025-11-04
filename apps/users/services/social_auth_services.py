@@ -16,9 +16,7 @@ from apps.users.services.auth_services import _issue_tokens
 class SocialAuthService:
     """소셜 로그인 서비스"""
 
-    # ------------------------------------------------------------------
-    # 1️⃣ 카카오/네이버 사용자 정보 조회
-    # ------------------------------------------------------------------
+    # 사용자 정보 조회
     @staticmethod
     def get_user_info(provider: str, access_token: str) -> Dict[str, str]:
         if not access_token:
@@ -69,9 +67,7 @@ class SocialAuthService:
         except RequestException as e:
             raise ValidationError(f"{provider.capitalize()} 사용자 정보 요청 중 오류: {e}")
 
-    # ------------------------------------------------------------------
-    # 2️⃣ 소셜 로그인 / 회원가입 처리
-    # ------------------------------------------------------------------
+    # 회원가입 / 로그인
     @staticmethod
     def social_login(provider: str, code: str) -> Dict[str, str]:
         """인가코드 → access_token 교환 → 사용자 정보 저장 (응답은 detail 메시지만 반환)"""
