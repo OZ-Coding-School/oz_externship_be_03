@@ -5,7 +5,7 @@ from typing import Any, Dict, Optional, cast
 from django.conf import settings
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.validators import validate_email as django_validate_email
-from drf_spectacular.utils import OpenApiParameter, extend_schema
+from drf_spectacular.utils import extend_schema
 from rest_framework import serializers, status
 from rest_framework.authentication import BaseAuthentication
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -32,6 +32,7 @@ from apps.users.services.auth_services import (
 )
 from apps.users.utils.cookies import set_refresh_cookie
 from apps.users.utils.jwt import extract_bearer_token, is_jwt_like
+from apps.users.utils.response_helpers import ok
 
 
 # ==============================
@@ -132,14 +133,6 @@ class TokenRefreshView(APIView):
         description=(
             "리프레시 토큰은 **HttpOnly 쿠키**에서 읽어 재발급\n" f"- 쿠키 키: `{settings.AUTH_REFRESH_COOKIE_NAME}`\n"
         ),
-        parameters=[
-            OpenApiParameter(
-                name=settings.AUTH_REFRESH_COOKIE_NAME,
-                location=OpenApiParameter.COOKIE,
-                required=True,
-                description="리프레시 토큰이 저장된 HttpOnly 쿠키",
-            ),
-        ],
         request=None,
         responses={200: TokenRefreshResponseSerializer},
     )
@@ -188,7 +181,7 @@ class LogoutView(ExceptionHandledAPIView):
     @extend_schema(
         tags=["Auth"],
         summary="로그아웃",
-        description=("쿠키의 refresh를 캐시 denylist로 무효화하고 삭제"),
+        description=("쿠키의 refresh를 무효화하고 삭제"),
         request=None,
         responses={200: {"type": "object", "properties": {"detail": {"type": "string"}}}},
     )
@@ -196,21 +189,36 @@ class LogoutView(ExceptionHandledAPIView):
         refresh_raw = request.COOKIES.get(settings.AUTH_REFRESH_COOKIE_NAME)
         access_token = extract_bearer_token(request)
 
-        if not refresh_raw or not access_token:
-            return Response({"detail": "세션이 유효하지 않습니다. 다시 로그인해주세요."}, status=200)
+        def _ok(detail: str, code: int = status.HTTP_200_OK) -> Response:
+            resp = ok(detail, status_code=code)
+            resp.delete_cookie(settings.AUTH_REFRESH_COOKIE_NAME)
+            return resp
 
-        refresh_token = RefreshToken(cast(Any, refresh_raw))
+        def _err(msg: str, code: int) -> Response:
+            resp = Response({"error": msg}, status=code)
+            resp.delete_cookie(settings.AUTH_REFRESH_COOKIE_NAME)
+            return resp
+
+        if not refresh_raw or not access_token:
+            return _ok("세션이 유효하지 않습니다. 다시 로그인해주세요.")
+
+        try:
+            refresh_token = RefreshToken(cast(Any, refresh_raw))
+        except InvalidToken:
+            return _err("유효하지 않은 토큰입니다.", status.HTTP_401_UNAUTHORIZED)
+        except ExpiredTokenError:
+            return _err("토큰이 만료되었습니다.", status.HTTP_401_UNAUTHORIZED)
+        except TokenError:
+            return _ok("세션이 유효하지 않습니다. 다시 로그인해주세요.")
 
         try:
             refresh_token.blacklist()
         except InvalidToken:
-            return Response({"error": "유효하지 않은 토큰입니다."}, status=401)
+            return _err("유효하지 않은 토큰입니다.", status.HTTP_401_UNAUTHORIZED)
         except ExpiredTokenError:
-            return Response({"error": "토큰이 만료되었습니다."}, status=401)
+            return _err("토큰이 만료되었습니다.", status.HTTP_401_UNAUTHORIZED)
         except TokenError:
             # 이미 블랙리스트에 있을 경우 성공 처리
-            return Response({"detail": "세션이 유효하지 않습니다. 다시 로그인해주세요."}, status=200)
+            return _ok("세션이 유효하지 않습니다. 다시 로그인해주세요.")
 
-        resp = Response({"detail": "로그아웃이 완료되었습니다."}, status=200)
-        resp.delete_cookie(settings.AUTH_REFRESH_COOKIE_NAME)
-        return resp
+        return _ok("로그아웃이 완료되었습니다.")

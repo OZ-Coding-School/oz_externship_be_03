@@ -301,8 +301,16 @@ class AuthViewsTest(TestCase):
         self.client.cookies[settings.AUTH_REFRESH_COOKIE_NAME] = str(refresh_token)
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {str(access_token)}")  # APIClient로 인증된 상태 설정
 
-        with patch("apps.users.views.auth_views.RefreshToken.blacklist", side_effect=TokenError) as mock_blacklist:
-            resp = self.client.post(self.logout_url, data=json.dumps({}), content_type="application/json")
+        with patch.object(
+            RefreshToken,
+            "blacklist",
+            side_effect=TokenError("세션이 유효하지 않습니다. 다시 로그인해주세요."),
+        ):
+            resp = self.client.post(
+                self.logout_url,
+                data=json.dumps({}),
+                content_type="application/json",
+            )
 
         # 이미 로그아웃된 경우 처리
         self.assertEqual(resp.status_code, 200)
