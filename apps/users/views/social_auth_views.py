@@ -79,10 +79,7 @@ class SocialAuthView(APIView):
         },
     )
     def post(self, request: Request, provider: Optional[str] = None, *args: Any, **kwargs: Any) -> Response:
-        """
-        provider는 URL path 파라미터나 kwargs로 받을 수 있음.
-        (ex) /auth/social/kakao/, /auth/social/naver/, /auth/social/<str:provider>/
-        """
+
         provider = provider or kwargs.get("provider")
 
         # ✅ provider 검증
