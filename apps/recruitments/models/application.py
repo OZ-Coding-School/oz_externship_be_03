@@ -7,10 +7,10 @@ from .recruitments import Recruitment
 
 
 class ApplicationStatus(models.TextChoices):
-    APPLIED = "APPLIED", "지원"
     APPROVED = "APPROVED", "승인"
+    REVIEWING = "REVIEWING", "검토중"
+    PENDING = "PENDING", "대기"
     REJECTED = "REJECTED", "거절"
-    WITHDRAWN = "WITHDRAWN", "취소"
 
 
 class Application(models.Model):
@@ -26,7 +26,7 @@ class Application(models.Model):
     has_study_experience = models.BooleanField(default=False)
     study_experience = models.TextField(blank=True)
 
-    status = models.CharField(max_length=20, choices=ApplicationStatus.choices, default=ApplicationStatus.APPLIED)
+    status = models.CharField(max_length=20, choices=ApplicationStatus.choices, default=ApplicationStatus.PENDING)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
