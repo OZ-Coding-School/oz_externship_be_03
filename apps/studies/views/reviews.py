@@ -89,7 +89,6 @@ class GroupReviewListCreateView(generics.ListCreateAPIView[Review]):
     def get_serializer_class(self) -> type[serializers.Serializer[Any]]:
         return ReviewCreateSerializer if self.request.method == "POST" else ReviewListItemSerializer
 
-
     def get_group_for_read(self) -> StudyGroup:
         group_uuid = self.kwargs["group_uuid"]
         group = get_object_or_404(StudyGroup, uuid=group_uuid)
