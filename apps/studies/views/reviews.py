@@ -23,10 +23,11 @@ from rest_framework.response import Response
 from apps.lecture.models import RatingEnum
 from apps.studies.models.groups import GroupMember, StudyGroup
 from apps.studies.models.reviews import Review
-from apps.studies.permissions import IsGroupMemberDOP
+from apps.studies.permissions import IsGroupMemberDOP, IsReviewOwner
 from apps.studies.serializers.reviews import (
     ReviewCreateSerializer,
     ReviewListItemSerializer,
+    ReviewUpdateSerializer,
 )
 
 
@@ -88,22 +89,15 @@ class GroupReviewListCreateView(generics.ListCreateAPIView[Review]):
     def get_serializer_class(self) -> type[serializers.Serializer[Any]]:
         return ReviewCreateSerializer if self.request.method == "POST" else ReviewListItemSerializer
 
-    def _parse_gid(self) -> UUID:
-        raw = self.kwargs.get("group_id")
-        try:
-            return UUID(str(raw))
-        except (TypeError, ValueError):
-            raise ValidationError({"group_id": "유효한 UUID 형태의 group_id가 아닙니다."})
-
     def get_group_for_read(self) -> StudyGroup:
-        gid = self._parse_gid()
-        group = get_object_or_404(StudyGroup, uuid=gid)
+        group_uuid = self.kwargs["group_uuid"]
+        group = get_object_or_404(StudyGroup, uuid=group_uuid)
         self.check_object_permissions(self.request, group)
         return group
 
     def get_group_for_write(self) -> StudyGroup:
-        gid = self._parse_gid()
-        return get_object_or_404(StudyGroup, uuid=gid)
+        group_uuid = self.kwargs["group_uuid"]
+        return get_object_or_404(StudyGroup, uuid=group_uuid)
 
     def get_queryset(self) -> QuerySet[Review]:
         group = self.get_group_for_read()
@@ -153,13 +147,18 @@ class GroupReviewListCreateView(generics.ListCreateAPIView[Review]):
         if user_id is None:
             return Response(status=status.HTTP_401_UNAUTHORIZED)
 
-        serializer = self.get_serializer(data={**request.data, "study_group": group.pk}, context={"request": request})
+        if Review.objects.filter(user_id=user_id, study_group_id=group.id).exists():
+            return Response({"detail": "이미 해당 스터디에 리뷰를 작성했습니다"}, status=status.HTTP_409_CONFLICT)
+
+        serializer = self.get_serializer(
+            data={**request.data, "study_group": group.pk},
+            context={"request": request},
+        )
         if not serializer.is_valid():
             return Response(serializer.errors, status=422)
 
         try:
-            # perform_create 대신 여기서 명시적으로 저장
-            serializer.save()
+            serializer.save(user=request.user, study_group=group)
         except IntegrityError:
             return Response({"detail": "이미 해당 스터디에 리뷰를 작성했습니다"}, status=status.HTTP_409_CONFLICT)
 
@@ -208,3 +207,26 @@ class GroupReviewListCreateView(generics.ListCreateAPIView[Review]):
                 "5": int(agg["c5"] or 0),
             },
         }
+
+
+class GroupReviewUpdateView(generics.UpdateAPIView[Review]):
+    permission_classes = [permissions.IsAuthenticated, IsReviewOwner]
+    serializer_class = ReviewUpdateSerializer
+
+    def get_object(self) -> Review:
+        group_uuid = self.kwargs["group_uuid"]
+        review_uuid = self.kwargs["review_uuid"]
+
+        # 1) 그룹이 실제로 있는지 (404)
+        group = get_object_or_404(StudyGroup, uuid=group_uuid)
+
+        # 2) 그 그룹에 속한 리뷰만 찾기 (404)
+        review = get_object_or_404(
+            Review,
+            uuid=review_uuid,
+            study_group_id=group.id,
+        )
+
+        # 3) 본인 리뷰인지
+        self.check_object_permissions(self.request, review)
+        return review

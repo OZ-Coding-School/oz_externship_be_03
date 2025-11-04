@@ -162,7 +162,7 @@ class ReviewCreateAPITests(_BaseFixtures):
         self.client = APIClient()
 
     def _url(self, group: StudyGroup) -> str:
-        return reverse("studies:group-reviews", kwargs={"group_id": str(group.uuid)})
+        return reverse("studies:group-reviews", kwargs={"group_uuid": str(group.uuid)})
 
     # 인증 사용자 + 정상 입력 → 201 생성(본문 없음) 확인
     def test_create_review_201(self) -> None:
@@ -216,7 +216,7 @@ class ReviewCreateAPITests(_BaseFixtures):
     def test_create_review_group_not_found_404(self) -> None:
         self.client.force_authenticate(user=self.user)
         res = self.client.post(
-            reverse("studies:group-reviews", kwargs={"group_id": "00000000-0000-0000-0000-000000000999"}),
+            reverse("studies:group-reviews", kwargs={"group_uuid": "00000000-0000-0000-0000-000000000999"}),
             {"star_rating": 5, "content": "없음"},
             format="json",
         )
@@ -226,7 +226,7 @@ class ReviewCreateAPITests(_BaseFixtures):
 # 2)API 리뷰생성
 class ReviewListAPITests(_BaseFixtures):
     def _url(self, group: StudyGroup) -> str:
-        return reverse("studies:group-reviews", kwargs={"group_id": str(group.uuid)})
+        return reverse("studies:group-reviews", kwargs={"group_uuid": str(group.uuid)})
 
     def _add_member(self, group: StudyGroup, user: User) -> None:
         GroupMember.objects.create(study_group=group, user=user)
@@ -264,6 +264,97 @@ class ReviewListAPITests(_BaseFixtures):
     def test_group_not_found_404(self) -> None:  # 존재하지 않는 group_id 호출 404 반환
         self.client.force_authenticate(user=self.user)
         res = self.client.get(
-            reverse("studies:group-reviews", kwargs={"group_id": "00000000-0000-0000-0000-000000000999"})
+            reverse("studies:group-reviews", kwargs={"group_uuid": "00000000-0000-0000-0000-000000000999"})
+        )
+        self.assertEqual(res.status_code, 404)
+
+
+class ReviewUpdateAPITests(_BaseFixtures):
+    def setUp(self) -> None:
+        self.client = APIClient()
+        # 내가 쓴 리뷰 하나 만들어 두기
+        self.my_review = Review.objects.create(
+            user=self.user,
+            study_group=self.study_group,
+            star_rating=RatingEnum.FIVE,
+            content="원본 내용",
+        )
+        GroupMember.objects.create(study_group=self.study_group, user=self.user)
+
+    def _url(self, group: StudyGroup, review: Review) -> str:
+        return reverse(
+            "studies:group-review-detail",
+            kwargs={"group_uuid": str(group.uuid), "review_uuid": str(review.uuid)},
+        )
+
+    def test_update_my_review_200(self) -> None:
+        """내가 쓴 리뷰를 내가 수정하면 200"""
+        self.client.force_authenticate(user=self.user)
+        res = self.client.patch(
+            self._url(self.study_group, self.my_review),
+            {"content": "수정한 내용", "star_rating": 4},
+            format="json",
+        )
+        self.assertEqual(res.status_code, 200)
+        self.my_review.refresh_from_db()
+        self.assertEqual(self.my_review.content, "수정한 내용")
+        self.assertEqual(self.my_review.star_rating, RatingEnum.FOUR)
+
+    def test_update_unauthenticated_401(self) -> None:
+        """비로그인은 401"""
+        res = self.client.patch(
+            self._url(self.study_group, self.my_review),
+            {"content": "수정 불가"},
+            format="json",
+        )
+        self.assertIn(res.status_code, (401, 403))
+
+    def test_update_other_users_review_403(self) -> None:
+        """다른 사람이 쓴 리뷰는 403"""
+        other_review = Review.objects.create(
+            user=self.other_user,
+            study_group=self.study_group,
+            star_rating=RatingEnum.THREE,
+            content="남의 리뷰",
+        )
+        GroupMember.objects.create(study_group=self.study_group, user=self.other_user)
+
+        self.client.force_authenticate(user=self.user)
+        res = self.client.patch(
+            self._url(self.study_group, other_review),
+            {"content": "훔쳐서 수정"},
+            format="json",
+        )
+        self.assertEqual(res.status_code, 403)
+
+    def test_update_not_found_group_404(self) -> None:
+        """그룹 uuid가 존재하지 않으면 404"""
+        self.client.force_authenticate(user=self.user)
+        res = self.client.patch(
+            reverse(
+                "studies:group-review-detail",
+                kwargs={
+                    "group_uuid": "00000000-0000-0000-0000-000000000999",
+                    "review_uuid": str(self.my_review.uuid),
+                },
+            ),
+            {"content": "아무거나"},
+            format="json",
+        )
+        self.assertEqual(res.status_code, 404)
+
+    def test_update_not_found_review_404(self) -> None:
+        """그룹은 맞는데 리뷰 uuid가 없으면 404"""
+        self.client.force_authenticate(user=self.user)
+        res = self.client.patch(
+            reverse(
+                "studies:group-review-detail",
+                kwargs={
+                    "group_uuid": str(self.study_group.uuid),
+                    "review_uuid": "00000000-0000-0000-0000-000000000999",
+                },
+            ),
+            {"content": "아무거나"},
+            format="json",
         )
         self.assertEqual(res.status_code, 404)
