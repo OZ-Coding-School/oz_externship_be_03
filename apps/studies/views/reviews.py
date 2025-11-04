@@ -23,10 +23,11 @@ from rest_framework.response import Response
 from apps.lecture.models import RatingEnum
 from apps.studies.models.groups import GroupMember, StudyGroup
 from apps.studies.models.reviews import Review
-from apps.studies.permissions import IsGroupMemberDOP
+from apps.studies.permissions import IsGroupMemberDOP, IsReviewOwner
 from apps.studies.serializers.reviews import (
     ReviewCreateSerializer,
     ReviewListItemSerializer,
+    ReviewUpdateSerializer,
 )
 
 
@@ -208,3 +209,26 @@ class GroupReviewListCreateView(generics.ListCreateAPIView[Review]):
                 "5": int(agg["c5"] or 0),
             },
         }
+
+
+class GroupReviewUpdateView(generics.UpdateAPIView[Review]):
+    permission_classes = [permissions.IsAuthenticated, IsReviewOwner]
+    serializer_class = ReviewUpdateSerializer
+
+    def get_object(self) -> Review:
+        group_uuid = self.kwargs["group_uuid"]
+        review_uuid = self.kwargs["review_uuid"]
+
+        # 1) 그룹이 실제로 있는지 (404)
+        group = get_object_or_404(StudyGroup, uuid=group_uuid)
+
+        # 2) 그 그룹에 속한 리뷰만 찾기 (404)
+        review = get_object_or_404(
+            Review,
+            uuid=review_uuid,
+            study_group_id=group.id,
+        )
+
+        # 3) 본인 리뷰인지
+        self.check_object_permissions(self.request, review)
+        return review
