@@ -1,66 +1,199 @@
-# core/utils/s3_uploader.py
-"""
-공통 S3 Presigned URL 유틸리티 모듈
-- boto3 클라이언트 생성
-- Presigned URL 생성
-- 파일 검증 (별도 validator와 연계)
-- 필요 시 S3 객체 삭제 함수 제공
-"""
-
 from __future__ import annotations
 
+import logging
 import uuid
+from typing import Any, ClassVar, Optional
+
 import boto3
-from typing import Any
-
 from django.conf import settings
+from django.core.files.uploadedfile import UploadedFile
+from rest_framework.exceptions import APIException
+
+logger = logging.getLogger(__name__)
+
+###################################
+# 공통 S3 Presigned URL 유틸리티 모듈
+# - boto3 클라이언트 생성 후 재사용
+# - Presigned URL 생성 (POST)
+# - 파일 검증
+# - 단건/복수 삭제
+###################################
 
 
-def get_s3_client() -> Any:
-    """thread-safe boto3 S3 client 생성"""
-    return boto3.client(
+class S3Uploader:
+    """
+    공통 S3 업로더 클래스 (boto3 기반)
+    - boto3 클라이언트 생성
+    - Presigned URL 생성
+    - 단일 / 복수 객체 삭제
+    - 파일 업로드 (테스트 및 관리용)
+    """
+
+    s3_client: Any = boto3.client(
         "s3",
-        aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
-        aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
-        region_name=settings.AWS_REGION,
+        aws_access_key_id=getattr(settings, "AWS_S3_ACCESS_KEY_ID", None),
+        aws_secret_access_key=getattr(settings, "AWS_S3_SECRET_ACCESS_KEY", None),
+        region_name=getattr(settings, "AWS_S3_REGION", None),
     )
+    BUCKET_NAME: ClassVar[str] = getattr(settings, "AWS_S3_BUCKET_NAME", "")
+    REGION_NAME: ClassVar[str] = getattr(settings, "AWS_S3_REGION", "")
+    S3_BASE_URL: ClassVar[str] = f"https://{BUCKET_NAME}.s3.{REGION_NAME}.amazonaws.com/"
 
+    @classmethod
+    def validate_file_extension(cls, ext: str) -> None:
+        """파일 확장자 검증"""
+        allowed_image_extensions = {"jpg", "jpeg", "png", "gif", "bmp", "tiff", "webp"}
+        allowed_attachment_extensions = {"pdf", "doc", "docx", "ppt", "pptx", "xls", "xlsx", "txt", "csv"}
 
-def validate_files(files: list[dict[str, str]]) -> None:
-    """파일명, MIME, 크기 등 사전 검증 로직 (추후 구현 예정)"""
-    # TODO: 파일명, 확장자, content-type, 크기 검증 추가
-    pass
+        if ext in allowed_image_extensions:
+            return
+        elif ext in allowed_attachment_extensions:
+            return
+        else:
+            raise APIException("허용된 확장자만 등록 가능합니다.")
 
+    @classmethod
+    def validate_file_mime(cls, ext: str, content_type: Optional[str]) -> None:
+        """MIME 타입 검증"""
+        if not content_type:
+            raise APIException("유효한 Content-Type이 필요합니다.")
 
-def generate_presigned_urls(prefix: str, files: list[dict[str, str]]) -> list[dict[str, Any]]:
-    """Presigned URL 생성"""
-    s3 = get_s3_client()
-    presigned_data: list[dict[str, Any]] = []
+        # 이미지 MIME
+        image_mime_by_ext = {
+            "jpg": {"image/jpeg"},
+            "jpeg": {"image/jpeg"},
+            "png": {"image/png"},
+            "gif": {"image/gif"},
+            "bmp": {"image/bmp", "image/x-ms-bmp"},
+            "tiff": {"image/tiff"},
+            "webp": {"image/webp"},
+        }
+        # 첨부 MIME
+        attachment_mime_by_ext = {
+            "pdf": {"application/pdf"},
+            "doc": {"application/msword"},
+            "docx": {"application/vnd.openxmlformats-officedocument.wordprocessingml.document"},
+            "ppt": {"application/vnd.ms-powerpoint"},
+            "pptx": {"application/vnd.openxmlformats-officedocument.presentationml.presentation"},
+            "xls": {"application/vnd.ms-excel"},
+            "xlsx": {"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"},
+            "txt": {"text/plain"},
+            "csv": {"text/csv", "application/csv"},
+        }
 
-    for file in files:
-        file_name = file.get("file_name")
-        content_type = file.get("content_type")
+        # 매핑 통합 조회
+        if ext in image_mime_by_ext:
+            if content_type not in image_mime_by_ext[ext]:
+                raise APIException("허용된 이미지 확장자/형식만 등록 가능합니다.")
+            return
 
-        key = f"{prefix}{uuid.uuid4()}_{file_name}"
+        if ext in attachment_mime_by_ext:
+            if content_type not in attachment_mime_by_ext[ext]:
+                raise APIException("허용된 첨부파일 확장자/형식만 등록 가능합니다.")
+            return
 
-        presigned_post = s3.generate_presigned_post(
-            Bucket=settings.AWS_S3_BUCKET_NAME,
-            Key=key,
-            Fields={"Content-Type": content_type},
-            Conditions=[
-                {"Content-Type": content_type},
-                ["content-length-range", 0, 10 * 1024 * 1024],  # 10MB 이하
-            ],
-            ExpiresIn=300,  # 5분
-        )
+        # 확장자 검증을 통과했다면 일반적으로 도달하지 않음(이중 방어)
+        raise APIException("허용된 확장자만 등록 가능합니다.")
 
-        presigned_data.append(
-            {
-                "file_name": file_name,
-                "key": key,
-                "url": presigned_post["url"],
-                "fields": presigned_post["fields"],
-            }
-        )
+    @classmethod
+    def upload_file(cls, file: UploadedFile) -> str:
+        """파일 업로드"""
+        name = file.name
+        if name is None or name == "":
+            raise APIException("유효하지 않은 파일명입니다.")
+        if "." not in name or name.rsplit(".", 1)[0] == "":
+            raise APIException("유효하지 않은 파일명입니다.")
 
-    return presigned_data
+        filename = name
+        ext = filename.rsplit(".", 1)[-1].lower()
+
+        # 확장자 검증 (이미지/첨부파일 확인)
+        cls.validate_file_extension(ext)
+
+        # MIME 검증
+        content_type = getattr(file, "content_type", None)
+        cls.validate_file_mime(ext, content_type)
+
+        key = f"{uuid.uuid4().hex}.{ext}"
+        try:
+            cls.s3_client.upload_fileobj(
+                Fileobj=file,
+                Bucket=cls.BUCKET_NAME,
+                Key=key,
+            )
+            return cls.S3_BASE_URL + key
+        except Exception as e:
+            logger.error("로깅 메시지")
+            raise APIException(f"Unexpected S3 Upload Error: {str(e)}")
+
+    @classmethod
+    def generate_presigned_urls(cls, prefix: str, files: list[dict[str, str]]) -> list[dict[str, Any]]:
+        """Presigned URL 생성"""
+        presigned_data: list[dict[str, Any]] = []
+
+        if not prefix.endswith("/"):  # prefix 뒤에 '/' 자동 보정
+            prefix += "/"
+
+        for file in files:
+            file_name = file.get("file_name")
+            content_type = file.get("content_type")
+
+            # "." 방어 + 파일명/확장자 검증 + MIME 검증 (업로드와 정책 일치)
+            if not file_name or not content_type:
+                raise APIException("file_name, content_type는 필수입니다.")
+            if "." not in file_name or file_name.rsplit(".", 1)[0] == "":
+                raise APIException("유효하지 않은 파일명입니다.")
+
+            ext = file_name.rsplit(".", 1)[-1].lower()
+            cls.validate_file_extension(ext)
+            cls.validate_file_mime(ext, content_type)
+
+            key = f"{prefix}{uuid.uuid4()}_{file_name}"
+
+            try:
+                presigned_post = cls.s3_client.generate_presigned_post(
+                    Bucket=settings.AWS_S3_BUCKET_NAME,
+                    Key=key,
+                    Fields={"acl": "public-read", "Content-Type": content_type},
+                    Conditions=[
+                        {"acl": "public-read"},
+                        {"Content-Type": content_type},
+                        ["content-length-range", 1, 10 * 1024 * 1024],
+                    ],
+                    ExpiresIn=300,
+                )
+            except Exception as e:
+                logger.error("S3 Generate Presigned POST Error", exc_info=True)
+                raise APIException(f"Unexpected S3 Presign Error: {str(e)}")
+
+            presigned_data.append(
+                {
+                    "file_name": file_name,
+                    "key": key,
+                    "url": presigned_post["url"],
+                    "fields": presigned_post["fields"],
+                    "file_url": f"{presigned_post['url']}{key}",
+                    "expires_in": 300,
+                }
+            )
+
+        return presigned_data
+
+    @classmethod
+    def delete_file(cls, key: str) -> None:
+        """단일 파일삭제 (S3.Client.delete_object)"""
+        try:
+            cls.s3_client.delete_object(Bucket=cls.BUCKET_NAME, Key=key)
+        except Exception as e:
+            logger.error(f"S3 Delete Object Error: {str(e)}")
+            raise APIException(f"Unexpected S3 Delete Object Error: {str(e)}")
+
+    @classmethod
+    def delete_files(cls, keys: list[str]) -> None:
+        """복수 파일 삭제 (S3.Client.delete_objects)"""
+        key_map = {"Objects": [{"Key": key} for key in keys]}
+        try:
+            cls.s3_client.delete_objects(Delete=key_map, Bucket=cls.BUCKET_NAME)
+        except Exception as e:
+            logger.error("로깅 메시지")
+            raise APIException(f"Unexpected S3 Delete Objects Error: {str(e)}")
