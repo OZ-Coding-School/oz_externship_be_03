@@ -10,8 +10,8 @@ from rest_framework.permissions import AllowAny, BasePermission, IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.settings import api_settings
-from rest_framework.views import APIView
 
+from apps.core.views import ExceptionHandledAPIView
 from apps.users.enums import EmailVerificationPurpose
 from apps.users.serializers.email_verification_serializers import (
     EmailVerificationRequestSerializer,
@@ -61,7 +61,7 @@ def _build_confirm_payload(
 # =============================================================================
 # 공통뷰: 이메일 인증코드 전송
 # =============================================================================
-class _BaseEmailSendCodeView(APIView):
+class _BaseEmailSendCodeView(ExceptionHandledAPIView):
     """
     이메일 인증코드 전송 공통 베이스
     - 하위 클래스에서 authentication_classes / permission_classes / PURPOSE 지정
@@ -97,7 +97,7 @@ class _BaseEmailSendCodeView(APIView):
 # =============================================================================
 # 공통뷰: 이메일 인증코드 확인
 # =============================================================================
-class _BaseEmailConfirmCodeView(APIView):
+class _BaseEmailConfirmCodeView(ExceptionHandledAPIView):
     """
     이메일 인증코드 확인 공통 베이스
     """
