@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from datetime import timedelta
-from typing import TYPE_CHECKING, Any, Optional
+from datetime import datetime, time
+from typing import TYPE_CHECKING, Any, Optional, Tuple
 
 from django.contrib.auth.base_user import BaseUserManager
 from django.db import models
@@ -82,22 +82,30 @@ class UserManager(BaseUserManager["User"]):
         """
         return self.get_queryset().exists_nickname(nickname)
 
-    def is_email_blocked_by_recent_withdrawal(self, email: str, days: int = 30) -> bool:
+    def is_email_blocked_by_recent_withdrawal(self, email: str) -> Tuple[bool, Optional[datetime]]:
         """
-        최근 n일 이내 해당 이메일 유저가 탈퇴한 적 있는지 여부
+        최근 탈퇴로 인한 재가입 차단 상태와 차단 만료시각(block_until) 반환
         """
         email = self.normalize_email(email)
-        limit = timezone.now() - timedelta(days=days)
+        now = timezone.now()
 
         user = self.get_queryset().inactive().filter(email=email).first()
 
         if not user:
-            return False
+            return False, None
 
-        return Withdrawal.objects.filter(
-            user_id=user.id,
-            created_at__gte=limit,
-        ).exists()
+        due_date = (
+            Withdrawal.objects.filter(user_id=user.id).order_by("-due_date").values_list("due_date", flat=True).first()
+        )
+
+        if not due_date:
+            return False, None
+
+        block_until = timezone.make_aware(datetime.combine(due_date, time(23, 59, 59)))
+
+        if block_until > now:
+            return True, block_until
+        return False, None
 
     def create_user(self, email: str, password: Optional[str] = None, **extra_fields: object) -> "User":
         """유저 생성: 이메일 정규화 적용 + 비밀번호 설정(None이면 unusable)"""

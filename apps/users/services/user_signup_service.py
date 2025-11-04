@@ -4,9 +4,11 @@ from dataclasses import dataclass
 
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
+from django.utils.timezone import localtime
 from rest_framework import status
 from rest_framework.exceptions import APIException, ValidationError
 
+from apps.core.exceptions import Conflict
 from apps.users.enums import Role
 from apps.users.models.user import User as UserModel
 from apps.users.serializers.user_signup_serializers import SignupPayload
@@ -168,8 +170,10 @@ class DefaultSignupService:
             conflicts.setdefault("email", []).append("이미 사용 중인 이메일입니다.")
 
         # 2) 최근 14일 이내 탈퇴 이메일 차단
-        if User.objects.is_email_blocked_by_recent_withdrawal(email, days=14):
-            conflicts.setdefault("email", []).append("탈퇴 요청 처리중입니다.")
+        blocked, block_until = User.objects.is_email_blocked_by_recent_withdrawal(email)
+        if blocked and block_until:
+            date_str = localtime(block_until).strftime("%Y년 %m월 %d일")
+            raise Conflict(f"탈퇴 처리 중인 계정입니다. {date_str} 이후 가입이 가능합니다.")
 
         # 3) 닉네임 중복
         if User.objects.exists_nickname(nickname):
