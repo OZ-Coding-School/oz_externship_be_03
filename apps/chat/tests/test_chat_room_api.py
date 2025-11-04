@@ -1,5 +1,8 @@
+from datetime import timedelta
+
 from django.contrib.auth import get_user_model
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -11,11 +14,27 @@ User = get_user_model()
 
 class ChatRoomAPITestCase(APITestCase):
     def setUp(self) -> None:
-        self.user1 = User.objects.create_user(email="user1@test.com", password="password123", nickname="user1")
-        self.user2 = User.objects.create_user(email="user2@test.com", password="password123", nickname="user2")
+        self.user1 = User.objects.create_user(
+            email="user1@test.com",
+            password="password123",
+            nickname="user1",
+            birthday="2000-01-01",
+            gender="M",
+            phone_number="01011112222",
+        )
+        self.user2 = User.objects.create_user(
+            email="user2@test.com",
+            password="password123",
+            nickname="user2",
+            birthday="2000-01-01",
+            gender="F",
+            phone_number="01033334444",
+        )
 
         # Case 1: user1, user2가 속한 그룹 (메시지 3개)
-        self.study_group1 = StudyGroup.objects.create(name="Test Group 1")
+        self.study_group1 = StudyGroup.objects.create(
+            name="Test Group 1", start_at=timezone.now(), end_at=timezone.now() + timedelta(days=7)
+        )
         GroupMember.objects.create(study_group=self.study_group1, user=self.user1, is_leader=True)
         GroupMember.objects.create(study_group=self.study_group1, user=self.user2)
         self.msg1 = ChatMessage.objects.create(study_group=self.study_group1, sender=self.user1, content="Hello")
@@ -23,11 +42,15 @@ class ChatRoomAPITestCase(APITestCase):
         self.msg3 = ChatMessage.objects.create(study_group=self.study_group1, sender=self.user1, content="Test")
 
         # Case 2: user1만 속한 그룹 (메시지 없음)
-        self.study_group2 = StudyGroup.objects.create(name="Test Group 2")
+        self.study_group2 = StudyGroup.objects.create(
+            name="Test Group 2", start_at=timezone.now(), end_at=timezone.now() + timedelta(days=7)
+        )
         GroupMember.objects.create(study_group=self.study_group2, user=self.user1, is_leader=True)
 
         # Case 3: user1이 속한 또 다른 그룹 (메시지 2개)
-        self.study_group3 = StudyGroup.objects.create(name="Test Group 3")
+        self.study_group3 = StudyGroup.objects.create(
+            name="Test Group 3", start_at=timezone.now(), end_at=timezone.now() + timedelta(days=7)
+        )
         GroupMember.objects.create(study_group=self.study_group3, user=self.user1, is_leader=True)
         self.msg4 = ChatMessage.objects.create(study_group=self.study_group3, sender=self.user1, content="First")
         self.msg5 = ChatMessage.objects.create(study_group=self.study_group3, sender=self.user1, content="Second")
@@ -35,8 +58,7 @@ class ChatRoomAPITestCase(APITestCase):
         self.client.force_authenticate(user=self.user1)
 
     def test_get_chat_room_list_success(self) -> None:
-        """채팅방 목록 조회 API 성공 테스트"""
-        url = reverse("v1:chat:room-list")
+        url = reverse("chat:room-list")
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -57,14 +79,14 @@ class ChatRoomAPITestCase(APITestCase):
     def test_get_chat_room_list_unauthenticated(self) -> None:
         """채팅방 목록 조회 API 비인증 유저 테스트"""
         self.client.logout()
-        url = reverse("v1:chat:room-list")
+        url = reverse("chat:room-list")
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_room_with_no_messages(self) -> None:
         """메시지가 없는 채팅방의 last_message는 null이어야 함"""
-        url = reverse("v1:chat:room-list")
+        url = reverse("chat:room-list")
         response = self.client.get(url)
         room2_data = next((r for r in response.data if r["name"] == "Test Group 2"), None)
 
@@ -73,7 +95,7 @@ class ChatRoomAPITestCase(APITestCase):
 
     def test_unread_count_with_no_read_history(self) -> None:
         """읽은 기록이 없을 때, 모든 메시지가 안 읽은 것으로 계산되어야 함"""
-        url = reverse("v1:chat:room-list")
+        url = reverse("chat:room-list")
         response = self.client.get(url)
         room1_data = next((r for r in response.data if r["name"] == "Test Group 1"), None)
 
@@ -85,7 +107,7 @@ class ChatRoomAPITestCase(APITestCase):
         # user1이 group1에서 msg2까지 읽음
         LastReadMessage.objects.create(study_group=self.study_group1, user=self.user1, message=self.msg2)
 
-        url = reverse("v1:chat:room-list")
+        url = reverse("chat:room-list")
         response = self.client.get(url)
         room1_data = next((r for r in response.data if r["name"] == "Test Group 1"), None)
 
@@ -97,7 +119,7 @@ class ChatRoomAPITestCase(APITestCase):
         # user1이 group1에서 msg3(마지막)까지 읽음
         LastReadMessage.objects.create(study_group=self.study_group1, user=self.user1, message=self.msg3)
 
-        url = reverse("v1:chat:room-list")
+        url = reverse("chat:room-list")
         response = self.client.get(url)
         room1_data = next((r for r in response.data if r["name"] == "Test Group 1"), None)
 

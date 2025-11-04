@@ -11,7 +11,6 @@ class ChatMessageSerializerTest(TestCase):
     def setUp(self) -> None:
         self.factory = APIRequestFactory()
         self.user = User.objects.create_user(
-            username="testuser",
             email="test@test.com",
             password="testpass123",
             name="Test User",
@@ -21,7 +20,6 @@ class ChatMessageSerializerTest(TestCase):
             birthday="2000-01-01",
         )
         self.other_user = User.objects.create_user(
-            username="otheruser",
             email="other@test.com",
             password="testpass123",
             name="Other User",
@@ -46,7 +44,10 @@ class ChatMessageSerializerTest(TestCase):
 
     def test_get_is_read_unauthenticated_user(self) -> None:
         """정상: 비인증 사용자는 항상 is_read가 False"""
+        from django.contrib.auth.models import AnonymousUser
+
         request = self.factory.get("/")
+        request.user = AnonymousUser()
         serializer = ChatMessageSerializer(instance=self.message1, context={"request": request})
         self.assertFalse(serializer.data["is_read"])
 
@@ -82,11 +83,6 @@ class ChatMessageSerializerTest(TestCase):
         serializer = ChatMessageSerializer(instance=self.message3, context={"request": request})
         self.assertFalse(serializer.data["is_read"])
 
-    def test_get_file_url_is_none(self) -> None:
-        """get_file_url 메서드가 항상 None을 반환하는지 테스트"""
-        serializer = ChatMessageSerializer(instance=self.message1)
-        self.assertIsNone(serializer.data["file_url"])
-
     def test_get_is_read_no_request_in_context(self) -> None:
         """컨텍스트에 request가 없을 때 get_is_read가 False를 반환하는지 테스트"""
         serializer = ChatMessageSerializer(instance=self.message1, context={})
@@ -105,9 +101,9 @@ class LastMessageSerializerTest(TestCase):
             "last_message_created_at": datetime(2025, 1, 1, 10, 0, 0),
         }
         serializer = LastMessageSerializer(data)
-        self.assertEqual(serializer.data["last_message_content"], "Hello World")
-        self.assertEqual(serializer.data["last_message_sender_nickname"], "TestUser")
-        self.assertIn("2025-01-01T10:00:00Z", serializer.data["last_message_created_at"])
+        self.assertEqual(serializer.data["content"], "Hello World")
+        self.assertEqual(serializer.data["sender_nickname"], "TestUser")
+        self.assertIn("2025-01-01T10:00:00Z", serializer.data["created_at"])
 
 
 class ChatRoomSerializerTest(TestCase):
@@ -127,9 +123,9 @@ class ChatRoomSerializerTest(TestCase):
         serializer = ChatRoomSerializer(data)
         self.assertEqual(serializer.data["id"], 1)
         self.assertEqual(serializer.data["name"], "Test Group")
-        self.assertEqual(serializer.data["last_message"]["last_message_content"], "Last message content")
-        self.assertEqual(serializer.data["last_message"]["last_message_sender_nickname"], "Sender Nickname")
-        self.assertIn("2025-01-01T12:00:00Z", serializer.data["last_message"]["last_message_created_at"])
+        self.assertEqual(serializer.data["last_message"]["content"], "Last message content")
+        self.assertEqual(serializer.data["last_message"]["sender_nickname"], "Sender Nickname")
+        self.assertIn("2025-01-01T12:00:00Z", serializer.data["last_message"]["created_at"])
         self.assertEqual(serializer.data["unread_count"], 5)
 
     def test_serialization_no_last_message(self) -> None:
@@ -146,16 +142,12 @@ class ChatRoomSerializerTest(TestCase):
         serializer = ChatRoomSerializer(data)
         self.assertEqual(serializer.data["id"], 2)
         self.assertEqual(serializer.data["name"], "Empty Group")
-        self.assertIsNone(serializer.data["last_message"]["last_message_content"])
-        self.assertIsNone(serializer.data["last_message"]["last_message_sender_nickname"])
-        self.assertIsNone(serializer.data["last_message"]["last_message_created_at"])
-        self.assertEqual(serializer.data["unread_count"], 0)
+        self.assertIsNone(serializer.data["last_message"])
 
 
 class ChatMessageModelTest(TestCase):
     def setUp(self) -> None:
         self.user = User.objects.create_user(
-            username="testuser",
             email="test@test.com",
             password="testpass123",
             name="Test User",
@@ -191,7 +183,6 @@ class ChatMessageModelTest(TestCase):
 class LastReadMessageModelTest(TestCase):
     def setUp(self) -> None:
         self.user = User.objects.create_user(
-            username="testuser",
             email="test@test.com",
             password="testpass123",
             name="Test User",

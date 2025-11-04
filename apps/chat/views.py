@@ -97,12 +97,10 @@ class ChatMessageListView(ListAPIView[ChatMessage]):
     def get(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         study_group_id = self.kwargs["study_group_id"]
         user = request.user
+        assert user.is_authenticated
 
         # 사용자가 스터디 그룹의 멤버인지 확인
-        if (
-            not user.is_authenticated
-            or not GroupMember.objects.filter(study_group_id=study_group_id, user=user).exists()
-        ):
+        if not GroupMember.objects.filter(study_group_id=study_group_id, user=user).exists():
             return Response(
                 {
                     "status": "error",
@@ -134,6 +132,7 @@ class ChatRoomListView(APIView):
     )
     def get(self, request: Request) -> Response:
         user = cast(User, request.user)
+
         chat_rooms_data = list(ChatRoomService.get_chat_rooms_for_user(user))
         serializer = ChatRoomSerializer(chat_rooms_data, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
