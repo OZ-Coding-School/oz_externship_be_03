@@ -90,11 +90,11 @@ class GroupReviewListCreateView(generics.ListCreateAPIView[Review]):
         return ReviewCreateSerializer if self.request.method == "POST" else ReviewListItemSerializer
 
     def _parse_gid(self) -> UUID:
-        raw = self.kwargs.get("group_id")
+        raw = self.kwargs.get("group_uuid")
         try:
             return UUID(str(raw))
         except (TypeError, ValueError):
-            raise ValidationError({"group_id": "유효한 UUID 형태의 group_id가 아닙니다."})
+            raise ValidationError({"group_uuid": "유효한 UUID 형태의 group_id가 아닙니다."})
 
     def get_group_for_read(self) -> StudyGroup:
         gid = self._parse_gid()
