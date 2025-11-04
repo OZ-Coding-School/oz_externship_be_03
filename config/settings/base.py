@@ -241,7 +241,7 @@ NAVER_REDIRECT_URI = os.getenv("NAVER_REDIRECT_URI")
 AWS_S3_REGION = os.getenv("AWS_S3_REGION", "ap-northeast-2")
 AWS_S3_ACCESS_KEY_ID = os.getenv("AWS_S3_ACCESS_KEY_ID", "")
 AWS_S3_SECRET_ACCESS_KEY = os.getenv("AWS_S3_SECRET_ACCESS_KEY", "")
-AWS_S3_BUCKET_NAME = os.getenv("AWS_S3_BUCKET_NAME", "oz-Ex-03-bucket")
+AWS_S3_BUCKET_NAME = os.getenv("AWS_S3_BUCKET_NAME", "")
 
 # Verify Flow 정책
 ONE_TIME_TTL_SECONDS = 10 * 60  # 검증 토큰/대기 키 TTL (10분)
