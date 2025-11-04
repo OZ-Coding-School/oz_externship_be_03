@@ -1,8 +1,11 @@
 from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
+from django.db.models import ManyToManyField
 
 from apps.core.models import UUIDBaseModel
+from apps.lecture.models import CrawledLecture
+from apps.users.models import User
 
 
 class StudyGroupStatus(models.TextChoices):
@@ -28,6 +31,8 @@ class StudyGroup(UUIDBaseModel):
         default=StudyGroupStatus.PENDING,
         null=False,
     )
+    members = ManyToManyField(User, through="studies.GroupMember", related_name="study_groups")
+    lectures = ManyToManyField(CrawledLecture, through="studies.StudyLecture", related_name="study_groups")
 
     class Meta:
         db_table = "study_groups"
@@ -43,12 +48,12 @@ class StudyLecture(UUIDBaseModel):
     lecture = models.ForeignKey(
         "lecture.CrawledLecture",
         on_delete=models.CASCADE,
-        related_name="study_links",
+        related_name="study_lectures",
     )
     study_group = models.ForeignKey(
         "StudyGroup",
         on_delete=models.CASCADE,
-        related_name="lectures",
+        related_name="study_lectures",
     )
 
     class Meta:
@@ -60,7 +65,7 @@ class GroupMember(UUIDBaseModel):
     study_group = models.ForeignKey(
         "StudyGroup",
         on_delete=models.CASCADE,
-        related_name="members",
+        related_name="group_members",
         null=False,
         blank=False,
     )
