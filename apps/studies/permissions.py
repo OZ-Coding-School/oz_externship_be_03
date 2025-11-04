@@ -13,6 +13,7 @@ from rest_framework.permissions import (
 from rest_framework.request import Request
 from rest_framework.views import APIView
 
+from apps.studies.models import Review
 from apps.studies.models.groups import GroupMember, StudyGroup
 from apps.studies.models.notes import StudyNote
 
@@ -112,3 +113,20 @@ class IsStudyNoteAuthor(BasePermission):
         # 쓰기 메서드는 작성자만 허용
         # (아래 author_id 비교는 FK 컬럼 값이므로 추가 쿼리/역참조 없이 비교안전하다고하여 수정)
         return getattr(obj, "author_id", None) == getattr(request.user, "id", None)
+
+
+class IsReviewOwner(BasePermission):
+    message = "본인이 작성한 리뷰만 수정할 수 있습니다."
+
+    def has_object_permission(
+        self,
+        request: HttpRequest,
+        view: Any,
+        obj: Any,
+    ) -> bool:
+        return (
+            bool(request.user)
+            and request.user.is_authenticated
+            and isinstance(obj, Review)
+            and obj.user_id == request.user.id
+        )

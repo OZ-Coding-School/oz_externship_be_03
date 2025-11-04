@@ -71,3 +71,17 @@ class ReviewListItemSerializer(serializers.Serializer[Any]):
     def get_is_mine(self, obj: Any) -> bool:
         request = self.context.get("request")
         return bool(request and getattr(request, "user", None) and obj.user_id == request.user.id)
+
+
+class ReviewUpdateSerializer(serializers.ModelSerializer[Review]):
+    star_rating = StarRatingField(represent="int", required=False)
+    content = serializers.CharField(required=False)
+
+    class Meta:
+        model = Review
+        fields = ("star_rating", "content")
+
+    def validate_content(self, value: str) -> str:
+        if not value.strip():
+            raise serializers.ValidationError("내용이 비어 있습니다.")
+        return value
