@@ -24,7 +24,7 @@ urlpatterns = [
     # 스터디 그룹 목록 조회 및 생성
     path("groups", StudyGroupListCreateView.as_view(), name="study-group-list-create"),
     # 스터디 그룹 상세 조회 및 수정, 삭제
-    path("groups/<uuid:group_id>", StudyGroupDetailUpdateView.as_view(), name="study-group-detail-update"),
+    path("groups/<uuid:group_uuid>", StudyGroupDetailUpdateView.as_view(), name="study-group-detail-update"),
     # 특정 스터디 그룹의 리뷰 목록 조회 및 생성
     path("groups/<uuid:group_id>/reviews", GroupReviewListCreateView.as_view(), name="group-reviews"),
     # 특정 스터디 그룹에 대해서 리더 권한 위임

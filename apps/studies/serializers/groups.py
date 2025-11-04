@@ -1,5 +1,6 @@
 from datetime import timedelta
-from typing import Any, Dict, Iterable, cast
+from typing import Any, Dict, cast
+from uuid import UUID
 
 from django.db import transaction
 from django.db.models import QuerySet
@@ -7,7 +8,7 @@ from django.utils import timezone
 from rest_framework import serializers
 
 from apps.lecture.models import CrawledLecture
-from apps.studies.models.groups import GroupMember, StudyGroup, StudyLecture
+from apps.studies.models.groups import GroupMember, StudyGroup
 
 
 class StudyGroupBaseSerializer(serializers.ModelSerializer[StudyGroup]):
@@ -114,7 +115,7 @@ class StudyGroupListLectureSerializer(serializers.ModelSerializer[CrawledLecture
 class StudyGroupListSerializer(StudyGroupBaseSerializer):
     current_headcount = serializers.IntegerField()
     is_leader = serializers.SerializerMethodField()
-    lectures = StudyGroupListLectureSerializer(source="group_lectures", many=True)
+    lectures = StudyGroupListLectureSerializer(many=True)
 
     class Meta(StudyGroupBaseSerializer.Meta):
         fields = StudyGroupBaseSerializer.Meta.fields + [
@@ -128,9 +129,9 @@ class StudyGroupListSerializer(StudyGroupBaseSerializer):
         if not request or not hasattr(request, "user"):
             return False
         req_user_id = request.user.id
-        group_members = cast(QuerySet[GroupMember], obj.members.all())
+        members = obj.group_members.all()
 
-        return any(group_member.user.id == req_user_id and group_member.is_leader for group_member in group_members)
+        return any(member.user.id == req_user_id and member.is_leader for member in members)
 
 
 class StudyGroupDetailLectureSerializer(serializers.ModelSerializer[CrawledLecture]):
@@ -140,17 +141,18 @@ class StudyGroupDetailLectureSerializer(serializers.ModelSerializer[CrawledLectu
 
 
 class StudyGroupDetailMemberSerializer(serializers.ModelSerializer[GroupMember]):
+    uuid = serializers.UUIDField(source="user.uuid")
     nickname = serializers.CharField(source="user.nickname")
 
     class Meta:
         model = GroupMember
-        fields = ("id", "nickname", "is_leader")
+        fields = ("uuid", "nickname", "is_leader")
 
 
 class StudyGroupDetailSerializer(StudyGroupBaseSerializer):
     current_headcount = serializers.SerializerMethodField()
     members = StudyGroupDetailMemberSerializer(source="group_members", many=True)
-    lectures = StudyGroupDetailLectureSerializer(source="group_lectures", many=True)
+    lectures = StudyGroupDetailLectureSerializer(many=True)
 
     class Meta(StudyGroupBaseSerializer.Meta):
         fields = StudyGroupBaseSerializer.Meta.fields + ["current_headcount", "members", "lectures"]
@@ -158,12 +160,12 @@ class StudyGroupDetailSerializer(StudyGroupBaseSerializer):
     def get_current_headcount(self, obj: StudyGroup) -> int:
         return len(obj.members.all())
 
-    def get_members(self, obj: StudyGroup) -> list[dict[str, int | str]]:
+    def get_members(self, obj: StudyGroup) -> list[dict[str, int | str | UUID]]:
         group_members = cast(QuerySet[GroupMember], obj.members.all())
 
         return [
             {
-                "id": group_member.user.id,
+                "uuid": group_member.user.uuid,
                 "nickname": group_member.user.nickname,
                 "is_leader": group_member.is_leader,
             }

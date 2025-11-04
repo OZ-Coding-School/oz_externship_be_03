@@ -1,7 +1,9 @@
+import uuid
 from datetime import timedelta
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
+from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
@@ -27,7 +29,7 @@ class StudyGroupListCreateViewTest(TestCase):
         self.client.force_authenticate(user=self.user)
 
         self.lecture1 = CrawledLecture.objects.create(
-            uuid="00000000-0000-0000-0000-000000000001",
+            uuid=uuid.uuid4(),
             title="강의1",
             instructor="강사1",
             average_rating=4.5,
@@ -41,7 +43,7 @@ class StudyGroupListCreateViewTest(TestCase):
             thumbnail_img_url="https://example.com/thumbnail1.jpg",
         )
         self.lecture2 = CrawledLecture.objects.create(
-            uuid="00000000-0000-0000-0000-000000000002",
+            uuid=uuid.uuid4(),
             title="강의2",
             instructor="강사2",
             average_rating=4.0,
@@ -56,7 +58,7 @@ class StudyGroupListCreateViewTest(TestCase):
         )
 
         self.group = StudyGroup.objects.create(
-            uuid="00000000-0000-0000-0000-000000000001",
+            uuid=uuid.uuid4(),
             name="테스트 스터디",
             introduction="소개글",
             max_headcount=5,
@@ -65,14 +67,17 @@ class StudyGroupListCreateViewTest(TestCase):
             status="ONGOING",
         )
 
-        # 벌크 크리에이트.
-        StudyLecture.objects.create(study_group=self.group, lecture=self.lecture1)
-        StudyLecture.objects.create(study_group=self.group, lecture=self.lecture2)
+        StudyLecture.objects.bulk_create(
+            [
+                StudyLecture(study_group=self.group, lecture=self.lecture1),
+                StudyLecture(study_group=self.group, lecture=self.lecture2),
+            ]
+        )
 
         GroupMember.objects.create(study_group=self.group, user=self.user, is_leader=True)
 
-        self.list_create_url = f"/api/v1/studies/groups/"
-        self.group1_url = f"/api/v1/studies/groups/{self.group.uuid}/"
+        self.list_create_url = reverse("studies:study-group-list-create")
+        self.group1_url = reverse("studies:study-group-detail-update", kwargs={"group_uuid": self.group.uuid})
 
     def test_create_study_group(self) -> None:
         """스터디 그룹 생성"""
@@ -276,7 +281,7 @@ class StudyGroupDetailUpdateViewTest(TestCase):
         )
 
         self.group = StudyGroup.objects.create(
-            uuid="00000000-0000-0000-0000-000000000111",
+            uuid=uuid.uuid4(),
             name="테스트 스터디",
             introduction="소개글",
             max_headcount=5,
@@ -293,7 +298,7 @@ class StudyGroupDetailUpdateViewTest(TestCase):
 
         GroupMember.objects.create(study_group=self.group, user=self.user, is_leader=True)
 
-        self.detail_url = f"/api/v1/studies/groups/{self.group.uuid}/"
+        self.detail_url = reverse("studies:study-group-detail-update", kwargs={"group_uuid": self.group.uuid})
 
     def test_get_study_group_detail(self) -> None:
         response = self.client.get(self.detail_url)
@@ -376,7 +381,7 @@ class StudyGroupDetailUpdateViewTest(TestCase):
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_update_group_not_found(self) -> None:
-        wrong_url = "/api/v1/studies/groups/00000000-0000-0000-0000-999999999999/"
+        wrong_url = f"/api/v1/studies/groups/{uuid.uuid4()}"
         data = {"name": "존재하지 않는 그룹"}
 
         response = self.client.put(wrong_url, data, content_type="application/json")
