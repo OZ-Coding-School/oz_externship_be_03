@@ -72,7 +72,6 @@ class ReviewListItemSerializer(serializers.Serializer[Any]):
         return bool(user_id is not None and getattr(obj, "user_id", None) == user_id)
 
 
-
 class ReviewUpdateSerializer(serializers.ModelSerializer[Review]):
     star_rating = StarRatingField(represent="int", required=False)
     content = serializers.CharField(required=False)
