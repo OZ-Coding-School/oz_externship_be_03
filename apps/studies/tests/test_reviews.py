@@ -162,7 +162,7 @@ class ReviewCreateAPITests(_BaseFixtures):
         self.client = APIClient()
 
     def _url(self, group: StudyGroup) -> str:
-        return reverse("studies:group-reviews", kwargs={"group_id": str(group.uuid)})
+        return reverse("studies:group-reviews", kwargs={"group_uuid": str(group.uuid)})
 
     # 인증 사용자 + 정상 입력 → 201 생성(본문 없음) 확인
     def test_create_review_201(self) -> None:
@@ -216,7 +216,7 @@ class ReviewCreateAPITests(_BaseFixtures):
     def test_create_review_group_not_found_404(self) -> None:
         self.client.force_authenticate(user=self.user)
         res = self.client.post(
-            reverse("studies:group-reviews", kwargs={"group_id": "00000000-0000-0000-0000-000000000999"}),
+            reverse("studies:group-reviews", kwargs={"group_uuid": "00000000-0000-0000-0000-000000000999"}),
             {"star_rating": 5, "content": "없음"},
             format="json",
         )
@@ -226,7 +226,7 @@ class ReviewCreateAPITests(_BaseFixtures):
 # 2)API 리뷰생성
 class ReviewListAPITests(_BaseFixtures):
     def _url(self, group: StudyGroup) -> str:
-        return reverse("studies:group-reviews", kwargs={"group_id": str(group.uuid)})
+        return reverse("studies:group-reviews", kwargs={"group_uuid": str(group.uuid)})
 
     def _add_member(self, group: StudyGroup, user: User) -> None:
         GroupMember.objects.create(study_group=group, user=user)
@@ -264,7 +264,7 @@ class ReviewListAPITests(_BaseFixtures):
     def test_group_not_found_404(self) -> None:  # 존재하지 않는 group_id 호출 404 반환
         self.client.force_authenticate(user=self.user)
         res = self.client.get(
-            reverse("studies:group-reviews", kwargs={"group_id": "00000000-0000-0000-0000-000000000999"})
+            reverse("studies:group-reviews", kwargs={"group_uuid": "00000000-0000-0000-0000-000000000999"})
         )
         self.assertEqual(res.status_code, 404)
 
