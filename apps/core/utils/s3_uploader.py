@@ -172,7 +172,7 @@ class S3Uploader:
                     "key": key,
                     "url": presigned_post["url"],
                     "fields": presigned_post["fields"],
-                    "file_url": f"{presigned_post['url']}{key}",
+                    "file_url": cls.S3_BASE_URL + key,
                     "expires_in": 300,
                 }
             )
