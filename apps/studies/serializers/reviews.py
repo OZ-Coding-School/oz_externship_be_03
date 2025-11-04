@@ -43,16 +43,11 @@ class StarRatingField(serializers.ChoiceField):
 
 class ReviewCreateSerializer(serializers.ModelSerializer[Review]):
     star_rating = StarRatingField(represent="int")
+    content = serializers.CharField(allow_blank=False)
 
     class Meta:
         model = Review
         fields = ("star_rating", "content")
-
-    def validate(self, attrs: Dict[str, Any]) -> Dict[str, Any]:
-        content = attrs.get("content")
-        if content is not None and not str(content).strip():
-            raise serializers.ValidationError({"content": ["내용이 비어 있습니다."]})
-        return attrs
 
     def create(self, validated_data: Dict[str, Any]) -> Review:
         return Review.objects.create(**validated_data)
