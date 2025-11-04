@@ -72,7 +72,7 @@ class IsGroupMember(BasePermission):
             self.message = "해당 그룹이 존재하지 않습니다."
             return False
 
-        if not group.members.filter(user=user).exists():
+        if not group.group_members.filter(user=user).exists():
             self.message = "해당 스터디 그룹의 멤버만 생성할 수 있습니다."
             return False
 
