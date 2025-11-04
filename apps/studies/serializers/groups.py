@@ -1,10 +1,14 @@
 from datetime import timedelta
-from typing import Any, Iterable
+from typing import Any, Dict, cast
+from uuid import UUID
 
+from django.db import transaction
+from django.db.models import QuerySet
 from django.utils import timezone
 from rest_framework import serializers
 
-from apps.studies.models.groups import StudyGroup
+from apps.lecture.models import CrawledLecture
+from apps.studies.models.groups import GroupMember, StudyGroup
 
 
 class StudyGroupBaseSerializer(serializers.ModelSerializer[StudyGroup]):
@@ -12,7 +16,7 @@ class StudyGroupBaseSerializer(serializers.ModelSerializer[StudyGroup]):
     class Meta:
         model = StudyGroup
         fields = [
-            "id",
+            "uuid",
             "name",
             "profile_img_url",
             "max_headcount",
@@ -20,7 +24,7 @@ class StudyGroupBaseSerializer(serializers.ModelSerializer[StudyGroup]):
             "end_at",
             "status",
         ]
-        read_only_fields = ["id", "status"]
+        read_only_fields = ["uuid", "status"]
 
 
 # 스터디 그룹 생성 / 수정
@@ -33,22 +37,32 @@ class StudyGroupCreateSerializer(StudyGroupBaseSerializer):
     max_headcount = serializers.IntegerField(help_text="최대 인원 수 (2~10명)")
     start_at = serializers.DateTimeField(help_text="스터디 시작일")
     end_at = serializers.DateTimeField(help_text="스터디 종료일")
-    lectures = serializers.ListField(
-        child=serializers.IntegerField(min_value=1),
+    lectures = serializers.SlugRelatedField(
+        queryset=CrawledLecture.objects.all(),
+        many=True,
         required=False,
         allow_empty=True,
         default=list,
-        help_text="강의 ID 목록 (선택사항, 최대 5개 지정 가능)",
+        help_text="강의 UUID 목록 (선택사항, 최대 5개 지정 가능)",
+        slug_field="uuid",
     )
 
     class Meta(StudyGroupBaseSerializer.Meta):
         fields = StudyGroupBaseSerializer.Meta.fields + ["introduction", "lectures"]
 
-    # 그룹명 필수 검증
-    def validate_name(self, value: str) -> str:
-        if not value.strip():
-            raise serializers.ValidationError("스터디 그룹 명칭은 필수 항목입니다.")
-        return value
+    def create(self, validated_data: Dict[str, Any]) -> StudyGroup:
+        lectures = validated_data.pop("lectures", [])
+        # 에러 발생 시 StudyGroup도 롤백
+        with transaction.atomic():
+            study_group = StudyGroup.objects.create(**validated_data)
+            study_group.lectures.set(lectures)
+        return study_group
+
+    def to_representation(self, instance: StudyGroup) -> Dict[str, str]:
+        """출력 시 lecture 객체 → uuid 리스트로 변환"""
+        ret = super().to_representation(instance)
+        ret["lectures"] = list(instance.lectures.values_list("uuid", flat=True))
+        return ret
 
     # 인원 수 제한 (2~10명)
     def validate_max_headcount(self, value: int) -> int:
@@ -74,13 +88,34 @@ class StudyGroupCreateSerializer(StudyGroupBaseSerializer):
             raise serializers.ValidationError({"start_at": "시작일은 오늘 또는 이후여야 합니다."})
         return attrs
 
+    def update(self, instance: StudyGroup, validated_data: Dict[str, Any]) -> StudyGroup:
+        lectures = validated_data.pop("lectures", None)
+
+        for key, value in validated_data.items():
+            setattr(instance, key, value)
+
+        with transaction.atomic():
+            # 엄데이트할 필드만 선택하여 업데이트
+            if validated_data:
+                instance.save(update_fields=list(validated_data.keys()))
+
+            if lectures is not None:
+                instance.lectures.set(lectures, clear=True)
+
+        return instance
+
+
+class StudyGroupListLectureSerializer(serializers.ModelSerializer[CrawledLecture]):
+    class Meta:
+        model = CrawledLecture
+        fields = ("uuid", "title", "instructor", "original_price", "discount_price")
+
 
 # 스터디 그룹 목록 조회
 class StudyGroupListSerializer(StudyGroupBaseSerializer):
-    current_headcount = serializers.SerializerMethodField()
-    # 로그인 사용자가 리더인지 여부
+    current_headcount = serializers.IntegerField()
     is_leader = serializers.SerializerMethodField()
-    lectures = serializers.SerializerMethodField()
+    lectures = StudyGroupListLectureSerializer(many=True)
 
     class Meta(StudyGroupBaseSerializer.Meta):
         fields = StudyGroupBaseSerializer.Meta.fields + [
@@ -89,46 +124,35 @@ class StudyGroupListSerializer(StudyGroupBaseSerializer):
             "lectures",
         ]
 
-    def get_current_headcount(self, obj: StudyGroup) -> int:
-        return len(obj.members.all())
-
     def get_is_leader(self, obj: StudyGroup) -> bool:
         request = self.context.get("request")
         if not request or not hasattr(request, "user"):
             return False
-        user = request.user
-        return obj.members.filter(user_id=user.id, is_leader=True).exists()
+        req_user_id = request.user.id
+        members = obj.group_members.all()
 
-    def get_lectures(self, obj: StudyGroup) -> list[dict[str, int | str]]:
-        return [
-            {
-                "id": study_lecture.lecture.id,
-                "title": study_lecture.lecture.title,
-                "instructor": study_lecture.lecture.instructor,
-            }
-            for study_lecture in obj.lectures.all()
-        ]
+        return any(member.user.id == req_user_id and member.is_leader for member in members)
 
 
-# Spec API용 시리얼라이저
-class StudyGroupLectureSerializer:
-    def __init__(self, data: Iterable[Any], many: bool = False) -> None:
-        # dict 리스트로 변환
-        self.data = [
-            {"id": sl.lecture.id, "title": sl.lecture.title, "instructor": sl.lecture.instructor} for sl in data
-        ]
+class StudyGroupDetailLectureSerializer(serializers.ModelSerializer[CrawledLecture]):
+    class Meta:
+        model = CrawledLecture
+        fields = ("uuid", "thumbnail_img_url", "title", "instructor", "url_link")
 
 
-# Spec API용 시리얼라이저
-class StudyGroupMemberSerializer:
-    def __init__(self, data: Iterable[Any], many: bool = False) -> None:
-        self.data = [{"id": sl.user.id, "nickname": sl.user.nickname, "is_leader": sl.is_leader} for sl in data]
+class StudyGroupDetailMemberSerializer(serializers.ModelSerializer[GroupMember]):
+    uuid = serializers.UUIDField(source="user.uuid")
+    nickname = serializers.CharField(source="user.nickname")
+
+    class Meta:
+        model = GroupMember
+        fields = ("uuid", "nickname", "is_leader")
 
 
 class StudyGroupDetailSerializer(StudyGroupBaseSerializer):
     current_headcount = serializers.SerializerMethodField()
-    members = serializers.SerializerMethodField()
-    lectures = serializers.SerializerMethodField()
+    members = StudyGroupDetailMemberSerializer(source="group_members", many=True)
+    lectures = StudyGroupDetailLectureSerializer(many=True)
 
     class Meta(StudyGroupBaseSerializer.Meta):
         fields = StudyGroupBaseSerializer.Meta.fields + ["current_headcount", "members", "lectures"]
@@ -136,24 +160,14 @@ class StudyGroupDetailSerializer(StudyGroupBaseSerializer):
     def get_current_headcount(self, obj: StudyGroup) -> int:
         return len(obj.members.all())
 
-    def get_members(self, obj: StudyGroup) -> list[dict[str, int | str]]:
+    def get_members(self, obj: StudyGroup) -> list[dict[str, int | str | UUID]]:
+        group_members = cast(QuerySet[GroupMember], obj.members.all())
+
         return [
             {
-                "id": group_member.user.id,
+                "uuid": group_member.user.uuid,
                 "nickname": group_member.user.nickname,
                 "is_leader": group_member.is_leader,
             }
-            for group_member in obj.members.all()
-        ]
-
-    def get_lectures(self, obj: StudyGroup) -> list[dict[str, int | str | None]]:
-        return [
-            {
-                "id": study_lecture.lecture.id,
-                "thumbnail_img_url": study_lecture.lecture.thumbnail_img_url,
-                "title": study_lecture.lecture.title,
-                "instructor": study_lecture.lecture.instructor,
-                "url_link": study_lecture.lecture.url_link,
-            }
-            for study_lecture in obj.lectures.all()
+            for group_member in group_members
         ]
