@@ -6,7 +6,7 @@ from django.db.models import Count, ExpressionWrapper, F, OuterRef, Subquery, Va
 from django.db.models.functions import Coalesce
 
 from apps.chat.models import ChatMessage, LastReadMessage
-from apps.studies.models.groups import StudyGroup
+from apps.studies.models.groups import GroupMember, StudyGroup
 from apps.users.models import User
 
 
@@ -14,7 +14,8 @@ class ChatRoomService:
     @staticmethod
     def get_chat_rooms_for_user(user: User) -> Iterable[Dict[str, Any]]:
         # 사용자가 속한 스터디 그룹 목록 조회
-        study_groups = StudyGroup.objects.filter(members__user=user)
+        member_study_group_ids = GroupMember.objects.filter(user=user).values("study_group")
+        study_groups = StudyGroup.objects.filter(id__in=Subquery(member_study_group_ids))
 
         # 각 그룹의 마지막 메시지 서브쿼리
         last_message = ChatMessage.objects.filter(study_group=OuterRef("pk")).order_by("-created_at")

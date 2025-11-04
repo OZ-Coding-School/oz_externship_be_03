@@ -1,5 +1,8 @@
+from datetime import datetime
+
 from django.contrib.auth import get_user_model
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -33,8 +36,8 @@ class ChatMessageListAPIViewTest(APITestCase):
         self.study_group = StudyGroup.objects.create(
             name="Test Study Group",
             max_headcount=10,
-            start_at="2025-01-01T00:00:00Z",
-            end_at="2025-12-31T23:59:59Z",
+            start_at=timezone.make_aware(datetime(2025, 1, 1, 0, 0, 0)),
+            end_at=timezone.make_aware(datetime(2025, 12, 31, 23, 59, 59)),
         )
         self.group_member1 = GroupMember.objects.create(user=self.user1, study_group=self.study_group, is_leader=True)
         self.group_member2 = GroupMember.objects.create(user=self.user2, study_group=self.study_group)

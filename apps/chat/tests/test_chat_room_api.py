@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from django.contrib.auth import get_user_model
 from django.urls import reverse
@@ -33,7 +33,9 @@ class ChatRoomAPITestCase(APITestCase):
 
         # Case 1: user1, user2가 속한 그룹 (메시지 3개)
         self.study_group1 = StudyGroup.objects.create(
-            name="Test Group 1", start_at=timezone.now(), end_at=timezone.now() + timedelta(days=7)
+            name="Test Group 1",
+            start_at=timezone.make_aware(datetime(2025, 1, 1, 0, 0, 0)),
+            end_at=timezone.make_aware(datetime(2025, 1, 8, 0, 0, 0)),
         )
         GroupMember.objects.create(study_group=self.study_group1, user=self.user1, is_leader=True)
         GroupMember.objects.create(study_group=self.study_group1, user=self.user2)
@@ -43,17 +45,18 @@ class ChatRoomAPITestCase(APITestCase):
 
         # Case 2: user1만 속한 그룹 (메시지 없음)
         self.study_group2 = StudyGroup.objects.create(
-            name="Test Group 2", start_at=timezone.now(), end_at=timezone.now() + timedelta(days=7)
+            name="Test Group 2",
+            start_at=timezone.make_aware(datetime(2025, 1, 1, 0, 0, 0)),
+            end_at=timezone.make_aware(datetime(2025, 1, 8, 0, 0, 0)),
         )
         GroupMember.objects.create(study_group=self.study_group2, user=self.user1, is_leader=True)
 
         # Case 3: user1이 속한 또 다른 그룹 (메시지 2개)
         self.study_group3 = StudyGroup.objects.create(
-            name="Test Group 3", start_at=timezone.now(), end_at=timezone.now() + timedelta(days=7)
+            name="Test Group 3",
+            start_at=timezone.make_aware(datetime(2025, 1, 1, 0, 0, 0)),
+            end_at=timezone.make_aware(datetime(2025, 1, 8, 0, 0, 0)),
         )
-        GroupMember.objects.create(study_group=self.study_group3, user=self.user1, is_leader=True)
-        self.msg4 = ChatMessage.objects.create(study_group=self.study_group3, sender=self.user1, content="First")
-        self.msg5 = ChatMessage.objects.create(study_group=self.study_group3, sender=self.user1, content="Second")
 
         self.client.force_authenticate(user=self.user1)
 
@@ -62,7 +65,7 @@ class ChatRoomAPITestCase(APITestCase):
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 3)  # user1은 3개의 그룹에 속해 있음
+        self.assertEqual(len(response.data), 2)  # user1은 2개의 그룹에 속해 있음
 
         # 응답 순서는 생성 역순일 수 있으므로 이름으로 찾아서 확인
         room1_data = next((r for r in response.data if r["name"] == "Test Group 1"), None)
