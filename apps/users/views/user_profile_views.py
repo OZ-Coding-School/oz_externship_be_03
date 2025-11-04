@@ -9,6 +9,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.core.exceptions import Conflict
 from apps.core.views import ExceptionHandledAPIView
 from apps.users.models.user import User
 from apps.users.serializers.user_profile_serializers import (
@@ -67,9 +68,11 @@ class UserDupNicknameView(ExceptionHandledAPIView):
         filters_ = {"nickname__iexact": nickname} if case_insensitive else {"nickname": nickname}
         is_dup = User.objects.filter(**filters_).exists()
 
+        if is_dup:
+            raise Conflict("이미 사용중인 닉네임입니다.")
+
         return ok(
-            "이미 사용중인 닉네임입니다." if is_dup else "사용 가능한 닉네임입니다.",
-            data={"nickname": nickname, "available": not is_dup},
+            "사용 가능한 닉네임입니다.",
             status_code=status.HTTP_200_OK,
         )
 
