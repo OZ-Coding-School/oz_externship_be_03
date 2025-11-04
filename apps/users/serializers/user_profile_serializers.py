@@ -89,7 +89,7 @@ class DupNicknameQuerySerializer(serializers.Serializer[dict[str, Any]]):
     닉네임 중복 확인 쿼리 파라미터
     """
 
-    nickname = serializers.CharField(required=True, trim_whitespace=True)
+    nickname = serializers.CharField(max_length=10, min_length=1, required=True, trim_whitespace=True)
     case_insensitive = serializers.BooleanField(required=False, default=True)
 
 
