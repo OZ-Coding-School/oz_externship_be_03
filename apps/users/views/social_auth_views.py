@@ -1,4 +1,6 @@
-from typing import Any, Dict
+from __future__ import annotations
+
+from typing import Any, Dict, Optional
 
 import requests
 from django.conf import settings
@@ -16,10 +18,9 @@ from rest_framework.views import APIView
 
 from apps.users.services.social_auth_services import SocialAuthService
 
-# from __future__ import annotations
-
 
 class SocialAuthView(APIView):
+    """카카오 / 네이버 소셜 로그인 뷰"""
 
     permission_classes = [AllowAny]
 
@@ -56,89 +57,68 @@ class SocialAuthView(APIView):
         },
         responses={
             200: OpenApiResponse(
-                description="로그인 성공 시 JWT 발급 및 사용자 정보 반환",
+                description="로그인 성공 시 성공 메시지 반환",
                 examples=[
                     OpenApiExample(
                         name="성공 예시",
-                        summary="소셜 로그인 성공",
                         value={
                             "detail": "Kakao 로그인에 성공했습니다.",
-                            "result": {
-                                "user": {
-                                    "id": 1,
-                                    "email": "user@example.com",
-                                    "name": "홍길동",
-                                    "nickname": "길동이",
-                                    "provider": "kakao",
-                                },
-                                "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-                                "token_type": "Bearer",
-                                "access_token_expires_in": 3600,
-                            },
                         },
+                    )
+                ],
+            ),
+            400: OpenApiResponse(
+                description="오류 발생 시",
+                examples=[
+                    OpenApiExample(
+                        name="에러 예시",
+                        value={"detail": "Kakao 로그인 실패: access_token이 필요합니다."},
                     )
                 ],
             ),
         },
     )
-    def post(self, request: Request, provider: str) -> Response:
-        # 유효성 검증
+    def post(self, request: Request, provider: Optional[str] = None, *args: Any, **kwargs: Any) -> Response:
+        """
+        provider는 URL path 파라미터나 kwargs로 받을 수 있음.
+        (ex) /auth/social/kakao/, /auth/social/naver/, /auth/social/<str:provider>/
+        """
+        provider = provider or kwargs.get("provider")
+
+        # ✅ provider 검증
         if provider not in ("kakao", "naver"):
             return Response(
                 {"detail": "지원하지 않는 provider입니다."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        code: str | None = request.data.get("code")
-        state: str | None = request.data.get("state")
-
+        # ✅ code 유효성 검증
+        code: Optional[str] = request.data.get("code")
         if not code:
             raise serializers.ValidationError({"code": "인가 코드(code)가 필요합니다."})
 
-        # Access Token 요청
+        # ✅ Access token 요청 및 사용자 정보 처리
         try:
-            token_url: str
-            payload: Dict[str, Any]
-
-            if provider == "kakao":
-                token_url = "https://kauth.kakao.com/oauth/token"
-                payload = {
-                    "grant_type": "authorization_code",
-                    "client_id": settings.KAKAO_CLIENT_ID,
-                    "redirect_uri": settings.KAKAO_REDIRECT_URI,
-                    "code": code,
-                }
-
-            elif provider == "naver":
-                token_url = "https://nid.naver.com/oauth2.0/token"
-                payload = {
-                    "grant_type": "authorization_code",
-                    "client_id": settings.NAVER_CLIENT_ID,
-                    "client_secret": settings.NAVER_CLIENT_SECRET,
-                    "code": code,
-                    "state": state,
-                }
-
-            response: requests.Response = requests.post(token_url, data=payload)
-            response.raise_for_status()
-            access_token: str | None = response.json().get("access_token")
-
-        except requests.RequestException:
-            return Response(
-                {"detail": f"{provider} access_token 요청 실패"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        if not access_token:
-            return Response(
-                {"detail": f"{provider} access_token을 가져오지 못했습니다."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        # 서비스 호출
-        try:
-            result: Dict[str, Any] = SocialAuthService.social_login(provider, {"access_token": access_token})
+            result: Dict[str, Any] = SocialAuthService.social_login(provider, code)
             return Response(result, status=status.HTTP_200_OK)
 
-        except ValueError as e:
-            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except requests.RequestException as e:
+            # 외부 API 통신 에러 (카카오/네이버 서버 문제)
+            return Response(
+                {"detail": f"{provider.capitalize()} 서버 통신 중 오류: {str(e)}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        except serializers.ValidationError as e:
+            # 사용자 데이터 검증 오류
+            return Response(
+                {"detail": f"{provider.capitalize()} 로그인 검증 실패: {str(e)}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        except Exception as e:
+            # 그 외 모든 예외
+            return Response(
+                {"detail": f"{provider.capitalize()} 로그인 실패: {str(e)}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
