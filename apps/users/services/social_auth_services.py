@@ -69,7 +69,7 @@ class SocialAuthService:
         if not email:
             raise ValidationError("소셜 계정에서 이메일을 가져올 수 없습니다.")
 
-        #유저 생성/정보 조회
+        # 유저 생성/정보 조회
         user, _ = User.objects.get_or_create(
             email=email,
             defaults={
@@ -86,11 +86,11 @@ class SocialAuthService:
             defaults={"provider_id": user_info["provider_id"]},
         )
 
-        #JWT 토큰 발급 (공통 util)
+        # JWT 토큰 발급 (공통 util)
         tokens = _issue_tokens(user)
         access_expire_seconds = int(settings.SIMPLE_JWT["ACCESS_TOKEN_LIFETIME"].total_seconds())  # type: ignore
 
-        #응답 데이터
+        # 응답 데이터
         return {
             "detail": f"{provider.capitalize()} 로그인에 성공했습니다.",
             "result": {
