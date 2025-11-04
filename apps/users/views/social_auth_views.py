@@ -19,9 +19,6 @@ from apps.users.services.social_auth_services import SocialAuthService
 # from __future__ import annotations
 
 
-
-
-
 class SocialAuthView(APIView):
 
     permission_classes = [AllowAny]
@@ -98,7 +95,7 @@ class SocialAuthView(APIView):
         if not code:
             raise serializers.ValidationError({"code": "인가 코드(code)가 필요합니다."})
 
-        #Access Token 요청
+        # Access Token 요청
         try:
             token_url: str
             payload: Dict[str, Any]
