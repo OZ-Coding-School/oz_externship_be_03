@@ -1,4 +1,3 @@
-import uuid
 from datetime import timedelta
 from typing import Any
 
@@ -37,24 +36,34 @@ class ImageListCreateAPIView(APIView):
         operation_id="v1_images_list",
     )
     def get(self, request: Request, recruitment_id: int, *args: Any, **kwargs: Any) -> Response:
+        base_now = timezone.now()
         mock_data = [
             RecruitmentImage(
                 id=i,
                 recruitment_id=recruitment_id,
                 img_url=f"https://cdn.example.com/imgs/mock_{i}.jpg",
-                created_at=timezone.now() - timedelta(days=i),
-                updated_at=timezone.now(),
+                created_at=base_now - timedelta(days=i),
+                updated_at=base_now,
             )
             for i in range(1, 16)
         ]
-        serializer = self.serializer_class(mock_data, many=True)
 
-        page = int(request.query_params.get("page", 1))
+        # 페이지 안전 파싱
+        try:
+            page = int(request.query_params.get("page", 1))
+            if page < 1:
+                page = 1
+        except (TypeError, ValueError):
+            page = 1
+
         page_size = 10
         start, end = (page - 1) * page_size, (page - 1) * page_size + page_size
-        paged_data = serializer.data[start:end]
 
-        return Response({"results": paged_data}, status=status.HTTP_200_OK)
+        # 전체 직렬화 전에 슬라이싱 → 성능 개선
+        paged_objects = mock_data[start:end]
+        serializer = self.serializer_class(paged_objects, many=True)
+
+        return Response({"results": serializer.data}, status=status.HTTP_200_OK)
 
     @extend_schema(
         tags=["Images"],
@@ -69,18 +78,22 @@ class ImageListCreateAPIView(APIView):
         if recruitment_id in self.MOCK_NONEXISTENT_RECRUITMENT_IDS:
             return Response({"detail": "존재하지 않는 공고입니다."}, status=status.HTTP_400_BAD_REQUEST)
 
-        if (url := data.get("img_url")) in self.MOCK_DUPLICATE_URLS:
+        # 입력값 정리 (공백 제거)
+        if url := data.get("img_url"):
+            url = url.strip()
+        if url in self.MOCK_DUPLICATE_URLS:
             return Response({"detail": "이미 등록된 이미지입니다."}, status=status.HTTP_400_BAD_REQUEST)
 
         serializer = self.serializer_class(data=data)
         serializer.is_valid(raise_exception=True)
 
+        base_now = timezone.now()
         created = RecruitmentImage(
-            id=uuid.uuid4().int % 100000,
+            id=1,  # 모크용 고정 ID (필요 시 증가 로직으로 교체)
             recruitment_id=recruitment_id,
             img_url=serializer.validated_data["img_url"],
-            created_at=timezone.now(),
-            updated_at=timezone.now(),
+            created_at=base_now,
+            updated_at=base_now,
         )
         return Response(self.serializer_class(created).data, status=status.HTTP_201_CREATED)
 
@@ -102,12 +115,13 @@ class ImageRetrieveDestroyAPIView(APIView):
         operation_id="v1_images_retrieve",
     )
     def get(self, request: Request, image_id: int, *args: Any, **kwargs: Any) -> Response:
+        base_now = timezone.now()
         mock = RecruitmentImage(
             id=image_id,
             recruitment_id=1,
             img_url=f"https://cdn.example.com/imgs/mock_{image_id}.jpg",
-            created_at=timezone.now() - timedelta(days=1),
-            updated_at=timezone.now(),
+            created_at=base_now - timedelta(days=1),
+            updated_at=base_now,
         )
         return Response(self.serializer_class(mock).data, status=status.HTTP_200_OK)
 
@@ -117,4 +131,5 @@ class ImageRetrieveDestroyAPIView(APIView):
         operation_id="v1_images_destroy",
     )
     def delete(self, request: Request, image_id: int, *args: Any, **kwargs: Any) -> Response:
-        return Response({"detail": "이미지가 삭제되었습니다."}, status=status.HTTP_204_NO_CONTENT)
+        # 204 No Content → 본문 제거 (HTTP 규약 일치)
+        return Response(status=status.HTTP_204_NO_CONTENT)
