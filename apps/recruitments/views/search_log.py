@@ -1,47 +1,30 @@
-from datetime import timedelta
-from typing import Any, List
+from typing import Any
 
-from django.contrib.auth.models import AbstractUser
-from django.utils import timezone
-from drf_spectacular.utils import extend_schema
-from rest_framework import status
-from rest_framework.permissions import AllowAny
-from rest_framework.request import Request
-from rest_framework.response import Response
-from rest_framework.views import APIView
+from django.contrib.auth.models import AnonymousUser
+from django.db.models import QuerySet
+from rest_framework.generics import ListAPIView, ListCreateAPIView
+from rest_framework.serializers import BaseSerializer
 
 from apps.recruitments.models.search_log import SearchLog
 from apps.recruitments.serializers.search_log import SearchLogSerializer
 
 
-class SearchLogAPIView(APIView):
+class SearchLogListCreateAPIView(ListCreateAPIView[SearchLog]):
+    queryset: QuerySet[SearchLog] = SearchLog.objects.all()
     serializer_class = SearchLogSerializer
-    permission_classes = [AllowAny]
 
-    @extend_schema(tags=["SearchLogs"], summary="검색 기록 등록")
-    def post(self, request: Request, *args: Any, **kwargs: Any) -> Response:
-        user = request.user if isinstance(request.user, AbstractUser) else None
-        serializer = self.serializer_class(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        serializer.save(user=user)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    def perform_create(self, serializer: BaseSerializer[SearchLog]) -> None:
+        ip = self.request.META.get("REMOTE_ADDR")
+        user_agent = self.request.META.get("HTTP_USER_AGENT", "")
+        user = self.request.user if not isinstance(self.request.user, AnonymousUser) else None
+        serializer.save(user=user, ip=ip, user_agent=user_agent)
 
-    @extend_schema(tags=["SearchLogs"], summary="검색 기록 조회", responses={200: SearchLogSerializer(many=True)})
-    def get(self, request: Request, *args: Any, **kwargs: Any) -> Response:
-        user = request.user if isinstance(request.user, AbstractUser) else None
-        mock_data: List[SearchLog] = [
-            SearchLog(
-                id=i,
-                user=user,
-                q=f"검색어 {i}",
-                filters={"status": "OPEN"},
-                results_count=10 + i,
-                latency_ms=50 + i,
-                ip="127.0.0.1",
-                user_agent="Mozilla/5.0",
-                created_at=timezone.now() - timedelta(hours=i),
-            )
-            for i in range(1, 6)
-        ]
-        serializer = self.serializer_class(instance=mock_data, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+
+class RecentSearchLogAPIView(ListAPIView[SearchLog]):
+    serializer_class = SearchLogSerializer
+
+    def get_queryset(self) -> QuerySet[SearchLog]:
+        user = self.request.user
+        if isinstance(user, AnonymousUser):
+            return SearchLog.objects.none()
+        return SearchLog.objects.filter(user=user).order_by("-created_at")[:10]

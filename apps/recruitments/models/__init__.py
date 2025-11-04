@@ -1,4 +1,4 @@
-from .application import ApplicationStatus
+from .application import Application, ApplicationStatus
 from .attachment import RecruitmentAttachment
 from .bookmark import Bookmark
 from .recruitment_images import RecruitmentImage
@@ -8,6 +8,7 @@ from .search_log import SearchLog
 from .tag import Tag
 
 __all__ = [
+    "Application",
     "ApplicationStatus",
     "RecruitmentAttachment",
     "Bookmark",

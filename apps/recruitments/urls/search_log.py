@@ -1,7 +1,7 @@
 from django.urls import path
 
-from apps.recruitments.views.search_log import SearchLogAPIView
+from apps.recruitments.views.search_log import SearchLogListCreateAPIView
 
 urlpatterns = [
-    path("", SearchLogAPIView.as_view(), name="search-log-list-create"),
+    path("search-logs/", SearchLogListCreateAPIView.as_view(), name="searchlog-list-create"),
 ]

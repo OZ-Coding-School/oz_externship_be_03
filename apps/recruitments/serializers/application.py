@@ -1,11 +1,9 @@
-from typing import Any
+from rest_framework.serializers import ModelSerializer
 
-from rest_framework import serializers
-
-from apps.recruitments.models.application import Application, ApplicationStatus
+from apps.recruitments.models.application import Application
 
 
-class ApplicationSerializer(serializers.ModelSerializer[Application]):
+class ApplicationSerializer(ModelSerializer[Application]):
     class Meta:
         model = Application
         fields = [
@@ -23,7 +21,3 @@ class ApplicationSerializer(serializers.ModelSerializer[Application]):
             "updated_at",
         ]
         read_only_fields = ["id", "user", "status", "created_at", "updated_at"]
-
-
-class ApplicationStatusUpdateSerializer(serializers.Serializer[Any]):
-    status = serializers.ChoiceField(choices=ApplicationStatus.choices)
