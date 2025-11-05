@@ -78,7 +78,7 @@ class MemberFeatureAPITestCase(APITestCase):
             kwargs={"group_uuid": self.group.uuid, "member_id": self.leader_member.id},
         )
         response = self.client.delete(url)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_kick_member_unauthenticated(self) -> None:
         """비로그인 사용자는 추방 요청 불가"""
@@ -104,7 +104,7 @@ class MemberFeatureAPITestCase(APITestCase):
         self.client.force_authenticate(user=self.leader)
         url = reverse("studies:study-member-leave", kwargs={"group_uuid": self.group.uuid})
         response = self.client.delete(url, {"confirm": True}, format="json")
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("리더는 탈퇴할 수 없습니다", response.data["detail"])
 
     def test_leave_group_unauthenticated(self) -> None:
@@ -133,7 +133,7 @@ class MemberFeatureAPITestCase(APITestCase):
         url = reverse("studies:delegate-leader", kwargs={"group_uuid": self.group.uuid})
         data = {"target_member_id": self.leader_member.id}
         response = self.client.post(url, data, format="json")
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_delegate_leader_unauthenticated(self) -> None:
         """비로그인 사용자는 리더 위임 요청 불가"""
