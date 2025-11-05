@@ -46,4 +46,4 @@ class Role(TextChoices):
 class UserStatus(TextChoices):
     ACTIVE = "active", "활성 회원"
     INACTIVE = "inactive", "비활성 회원"
-    WITHDRAWAL_PENDING = "WITHDRAWAL_PENDING", "탈퇴 유예중"
+    WITHDRAWAL_PENDING = "withdrawal_pending", "탈퇴 유예중"

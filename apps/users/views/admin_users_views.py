@@ -3,18 +3,22 @@ from __future__ import annotations
 from typing import Any
 
 from django.http import Http404
-from drf_spectacular.utils import extend_schema, extend_schema_view
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
 from rest_framework import status
 from rest_framework.exceptions import PermissionDenied
-from rest_framework.permissions import IsAdminUser
+from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.core.paginators import StandardPageNumberPagination
+from apps.core.views import ExceptionHandledAPIView
+from apps.users.enums import Role, UserStatus
+from apps.users.permissions import IsStaffRole
 from apps.users.serializers.admin_users_serializer import (
     AdminUserDetailSerializer,
     AdminUserItemSerializer,
-    AdminUserListDataSerializer,
     AdminUserListResponseSerializer,
     AdminUserRoleUpdateRequestSerializer,
     AdminUserRoleUpdateResponseSerializer,
@@ -24,22 +28,59 @@ from apps.users.services.admin_users_services import AdminUserService
 
 
 # 관리자: 회원 목록 조회
-@extend_schema(
-    tags=["Admin"],
-    summary="관리자 - 회원 목록 조회",
-    responses={200: AdminUserListResponseSerializer},
-)
-class AdminUserListView(APIView):
-    permission_classes = [IsAdminUser]
+class AdminUserListView(ExceptionHandledAPIView):
+    permission_classes = [IsAuthenticated, IsStaffRole]
+    pagination_class = StandardPageNumberPagination
 
+    @extend_schema(
+        tags=["Admin"],
+        summary="관리자 - 회원 목록 조회",
+        parameters=[
+            OpenApiParameter(name="page", required=False, type=int, description="페이지 번호(기본 1)"),
+            OpenApiParameter(name="limit", required=False, type=int, description="페이지당 개수(기본 20)"),
+            OpenApiParameter(name="q", required=False, type=str, description="검색어(이메일/닉네임/이름/ID)"),
+            OpenApiParameter(
+                name="role",
+                required=False,
+                type=OpenApiTypes.STR,
+                enum=[r.value for r in Role],
+                description="권한 필터(admin|staff|user)",
+            ),
+            OpenApiParameter(
+                name="status",
+                required=False,
+                type=OpenApiTypes.STR,
+                enum=[s.value for s in UserStatus],
+                description="상태 필터(active|inactive|withdrawal_pending)",
+            ),
+            OpenApiParameter(
+                name="order", required=False, type=str, description="정렬 필드(기본 'id' 오름차순, '-id' 내림차순)"
+            ),
+        ],
+        responses={200: AdminUserListResponseSerializer},
+    )
     def get(self, request: Request, *args: Any, **kwargs: Any) -> Response:
-        users = AdminUserService.get_user_list()
-        data_ser = AdminUserListDataSerializer({"users": users})
+        qp = request.query_params
+        q = qp.get("q")
+        role = qp.get("role")
+        stat = qp.get("status")
+        order = qp.get("order", "id")
+
+        base_qs = AdminUserService.get_user_list(order=order, q=q, role=role, status=stat)
+
+        paginator = self.pagination_class()
+        page_qs = paginator.paginate_queryset(base_qs, request, view=self) or base_qs
+
+        items = AdminUserItemSerializer(instance=list(page_qs), many=True).data
+        meta = paginator.meta(request)
 
         return Response(
             {
                 "detail": "회원 목록 조회에 성공하였습니다.",
-                "data": data_ser.data,
+                "data": {
+                    "users": items,
+                    "pagination": meta,
+                },
             },
             status=status.HTTP_200_OK,
         )
