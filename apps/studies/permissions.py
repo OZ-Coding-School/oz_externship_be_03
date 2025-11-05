@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from typing import Any, cast
 import uuid
-from typing import Any
+from typing import Any, cast
 
 from django.core.exceptions import ObjectDoesNotExist
 from django.http import HttpRequest
