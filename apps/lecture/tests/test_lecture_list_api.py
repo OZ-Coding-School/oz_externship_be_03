@@ -78,7 +78,7 @@ class LectureListApiViewTest(BaseLectureTest):
         """평점 내림차순 정렬"""
         response = self.client.get(self.list_url, {"ordering": "-rating"})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["results"][0]["average_rating"], "4.80")
+        self.assertEqual(response.data["results"][0]["average_rating"], 4.80)
 
     def test_empty_result(self) -> None:
         """검색 결과 없음"""
