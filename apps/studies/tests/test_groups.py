@@ -381,7 +381,7 @@ class StudyGroupDetailUpdateViewTest(TestCase):
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_update_group_not_found(self) -> None:
-        wrong_url = f"/api/v1/studies/groups/{uuid.uuid4()}"
+        wrong_url = reverse("studies:study-group-detail-update", kwargs={"group_uuid": uuid.uuid4()})
         data = {"name": "존재하지 않는 그룹"}
 
         response = self.client.put(wrong_url, data, content_type="application/json")
