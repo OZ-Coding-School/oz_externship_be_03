@@ -51,10 +51,10 @@ class AdminWithdrawalListViewTestCase(TestCase):
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
 
         data = resp.json()["data"]
-        self.assertIn("users", data)
-        self.assertGreaterEqual(len(data["users"]), 1)
+        self.assertIn("results", data)
+        self.assertGreaterEqual(len(data["results"]), 1)
 
-        item = data["users"][0]
+        item = data["results"][0]
         self.assertIn("id", item)
         self.assertIn("email", item)
         self.assertIn("reason", item)
