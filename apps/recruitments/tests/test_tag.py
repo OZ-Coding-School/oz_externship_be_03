@@ -95,11 +95,7 @@ class TestRecruitmentTagView(TestCase):
         # 태그는 중복 생성되지 않아야 함 (하나만 존재)
         self.assertEqual(Tag.objects.filter(name="Python").count(), 1)
         # RecruitmentTag 관계는 정확히 하나 생성되어야 함
-        self.assertTrue(
-            RecruitmentTag.objects.filter(
-                recruitment=self.recruitment, tag__name="Python"
-            ).exists()
-        )
+        self.assertTrue(RecruitmentTag.objects.filter(recruitment=self.recruitment, tag__name="Python").exists())
 
     def test_post_already_linked_tag(self) -> None:
         """이미 연결된 태그 재등록 시 400"""
