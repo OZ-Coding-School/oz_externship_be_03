@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime, timezone
 from unittest.mock import MagicMock, patch
 
 from django.contrib.auth import get_user_model
@@ -7,6 +7,7 @@ from django.test import TestCase
 from apps.notifications.models import Notification
 from apps.recruitments.models import Recruitment
 from apps.recruitments.models.application import Application, ApplicationStatus
+from apps.studies.models.groups import StudyGroup
 from apps.users.enums import Gender
 
 User = get_user_model()
@@ -39,6 +40,14 @@ class SignalTest(TestCase):
             content="테스트 공고",
             estimated_fee=100000,
             expected_headcount=5,
+        )
+
+        self.study_group = StudyGroup.objects.create(
+            name="오즈코딩스쿨",
+            introduction="장고 익스턴십",
+            max_headcount=5,
+            start_at=datetime.now(timezone.utc),
+            end_at=datetime.now(timezone.utc),
         )
 
     @patch("apps.notifications.signals.send_to_pubsub.delay")
@@ -107,3 +116,32 @@ class SignalTest(TestCase):
             notification.content, f"'{self.recruitment.title}' 구인 공고에 대한 지원내역이 거절되었습니다."
         )
         self.assertEqual(mock_task.call_count, 2)
+
+    @patch("apps.notifications.tasks.send_study_group_notification.delay")
+    def test_study_group_notification(self, mock_delay: MagicMock) -> None:
+        """스터디 그룹 멤버 참여 알림 테스트"""
+        self.recruitment.study_group = self.study_group
+        self.recruitment.save()
+
+        application = Application.objects.create(
+            recruitment=self.recruitment,
+            user=self.applicant,
+            self_introduction="자기소개",
+            motivation="지원동기",
+            objective="목표",
+            available_time="시간",
+        )
+
+        application.status = ApplicationStatus.APPROVED
+        application.save()
+
+        notification = Notification.objects.get(
+            user=self.applicant, type=Notification.NotificationType.STUDY_MEMBER_JOINED
+        )
+
+        expected_content = f"{self.study_group.name}에 {self.applicant.nickname}님이 참여했습니다. 환영해주세요!"
+        self.assertEqual(notification.content, expected_content)
+        assert notification.back_url_link is not None  # mypy 에서 back_url_link가 optional타입으로 정의되어있어 확인
+        self.assertIn(f"/api/v1/chat/ws/study-groups/{self.study_group.id}", notification.back_url_link)
+
+        mock_delay.assert_called_once_with(notification.id, str(self.study_group.id))

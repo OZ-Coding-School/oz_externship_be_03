@@ -1,10 +1,10 @@
 import json
-from pickle import FALSE
 from typing import AsyncGenerator
 
 from django.http import HttpRequest, StreamingHttpResponse
 
 from apps.notifications.services.redis_pubsub_classify import notification_pubsub
+from apps.studies.models.groups import GroupMember
 
 
 async def notification_stream(request: HttpRequest, user_id: int) -> StreamingHttpResponse:
@@ -27,8 +27,18 @@ async def notification_stream(request: HttpRequest, user_id: int) -> StreamingHt
         try:  # 연결 완료 신호
             yield f"data:{json.dumps({'type':'connected'}, ensure_ascii=False)}\n\n"
 
+            # 사용자가 속한 그룹들 조회
+            user_groups = [
+                str(group_id)
+                async for group_id in GroupMember.objects.filter(user_id=user_id).values_list(
+                    "study_group_id", flat=True
+                )
+            ]
+
             # Redis 구독 처리
-            async for notification in notification_pubsub.subscribe_user_notification(user_id):
+            async for notification in notification_pubsub.subscribe_notification(
+                user_id=user_id, group_ids=user_groups if user_groups else None
+            ):
                 sse_data = json.dumps(notification, ensure_ascii=False)
                 yield f"data:{sse_data}\n\n"
 
