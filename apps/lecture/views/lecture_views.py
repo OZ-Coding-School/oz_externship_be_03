@@ -20,6 +20,12 @@ from apps.lecture.serializers import (
 )
 
 
+class LecturePagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = "page_size"
+    max_page_size = 100
+
+
 class LectureListView(APIView):
     serializer_class = LectureListSerializer
     permission_classes = [AllowAny]
@@ -49,7 +55,7 @@ class LectureListView(APIView):
         if search_keyword and request.user.is_authenticated:
             LectureSearchLog.objects.create(user=request.user, keyword=search_keyword)
 
-        paginator = PageNumberPagination()
+        paginator = LecturePagination()
         page = paginator.paginate_queryset(queryset, request)
         serializer = LectureListSerializer(page, many=True, context={"request": request})
         return paginator.get_paginated_response(serializer.data)

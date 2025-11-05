@@ -9,6 +9,7 @@ class LectureListSerializer(serializers.ModelSerializer[CrawledLecture]):
 
     categories = CategoryListSerializer(many=True, read_only=True)
     is_bookmarked = serializers.SerializerMethodField()
+    average_rating = serializers.FloatField()
 
     class Meta:
         model = CrawledLecture
