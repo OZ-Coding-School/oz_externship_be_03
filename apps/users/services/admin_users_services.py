@@ -1,6 +1,16 @@
 from typing import Any, Dict
 
-from django.db.models import OuterRef, QuerySet, Subquery
+from django.db.models import (
+    Case,
+    CharField,
+    Exists,
+    OuterRef,
+    Q,
+    QuerySet,
+    Subquery,
+    Value,
+    When,
+)
 from django.shortcuts import get_object_or_404
 
 from apps.users.enums import Role, UserStatus
@@ -17,18 +27,10 @@ class AdminUserService:
         INACTIVE - 비활성
         WITHDRAWAL_PEDING - 탈퇴요청
         """
-        has_withdrawal = Withdrawal.objects.filter(user_id=user.id).exists()
-
-        if has_withdrawal:
-            # 탈퇴 테이블에 있으면 탈퇴 요청 중
+        is_withdrawn = User.objects.withdrawal_pending().filter(id=user.id).exists()
+        if is_withdrawn:
             return UserStatus.WITHDRAWAL_PENDING.value
-
-        # 탈퇴 테이블에 없고 활성 상태면 정상
-        if user.is_active:
-            return UserStatus.ACTIVE.value
-
-        # 탈퇴 테이블에 없고 비활성이면 완전 탈퇴
-        return UserStatus.INACTIVE.value
+        return UserStatus.ACTIVE.value if user.is_active else UserStatus.INACTIVE.value
 
     @staticmethod
     def get_user_role(user: User) -> str:
@@ -41,15 +43,78 @@ class AdminUserService:
             return Role.STAFF.value
         return Role.USER.value
 
-    # 회원 목록 조회
-
     @staticmethod
-    def get_user_list() -> QuerySet[User]:
+    def _base_qs() -> QuerySet[User]:
         latest_withdrawal = (
             Withdrawal.objects.filter(user_id=OuterRef("id")).order_by("-created_at").values("created_at")[:1]
         )
+        withdrawal_exists = Withdrawal.objects.filter(user_id=OuterRef("id"))
 
-        return User.objects.annotate(withdrawal_requested_at=Subquery(latest_withdrawal)).order_by("-created_at")
+        return User.objects.annotate(
+            # 탈퇴요청일
+            withdrawal_requested_at=Subquery(latest_withdrawal),
+            # 탈퇴요청 존재 여부
+            is_withdrawn=Exists(withdrawal_exists),
+            # 권한
+            effective_role=Case(
+                When(is_superuser=True, then=Value(Role.ADMIN.value)),
+                When(is_staff=True, then=Value(Role.STAFF.value)),
+                default=Value(Role.USER.value),
+                output_field=CharField(),
+            ),
+            # 상태
+            status=Case(
+                When(Exists(withdrawal_exists), then=Value(UserStatus.WITHDRAWAL_PENDING.value)),
+                When(is_active=True, then=Value(UserStatus.ACTIVE.value)),
+                default=Value(UserStatus.INACTIVE.value),
+                output_field=CharField(),
+            ),
+        )
+
+    # 회원 목록 조회
+
+    @staticmethod
+    def get_user_list(
+        *,
+        order: str = "id",
+        q: str | None = None,
+        role: str | None = None,
+        status: str | None = None,
+    ) -> QuerySet[User]:
+        """
+        회원 목록 조회(필터/정렬/페이지네이션 적용)
+        """
+        qs = AdminUserService._base_qs()
+
+        # 검색: 이메일/닉네임/이름/ID
+        if q:
+            cond = Q(email__icontains=q) | Q(nickname__icontains=q) | Q(name__icontains=q)
+            if q.isdigit():
+                cond |= Q(id=int(q))
+            qs = qs.filter(cond)
+
+        # ---- 권한별 필터링 ----
+        if role:
+            r = role.lower()
+            if r == Role.ADMIN.value:
+                qs = qs.filter(is_superuser=True)
+            elif r == Role.STAFF.value:
+                qs = qs.filter(is_superuser=False, is_staff=True)
+            elif r == Role.USER.value:
+                qs = qs.filter(is_superuser=False, is_staff=False)
+
+        # ---- 상태별 필터링 ----
+        if status:
+            s = status.lower()
+            if s == UserStatus.WITHDRAWAL_PENDING.value:
+                qs = qs.filter(is_active=False, withdrawals__isnull=False)
+            elif s == UserStatus.ACTIVE.value:
+                qs = qs.filter(is_active=True)
+            elif s == UserStatus.INACTIVE.value:
+                qs = qs.filter(is_active=False, withdrawals__isnull=True)
+
+        # ---- 정렬 ----
+        return qs.order_by(order)
 
     # 회원 상세 조회
 

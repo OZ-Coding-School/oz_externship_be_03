@@ -15,27 +15,32 @@ if TYPE_CHECKING:
 
 
 # [관리자] 회원 목록 조회
-class AdminUserItemSerializer(serializers.Serializer[Dict[str, Any]]):
-    id = serializers.IntegerField()
-    email = serializers.EmailField()
-    nickname = serializers.CharField()
-    name = serializers.CharField()
-    birthday = serializers.DateField()
-    status = serializers.SerializerMethodField()
-    role = serializers.SerializerMethodField()
-    created_at = serializers.DateTimeField()
-    withdrawal_requested_at = serializers.DateTimeField(allow_null=True, required=False)
+class AdminUserItemSerializer(serializers.ModelSerializer["UserModel"]):
+    # annotate 필드
+    status = serializers.CharField(read_only=True)
+    role = serializers.CharField(source="effective_role", read_only=True)
+    withdrawal_requested_at = serializers.DateTimeField(allow_null=True, required=False, read_only=True)
 
-    def get_status(self, obj: UserModel) -> str:
-        return AdminUserService.get_user_status(obj)
-
-    def get_role(self, obj: UserModel) -> str:
-        return AdminUserService.get_user_role(obj)
+    class Meta:
+        model = User
+        fields = [
+            "id",
+            "email",
+            "nickname",
+            "name",
+            "birthday",
+            "status",
+            "role",
+            "created_at",
+            "withdrawal_requested_at",
+        ]
+        read_only_fields = fields
 
 
 # [관리자] data: {users: [...]}
 class AdminUserListDataSerializer(serializers.Serializer[Dict[str, Any]]):
     users = AdminUserItemSerializer(many=True)
+    pagination = serializers.DictField()
 
 
 # [관리자] detail: "", data: {users: [...]}
