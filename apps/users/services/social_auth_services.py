@@ -6,6 +6,7 @@ import requests
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError
+from django.utils import timezone
 from requests.exceptions import RequestException
 
 from apps.users.enums import Gender, Provider
@@ -14,7 +15,6 @@ from apps.users.services.auth_services import _issue_tokens
 
 
 class SocialAuthService:
-    """소셜 로그인 서비스"""
 
     # 사용자 정보 조회
     @staticmethod
@@ -23,7 +23,7 @@ class SocialAuthService:
             raise ValidationError(f"{provider.capitalize()} access_token이 필요합니다.")
 
         try:
-            if provider == Provider.KAKAO:
+            if provider == Provider.KAKAO.value:
                 headers = {"Authorization": f"Bearer {access_token}"}
                 response = requests.get("https://kapi.kakao.com/v2/user/me", headers=headers)
                 response.raise_for_status()
@@ -39,11 +39,11 @@ class SocialAuthService:
                     "birthday": str(account.get("birthday") or ""),
                     "gender": str(account.get("gender") or ""),
                     "profile_img_url": str(profile.get("profile_image_url") or ""),
-                    "provider": Provider.KAKAO,
+                    "provider": Provider.KAKAO.value,
                     "provider_id": str(kakao_data.get("id") or ""),
                 }
 
-            elif provider == Provider.NAVER:
+            elif provider == Provider.NAVER.value:
                 headers = {"Authorization": f"Bearer {access_token}"}
                 response = requests.get("https://openapi.naver.com/v1/nid/me", headers=headers)
                 response.raise_for_status()
@@ -57,7 +57,7 @@ class SocialAuthService:
                     "birthday": str(naver_data.get("birthday") or ""),
                     "gender": str(naver_data.get("gender") or ""),
                     "profile_img_url": str(naver_data.get("profile_image") or ""),
-                    "provider": Provider.NAVER,
+                    "provider": Provider.NAVER.value,
                     "provider_id": str(naver_data.get("id") or ""),
                 }
 
@@ -72,14 +72,18 @@ class SocialAuthService:
     def social_login(provider: str, code: str) -> Dict[str, str]:
         """인가코드 → access_token 교환 → 사용자 정보 저장 (응답은 detail 메시지만 반환)"""
 
+        provider = provider.lower()
+        if provider not in (Provider.KAKAO.value, Provider.NAVER.value):
+            raise ValidationError(f"지원하지 않는 provider입니다: {provider}")
+
         token_url = (
             "https://kauth.kakao.com/oauth/token"
-            if provider == Provider.KAKAO
+            if provider == Provider.KAKAO.value
             else "https://nid.naver.com/oauth2.0/token"
         )
         payload: Dict[str, str] = {"grant_type": "authorization_code", "code": code}
 
-        if provider == Provider.KAKAO:
+        if provider == Provider.KAKAO.value:
             payload.update(
                 {
                     "client_id": str(settings.KAKAO_CLIENT_ID or ""),
@@ -110,6 +114,11 @@ class SocialAuthService:
         # 기존 유저 존재 → 로그인
         existing_user = User.objects.filter(email=email).first()
         if existing_user:
+            SocialUser.objects.update_or_create(
+                user=existing_user,
+                provider=Provider(provider).value,
+                defaults={"provider_id": user_info.get("provider_id", ""), "updated_at": timezone.now()},
+            )
             _issue_tokens(existing_user)
             return {"detail": f"{provider.capitalize()} 로그인에 성공했습니다."}
 
@@ -137,14 +146,11 @@ class SocialAuthService:
             raise ValidationError(f"{provider.capitalize()} 회원 생성 중 중복된 정보가 있습니다: {e}")
 
         # 소셜 계정 연결
-        try:
-            SocialUser.objects.create(
-                user=user,
-                provider=provider,
-                provider_id=user_info.get("provider_id", ""),
-            )
-        except IntegrityError:
-            return {"detail": f"{provider.capitalize()} 로그인에 성공했습니다."}
+        SocialUser.objects.create(
+            user=user,
+            provider=Provider(provider).value,
+            provider_id=user_info.get("provider_id", ""),
+        )
 
         # 토큰 발급
         _issue_tokens(user)
