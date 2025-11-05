@@ -21,7 +21,7 @@ class RecruitmentDetailSerializerTest(TestCase):
             email="test@example.com",
             password="testpassword123",
             name="테스트유저",
-            birthday=date(2000, 1, 1),  # ← 여기가 중요합니다
+            birthday=date(2000, 1, 1),
         )
 
         #  Recruitment 생성 시 author 지정
