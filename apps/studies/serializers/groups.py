@@ -136,13 +136,13 @@ class StudyGroupListSerializer(StudyGroupBaseSerializer):
 
         return any(member.user.id == req_user_id and member.is_leader for member in members)
 
-    def get_total_pages(self) -> int:
+    def get_total_pages(self, obj: StudyGroup) -> int:
         total_groups = StudyGroup.objects.count()
         page_size = 9
 
         return math.ceil(total_groups / page_size)
 
-    def get_total_groups(self) -> int:
+    def get_total_groups(self, obj: StudyGroup) -> int:
         return StudyGroup.objects.count()
 
 
@@ -178,4 +178,4 @@ class StudyGroupDetailSerializer(StudyGroupBaseSerializer):
         if not request or not hasattr(request, "user"):
             return False
 
-        return obj.members.filter(user=request.user, groupmember__is_leader=True).exists()
+        return GroupMember.objects.filter(study_group=obj, user=request.user, is_leader=True).exists()

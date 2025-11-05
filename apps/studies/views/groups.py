@@ -105,6 +105,8 @@ class StudyGroupDetailUpdateView(APIView):
         obj_uuid = self.kwargs.get("group_uuid")
         obj = get_object_or_404(StudyGroup.objects.prefetch_related("lectures"), uuid=obj_uuid)
 
+        self.check_object_permissions(request, obj)
+
         serializer = StudyGroupCreateSerializer(obj, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
