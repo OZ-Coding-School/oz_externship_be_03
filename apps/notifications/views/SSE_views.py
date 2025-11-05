@@ -1,5 +1,5 @@
 import json
-from typing import AsyncGenerator, Any
+from typing import Any, AsyncGenerator
 
 from asgiref.sync import sync_to_async
 from django.contrib.auth import get_user_model
@@ -25,15 +25,15 @@ async def notification_stream(request: HttpRequest) -> StreamingHttpResponse:
     try:
         jwt_auth = JWTAuthentication()
         validated_token = jwt_auth.get_validated_token(token.encode())
-        user:Any = await sync_to_async(jwt_auth.get_user)(validated_token) # type: ignore[arg-type]
+        user: Any = await sync_to_async(jwt_auth.get_user)(validated_token)  # type: ignore[arg-type]
         if isinstance(user, User):
             user_id = user.id
         else:
             return StreamingHttpResponse(
-            f'data: {json.dumps({"error":"사용자를 찾을 수 없습니다"}, ensure_ascii=False)}\\n\\n',
-            content_type="text/event-stream",
-            status=401,
-        )
+                f'data: {json.dumps({"error":"사용자를 찾을 수 없습니다"}, ensure_ascii=False)}\\n\\n',
+                content_type="text/event-stream",
+                status=401,
+            )
 
     except InvalidToken:
         return StreamingHttpResponse(
