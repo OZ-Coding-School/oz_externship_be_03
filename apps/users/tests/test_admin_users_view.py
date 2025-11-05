@@ -43,7 +43,7 @@ class TestAdminUserAPI(APITestCase):
 
     # ✅ 회원 목록 조회
     def test_user_list(self) -> None:
-        url = reverse("admin_users:admin-user-list")
+        url = reverse("users:admin-user-list")
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -53,7 +53,7 @@ class TestAdminUserAPI(APITestCase):
 
     # ✅ 회원 상세 조회 / 수정 / 삭제
     def test_user_detail_update_delete(self) -> None:
-        url = reverse("admin_users:admin-user-detail", args=[self.user.id])
+        url = reverse("users:admin-user-detail", args=[self.user.id])
 
         # 상세 조회
         response = self.client.get(url)
@@ -95,7 +95,7 @@ class TestAdminUserAPI(APITestCase):
         )
         self.client.force_authenticate(user=staff)
 
-        url = reverse("admin_users:admin-user-role-update", args=[target.id])
+        url = reverse("users:admin-user-role-update", args=[target.id])
         payload = {"role": "admin"}
         response = self.client.patch(url, payload, format="json")
 
@@ -107,7 +107,7 @@ class TestAdminUserAPI(APITestCase):
     # ✅ 탈퇴 예정 상태 필드 확인
     def test_user_status_field(self) -> None:
         Withdrawal.objects.create(user=self.user, due_date=timezone.now())
-        url = reverse("admin_users:admin-user-detail", args=[self.user.id])
+        url = reverse("users:admin-user-detail", args=[self.user.id])
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -117,20 +117,20 @@ class TestAdminUserAPI(APITestCase):
 
     # ⚠️ 예외 케이스 - 존재하지 않는 유저 상세조회
     def test_user_detail_not_found(self) -> None:
-        url = reverse("admin_users:admin-user-detail", args=[999999])
+        url = reverse("users:admin-user-detail", args=[999999])
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
         self.assertIn("회원 정보를 찾을 수 없습니다.", response.data["error"])
 
     # ⚠️ 예외 케이스 - 존재하지 않는 유저 삭제
     def test_delete_user_not_found(self) -> None:
-        url = reverse("admin_users:admin-user-detail", args=[999999])
+        url = reverse("users:admin-user-detail", args=[999999])
         response = self.client.delete(url)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     # ⚠️ 예외 케이스 - 잘못된 role 입력
     def test_change_user_role_invalid_role(self) -> None:
-        url = reverse("admin_users:admin-user-role-update", args=[self.user.id])
+        url = reverse("users:admin-user-role-update", args=[self.user.id])
         payload = {"role": "INVALID_ROLE"}
         response = self.client.patch(url, payload, format="json")
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
