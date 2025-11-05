@@ -4,15 +4,8 @@ from rest_framework import serializers
 class SocialAuthRequestSerializer(serializers.Serializer):
     """소셜 로그인 요청용 (카카오 / 네이버)"""
 
-    code = serializers.CharField(
-        required=True,
-        help_text="OAuth 인가 코드"
-    )
-    state = serializers.CharField(
-        required=False,
-        allow_blank=True,
-        help_text="네이버 로그인 시 전달되는 state 값"
-    )
+    code = serializers.CharField(required=True, help_text="OAuth 인가 코드")
+    state = serializers.CharField(required=False, allow_blank=True, help_text="네이버 로그인 시 전달되는 state 값")
 
     def validate(self, attrs):
         if not attrs.get("code"):

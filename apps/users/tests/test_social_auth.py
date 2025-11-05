@@ -1,8 +1,8 @@
 from typing import Any
 from unittest.mock import MagicMock, patch
 
-from django.urls import reverse
 from django.conf import settings
+from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
