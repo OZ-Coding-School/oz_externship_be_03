@@ -32,7 +32,9 @@ class Application(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        unique_together = ("recruitment", "user")  # 동일 공고 중복 지원 방지
+        constraints = [
+            models.UniqueConstraint(fields=["recruitment", "user"], name="unique_application_per_user_per_recruitment")
+        ]
         indexes = [
             models.Index(fields=["recruitment", "status", "-created_at"]),
             models.Index(fields=["user", "-created_at"]),
