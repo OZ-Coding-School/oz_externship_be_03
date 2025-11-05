@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import logging
+import threading
 import uuid
 from typing import Any, ClassVar, Optional
 
 import boto3
 from django.conf import settings
 from django.core.files.uploadedfile import UploadedFile
-from rest_framework.exceptions import APIException
+from rest_framework.exceptions import APIException, ParseError, ValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -29,34 +30,58 @@ class S3Uploader:
     - 파일 업로드 (테스트 및 관리용)
     """
 
-    s3_client: Any = boto3.client(
-        "s3",
-        aws_access_key_id=getattr(settings, "AWS_S3_ACCESS_KEY_ID", None),
-        aws_secret_access_key=getattr(settings, "AWS_S3_SECRET_ACCESS_KEY", None),
-        region_name=getattr(settings, "AWS_S3_REGION", None),
-    )
+    s3_client: ClassVar[Any] = None
+    lock: ClassVar[threading.Lock] = threading.Lock()  # 초기화 방지용 Lock
+
     BUCKET_NAME: ClassVar[str] = getattr(settings, "AWS_S3_BUCKET_NAME", "")
     REGION_NAME: ClassVar[str] = getattr(settings, "AWS_S3_REGION", "")
     S3_BASE_URL: ClassVar[str] = f"https://{BUCKET_NAME}.s3.{REGION_NAME}.amazonaws.com/"
 
     @classmethod
+    def get_client(cls) -> Any:
+        """
+        thread-safe Lazy Initialization
+        - 첫 접근 시에만 boto3.client 생성
+        - 예외 발생 시 로그 기록 + APIException
+        """
+        if cls.s3_client is None:
+            return cls.s3_client  # 초기화 돼있으면 즉시 반환
+
+        with cls.lock:  # 여러 스레드/프로세스가 동시에 진입하지 못하게 락 사용
+            # 더블체크로 다른 스레드가 이미 초기화해버렸을 수도 있을 상황을 대처
+            if cls.s3_client is None:
+                return cls.s3_client
+
+            try:
+                cls.s3_client = boto3.client(
+                    "s3",
+                    aws_access_key_id=getattr(settings, "AWS_S3_ACCESS_KEY_ID", None),
+                    aws_secret_access_key=getattr(settings, "AWS_S3_SECRET_ACCESS_KEY", None),
+                    region_name=getattr(settings, "AWS_S3_REGION", None),
+                )
+                return cls.s3_client
+            except Exception as e:
+                logger.error("로깅 메세지", exc_info=True)
+                raise APIException(f"s3 클라이언트 초기화 실패: {str(e)}")
+
+
+
+    @classmethod
     def validate_file_extension(cls, ext: str) -> None:
         """파일 확장자 검증"""
         allowed_image_extensions = {"jpg", "jpeg", "png", "gif", "bmp", "tiff", "webp"}
-        allowed_attachment_extensions = {"pdf", "doc", "docx", "ppt", "pptx", "xls", "xlsx", "txt", "csv"}
+        allowed_attachment_extensions = {"pdf", "doc", "docx", "ppt", "pptx", "xls", "xlsx", "txt", "csv", "md", "hwp"}
 
-        if ext in allowed_image_extensions:
-            return
-        elif ext in allowed_attachment_extensions:
+        if ext in allowed_image_extensions or ext in allowed_attachment_extensions:
             return
         else:
-            raise APIException("허용된 확장자만 등록 가능합니다.")
+            raise ValidationError("허용된 확장자만 등록 가능합니다.")
 
     @classmethod
     def validate_file_mime(cls, ext: str, content_type: Optional[str]) -> None:
         """MIME 타입 검증"""
         if not content_type:
-            raise APIException("유효한 Content-Type이 필요합니다.")
+            raise ParseError("유효한 Content-Type이 필요합니다.")
 
         # 이미지 MIME
         image_mime_by_ext = {
@@ -79,30 +104,32 @@ class S3Uploader:
             "xlsx": {"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"},
             "txt": {"text/plain"},
             "csv": {"text/csv", "application/csv"},
+            "md": {"text/markdown", "text/x-markdown"},
+            "hwp": {"application/x-hwp", "application/haansofthwp"},
         }
 
         # 매핑 통합 조회
         if ext in image_mime_by_ext:
             if content_type not in image_mime_by_ext[ext]:
-                raise APIException("허용된 이미지 확장자/형식만 등록 가능합니다.")
+                raise ValidationError("허용된 이미지 확장자/형식만 등록 가능합니다.")
             return
 
         if ext in attachment_mime_by_ext:
             if content_type not in attachment_mime_by_ext[ext]:
-                raise APIException("허용된 첨부파일 확장자/형식만 등록 가능합니다.")
+                raise ValidationError("허용된 첨부파일 확장자/형식만 등록 가능합니다.")
             return
 
         # 확장자 검증을 통과했다면 일반적으로 도달하지 않음(이중 방어)
-        raise APIException("허용된 확장자만 등록 가능합니다.")
+        raise ValidationError("허용된 확장자만 등록 가능합니다.")
 
     @classmethod
     def upload_file(cls, file: UploadedFile) -> str:
         """파일 업로드"""
         name = file.name
         if name is None or name == "":
-            raise APIException("유효하지 않은 파일명입니다.")
+            raise ValidationError("유효하지 않은 파일명입니다.")
         if "." not in name or name.rsplit(".", 1)[0] == "":
-            raise APIException("유효하지 않은 파일명입니다.")
+            raise ValidationError("유효하지 않은 파일명입니다.")
 
         filename = name
         ext = filename.rsplit(".", 1)[-1].lower()
@@ -133,6 +160,8 @@ class S3Uploader:
 
         if not prefix.endswith("/"):  # prefix 뒤에 '/' 자동 보정
             prefix += "/"
+
+        clinet = cls.get_client()
 
         for file in files:
             file_name = file.get("file_name")
@@ -182,10 +211,11 @@ class S3Uploader:
     @classmethod
     def delete_file(cls, key: str) -> None:
         """단일 파일삭제 (S3.Client.delete_object)"""
+        client = cls.get_client()
         try:
-            cls.s3_client.delete_object(Bucket=cls.BUCKET_NAME, Key=key)
+            client.delete_object(Bucket=cls.BUCKET_NAME, Key=key)
         except Exception as e:
-            logger.error(f"S3 Delete Object Error: {str(e)}")
+            logger.error("로깅 메세지")
             raise APIException(f"Unexpected S3 Delete Object Error: {str(e)}")
 
     @classmethod
