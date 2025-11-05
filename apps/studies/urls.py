@@ -17,11 +17,11 @@ from apps.studies.views.notes import (
     StudyNoteListAPIView,
 )
 from apps.studies.views.reviews import GroupReviewListCreateView, GroupReviewUpdateView
-from apps.studies.views.schedules import GroupScheduleCreateView
 from apps.studies.views.s3_studies import (
     StudyGroupS3PresignedView,
     StudyNoteS3PresignedView,
 )
+from apps.studies.views.schedules import GroupScheduleCreateView
 
 app_name = "studies"
 

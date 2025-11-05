@@ -64,8 +64,6 @@ class S3Uploader:
                 logger.error("로깅 메세지", exc_info=True)
                 raise APIException(f"s3 클라이언트 초기화 실패: {str(e)}")
 
-
-
     @classmethod
     def validate_file_extension(cls, ext: str) -> None:
         """파일 확장자 검증"""
