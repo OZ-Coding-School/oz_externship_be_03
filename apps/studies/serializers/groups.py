@@ -1,6 +1,5 @@
-import math
 from datetime import timedelta
-from typing import Any, Dict
+from typing import Any, Dict, cast
 
 from django.db import transaction
 from django.utils import timezone
@@ -137,10 +136,10 @@ class StudyGroupListSerializer(StudyGroupBaseSerializer):
         return any(member.user.id == req_user_id and member.is_leader for member in members)
 
     def get_total_groups(self, obj: StudyGroup) -> int:
-        return self.context.get("total_groups", 0)
+        return cast(int, self.context.get("total_groups", 0))
 
     def get_total_pages(self, obj: StudyGroup) -> int:
-        return self.context.get("total_pages", 0)
+        return cast(int, self.context.get("total_pages", 0))
 
 
 class StudyGroupDetailLectureSerializer(serializers.ModelSerializer[CrawledLecture]):
