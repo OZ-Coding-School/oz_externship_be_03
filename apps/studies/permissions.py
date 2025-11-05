@@ -22,9 +22,16 @@ from apps.studies.models.notes import StudyNote
 class IsGroupLeader(BasePermission):
     message = "리더만 접근 가능한 기능입니다."
 
-    def has_permission(self, request: Request, view: APIView) -> bool:
-        group = getattr(view, "mock_group", None)
-        return bool(request.user and group)
+    def has_object_permission(self, request: Request, view: APIView, obj: StudyGroup) -> bool:
+        user = request.user
+        if not user or not user.is_authenticated:
+            return False
+
+        return GroupMember.objects.filter(
+            study_group=obj,
+            user=user,
+            is_leader=True,
+        ).exists()
 
 
 class IsGroupMemberDOP(DjangoObjectPermissions):

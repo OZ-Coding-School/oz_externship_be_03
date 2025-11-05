@@ -1,16 +1,18 @@
-from typing import Any
+import math
+from typing import Any, List, cast
 
 from django.db.models import Count
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import extend_schema
 from rest_framework import parsers, status
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import BasePermission, IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from ..models.groups import StudyGroup
 from ..paginations import StudyGroupPagination
+from ..permissions import IsGroupLeader
 from ..serializers.groups import (
     StudyGroupCreateSerializer,
     StudyGroupDetailSerializer,
@@ -49,6 +51,8 @@ class StudyGroupListCreateView(APIView):
     def get(self, request: Request) -> Response:
 
         queryset = StudyGroup.objects.order_by("-created_at")
+        total_groups = queryset.count()
+        total_pages = math.ceil(total_groups / StudyGroupPagination.page_size)
 
         status_param = request.query_params.get("status")
         if status_param == "ENDED":
@@ -60,14 +64,21 @@ class StudyGroupListCreateView(APIView):
 
         paginator = self.pagination_class()
         page = paginator.paginate_queryset(queryset, self.request)
-        serializer = StudyGroupListSerializer(page, many=True, context={"request": request})
+        serializer = StudyGroupListSerializer(
+            page, many=True, context={"request": request, "total_pages": total_pages, "total_groups": total_groups}
+        )
         return paginator.get_paginated_response(serializer.data)
 
 
 class StudyGroupDetailUpdateView(APIView):
-    permission_classes = [IsAuthenticated]
-
     parser_classes = [parsers.JSONParser, parsers.MultiPartParser]
+
+    def get_permissions(self) -> List[BasePermission]:
+        if self.request.method == "GET":
+            return [IsAuthenticated()]
+        if self.request.method == "PUT":
+            return [IsAuthenticated(), IsGroupLeader()]
+        return cast(List[BasePermission], super().get_permissions())
 
     @extend_schema(
         operation_id="v1_studies_groups_detail",
@@ -98,6 +109,8 @@ class StudyGroupDetailUpdateView(APIView):
     def put(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         obj_uuid = self.kwargs.get("group_uuid")
         obj = get_object_or_404(StudyGroup.objects.prefetch_related("lectures"), uuid=obj_uuid)
+
+        self.check_object_permissions(request, obj)
 
         serializer = StudyGroupCreateSerializer(obj, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
