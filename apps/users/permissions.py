@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-from typing import Any, Optional, Union
+from typing import Optional
 
 from rest_framework.permissions import BasePermission
 from rest_framework.request import Request
-from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.users.enums import EmailVerificationPurpose, PhoneVerificationPurpose, Role
+from apps.users.enums import EmailVerificationPurpose, PhoneVerificationPurpose
 from apps.users.utils.verify_token import verify_and_consume
 
 
@@ -109,8 +108,23 @@ class EmailVerifiedPermission(BasePermission):
 
 
 class IsAdminRole(BasePermission):
-    # superuser만 접근 가능 퍼미션
+    """
+    관리자 접근 허용: is_superuser=True
+    """
 
     def has_permission(self, request: Request, view: APIView) -> bool:
-        user = request.user
-        return bool(user and user.is_authenticated and getattr(user, "role", None) == Role.ADMIN.value)
+        user = getattr(request, "user", None)
+        is_auth = bool(user and getattr(user, "is_authenticated", False))
+        return bool(is_auth and getattr(user, "is_superuser", False))
+
+
+class IsStaffRole(BasePermission):
+    """
+    스태프 또는 관리자 접근 허용
+    is_staff=True 또는 is_superuser=True
+    """
+
+    def has_permission(self, request: Request, view: APIView) -> bool:
+        user = getattr(request, "user", None)
+        is_auth = bool(user and getattr(user, "is_authenticated", False))
+        return bool(is_auth and (getattr(user, "is_superuser", False) or getattr(user, "is_staff", False)))
