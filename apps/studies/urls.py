@@ -17,7 +17,7 @@ from apps.studies.views.notes import (
     StudyNoteListAPIView,
 )
 from apps.studies.views.reviews import GroupReviewListCreateView, GroupReviewUpdateView
-from apps.studies.views.s3_studies import (
+from apps.studies.views.s3_presign import (
     StudyGroupS3PresignedView,
     StudyNoteS3PresignedView,
 )
@@ -88,14 +88,14 @@ urlpatterns = [
     ),
     # 그룹 대표 이미지 Presigned URL 발급
     path(
-        "group/s3-presigned-url/",
+        "group/presigned-url/",
         StudyGroupS3PresignedView.as_view(),
-        name="study_group_s3_presigned",
+        name="study_group_presigned",
     ),
     # 노트 첨부파일 / 이미지 Presigned URL 발급
     path(
-        "notes/s3-presigned-url/",
+        "notes/presigned-url/",
         StudyNoteS3PresignedView.as_view(),
-        name="study_note_s3_presigned",
+        name="study_note_presigned",
     ),
 ]

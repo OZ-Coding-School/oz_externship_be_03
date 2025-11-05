@@ -63,7 +63,7 @@ class S3UploaderTests(TestCase):
     # ---------------------------
     def test_upload_image_success(self) -> None:
         f = _make_file("cover.png", "image/png")
-        url = S3Uploader.upload_file(f)
+        url = S3Uploader.upload_file(f, "uploads/test/")
         self.assertTrue(url.startswith(S3Uploader.S3_BASE_URL))
 
         key = url.replace(S3Uploader.S3_BASE_URL, "")
@@ -75,7 +75,8 @@ class S3UploaderTests(TestCase):
 
     def test_upload_attachment_success(self) -> None:
         f = _make_file("notes.pdf", "application/pdf")
-        url = S3Uploader.upload_file(f)
+        url = S3Uploader.upload_file(f, "uploads/test/")
+
         self.assertTrue(url.startswith(S3Uploader.S3_BASE_URL))
 
         key = url.replace(S3Uploader.S3_BASE_URL, "")
@@ -88,7 +89,7 @@ class S3UploaderTests(TestCase):
     def test_upload_reject_executable_ext(self) -> None:
         f = _make_file("malware.exe", "application/octet-stream")
         with self.assertRaises(Exception):
-            S3Uploader.upload_file(f)
+            S3Uploader.upload_file(f, "uploads/test/")
 
     # ---------------------------
     # Presigned POST (업로드용)
