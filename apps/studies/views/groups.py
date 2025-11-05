@@ -55,7 +55,7 @@ class StudyGroupListCreateView(APIView):
         total_pages = math.ceil(total_groups / StudyGroupPagination.page_size)
 
         status_param = request.query_params.get("status")
-        if status_param == "ENDED":
+        if status_param:
             queryset = queryset.filter(status=status_param)
 
         queryset = queryset.annotate(current_headcount=Count("members"))
