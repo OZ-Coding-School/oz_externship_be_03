@@ -2,6 +2,7 @@ from typing import Any, cast
 
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
+from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -25,10 +26,23 @@ from ..services.members import MemberService
 )
 class MemberKickView(APIView):
     permission_classes = [IsAuthenticated, IsGroupLeader]
+    queryset = StudyGroup.objects.all()
+
+    def get_object(self, group_uuid: str) -> StudyGroup:
+        return StudyGroup.objects.get(uuid=group_uuid)
 
     def delete(self, request: Request, group_uuid: str, member_id: int, *args: Any, **kwargs: Any) -> Response:
-        study_group = StudyGroup.objects.get(uuid=group_uuid)
-        MemberService.kick_member(study_group, member_id)
+        study_group = self.get_object(group_uuid)
+
+        # Object-level permission 검사 (멤버 아님 → 403 / 리더 아님 → 400 가능)
+        self.check_object_permissions(request, study_group)
+
+        MemberService.kick_member(
+            user=request.user,
+            study_group=study_group,
+            target_member_id=member_id,
+            is_leader=getattr(request, "_is_leader", False),
+        )
         return Response({"detail": "멤버가 추방되었습니다."}, status=status.HTTP_200_OK)
 
 
@@ -40,17 +54,22 @@ class MemberKickView(APIView):
 )
 class MemberLeaveView(APIView):
     permission_classes = [IsAuthenticated, IsGroupMember]
+    queryset = StudyGroup.objects.all()
+
+    def get_object(self, group_uuid: str) -> StudyGroup:
+        return StudyGroup.objects.get(uuid=group_uuid)
 
     def delete(self, request: Request, group_uuid: str, *args: Any, **kwargs: Any) -> Response:
-        serializer = MemberLeaveSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        study_group = self.get_object(group_uuid)
+        self.check_object_permissions(request, study_group)
 
-        if not serializer.validated_data.get("confirm"):
-            return Response({"detail": "탈퇴가 취소되었습니다."}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            MemberService.leave_group(user=request.user, study_group=study_group)
+            return Response({"detail": "스터디에서 탈퇴했습니다."}, status=status.HTTP_200_OK)
 
-        study_group = StudyGroup.objects.get(uuid=group_uuid)
-        MemberService.leave_group(study_group, cast(int, request.user.id))
-        return Response({"detail": "스터디에서 탈퇴했습니다."}, status=status.HTTP_200_OK)
+        except ValidationError as e:
+            detail = str(e.detail[0] if isinstance(e.detail, list) else e.detail)
+            return Response({"detail": detail}, status=status.HTTP_400_BAD_REQUEST)
 
 
 @extend_schema(
@@ -62,19 +81,26 @@ class MemberLeaveView(APIView):
 )
 class DelegateLeaderView(APIView):
     permission_classes = [IsAuthenticated, IsGroupLeader]
+    queryset = StudyGroup.objects.all()
+
+    def get_object(self, group_uuid: str) -> StudyGroup:
+        return StudyGroup.objects.get(uuid=group_uuid)
 
     def post(self, request: Request, group_uuid: str, *args: Any, **kwargs: Any) -> Response:
         serializer = DelegateLeaderSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        target_member_id = serializer.validated_data["target_member_id"]
-        study_group = StudyGroup.objects.get(uuid=group_uuid)
-        MemberService.delegate_leader(study_group, target_member_id)
+        study_group = self.get_object(group_uuid)
 
-        response_data = {
-            "target_member_id": target_member_id,
-            "previous_leader_id": request.user.id,
-            "new_leader_id": target_member_id,
-            "message": "리더가 성공적으로 위임되었습니다.",
-        }
-        return Response(DelegateLeaderSerializer(response_data).data, status=status.HTTP_200_OK)
+        # Object-level permission 검사
+        self.check_object_permissions(request, study_group)
+
+        target_member_id = serializer.validated_data["target_member_id"]
+        data = MemberService.delegate_leader(
+            user=request.user,
+            study_group=study_group,
+            target_member_id=target_member_id,
+            is_leader=getattr(request, "_is_leader", False),
+        )
+
+        return Response(data, status=status.HTTP_200_OK)
