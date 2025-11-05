@@ -6,7 +6,9 @@ from django.db import transaction
 from celery import Task, shared_task  # type: ignore
 from celery.exceptions import SoftTimeLimitExceeded  # type: ignore
 
-from apps.lecture.crawlers.inflearn_lecture_crawler_async import InflearnLectureCrawlerAsync
+from apps.lecture.crawlers.inflearn_lecture_crawler_async import (
+    InflearnLectureCrawlerAsync,
+)
 from apps.lecture.models import CrawledLecture
 from apps.lecture.services.recommendation_service.data_loader import DataLoader
 from apps.lecture.services.recommendation_service.model_trainer import ModelTrainer
@@ -82,7 +84,8 @@ def partial_fit_model_task(self: Task) -> Dict[str, Any]:
         logger.error(f"[CELERY][ALS] Partial fit failed: {e}", exc_info=True)
         raise self.retry(exc=e, countdown=60 * (2**self.request.retries))
 
-@shared_task(name="crawl_inflearn_lectures") # type: ignore[misc]
+
+@shared_task(name="crawl_inflearn_lectures")  # type: ignore[misc]
 def crawl_inflearn_lectures() -> Dict[str, Any]:
     """
     인프런 강의 크롤링 Task
@@ -95,8 +98,8 @@ def crawl_inflearn_lectures() -> Dict[str, Any]:
         lectures_data: List[Dict[str, Any]] = asyncio.run(crawler.crawl_and_process(max_concurrent=10))
 
         if not lectures_data:
-            logger.warning("크롤링된 데이터 없음")
-            return {"status": "failed", "message": "크롤링된 데이터 없음", "count": 0}
+            logger.info("크롤링된 데이터 없음")
+            return {"status": "failed", "count": 0}
 
         created_count = 0
         updated_count = 0
@@ -116,7 +119,7 @@ def crawl_inflearn_lectures() -> Dict[str, Any]:
                         "discount_price": lecture_info["discount_price"],
                         "url_link": lecture_info["url_link"],
                         "thumbnail_img_url": lecture_info["thumbnail_img_url"],
-                    }
+                    },
                 )
 
                 if created:
@@ -125,13 +128,8 @@ def crawl_inflearn_lectures() -> Dict[str, Any]:
                     updated_count += 1
 
         logger.info(f"크롤링 완료 - 신규: {created_count}, 업데이트: {updated_count}")
-        return {
-            "status": "success",
-            "created": created_count,
-            "updated": updated_count,
-            "total": len(lectures_data)
-        }
+        return {"status": "success", "created": created_count, "updated": updated_count, "total": len(lectures_data)}
 
     except Exception as e:
-        logger.error(f"크롤링 실패: {e}", exc_info=True)
-        return {"status": "error", "message": str(e)}
+        logger.info(f"크롤링 실패: {e}", exc_info=True)
+        return {"status": "error"}
