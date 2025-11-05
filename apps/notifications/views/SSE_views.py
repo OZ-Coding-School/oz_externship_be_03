@@ -1,6 +1,7 @@
 import json
 from typing import AsyncGenerator
 
+from django.contrib.auth import get_user_model
 from django.http import HttpRequest, StreamingHttpResponse
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.exceptions import InvalidToken
@@ -8,9 +9,11 @@ from rest_framework_simplejwt.exceptions import InvalidToken
 from apps.notifications.services.redis_pubsub_classify import notification_pubsub
 from apps.studies.models.groups import GroupMember
 
+User = get_user_model()
+
 
 async def notification_stream(request: HttpRequest, user_id: int) -> StreamingHttpResponse:
-    #인증 체크
+    # 인증 체크
     token = request.GET.get("token")
     if not token:
         return StreamingHttpResponse(
@@ -20,9 +23,11 @@ async def notification_stream(request: HttpRequest, user_id: int) -> StreamingHt
         )
     try:
         jwt_auth = JWTAuthentication()
-        validated_token = jwt_auth.get_validated_token(token)
+        validated_token = jwt_auth.get_validated_token(token.encode())
         user = jwt_auth.get_user(validated_token)
-        user_id = user.id
+        if isinstance(user, User):
+            user_id = user.id
+
     except InvalidToken:
         return StreamingHttpResponse(
             f'data: {json.dumps({"error":"인증되지않은 토큰"}, ensure_ascii=False)}\\n\\n',
