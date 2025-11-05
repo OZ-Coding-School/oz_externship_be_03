@@ -1,18 +1,13 @@
-# mypy: ignore-missing-imports
+# mypy: disable-error-code=import-untyped
 from __future__ import annotations
 
 from typing import Any, Dict, Optional
 
 import requests
-from allauth.socialaccount.providers.kakao.views import (
-    KakaoOAuth2Adapter,  # type: ignore[import-untyped]
-)
-from allauth.socialaccount.providers.naver.views import (
-    NaverOAuth2Adapter,  # type: ignore[import-untyped]
-)
-from allauth.socialaccount.providers.oauth2.client import (
-    OAuth2Error,  # type: ignore[import-untyped]
-)
+from allauth.socialaccount.providers.kakao.views import KakaoOAuth2Adapter
+
+from allauth.socialaccount.providers.naver.views import NaverOAuth2Adapter
+from allauth.socialaccount.providers.oauth2.client import OAuth2Error
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError
 from django.utils import timezone
