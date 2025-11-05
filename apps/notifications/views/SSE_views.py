@@ -1,6 +1,7 @@
 import json
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Any
 
+from asgiref.sync import sync_to_async
 from django.contrib.auth import get_user_model
 from django.http import HttpRequest, StreamingHttpResponse
 from rest_framework_simplejwt.authentication import JWTAuthentication
@@ -12,7 +13,7 @@ from apps.studies.models.groups import GroupMember
 User = get_user_model()
 
 
-async def notification_stream(request: HttpRequest, user_id: int) -> StreamingHttpResponse:
+async def notification_stream(request: HttpRequest) -> StreamingHttpResponse:
     # 인증 체크
     token = request.GET.get("token")
     if not token:
@@ -24,9 +25,15 @@ async def notification_stream(request: HttpRequest, user_id: int) -> StreamingHt
     try:
         jwt_auth = JWTAuthentication()
         validated_token = jwt_auth.get_validated_token(token.encode())
-        user = jwt_auth.get_user(validated_token)
+        user:Any = await sync_to_async(jwt_auth.get_user)(validated_token) # type: ignore[arg-type]
         if isinstance(user, User):
             user_id = user.id
+        else:
+            return StreamingHttpResponse(
+            f'data: {json.dumps({"error":"사용자를 찾을 수 없습니다"}, ensure_ascii=False)}\\n\\n',
+            content_type="text/event-stream",
+            status=401,
+        )
 
     except InvalidToken:
         return StreamingHttpResponse(
