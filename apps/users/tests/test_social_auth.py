@@ -1,9 +1,11 @@
 from typing import Any
 from unittest.mock import MagicMock, patch
+
 from django.urls import reverse
+from django.conf import settings
 from rest_framework import status
-from rest_framework.response import Response
 from rest_framework.test import APITestCase
+
 from apps.users.models import User
 
 
@@ -38,6 +40,9 @@ class TestSocialAuthView(APITestCase):
         response = self.client.post(url, {"code": "dummy_auth_code"}, format="json")
 
         self.assertEqual(response.status_code, 200)
+        self.assertIn("detail", response.data)
+        self.assertIn("성공", response.data["detail"])
+
         user = User.objects.get(email="newuser@example.com")
         self.assertEqual(user.nickname, "신규유저")
         self.assertEqual(user.profile_img_url, "https://test.image.url/profile.png")
@@ -69,6 +74,8 @@ class TestSocialAuthView(APITestCase):
 
         response = self.client.post(reverse("users:kakao-login"), {"code": "dummy_code"}, format="json")
         self.assertEqual(response.status_code, 200)
+        self.assertIn("detail", response.data)
+        self.assertIn("성공", response.data["detail"])
         self.assertEqual(User.objects.count(), 1)
 
     # ----------------------------------------------------------------------
@@ -123,8 +130,12 @@ class TestSocialAuthView(APITestCase):
                 "profile_image": "https://test.image.url/naver.png",
             }
         }
-        response = self.client.post(reverse("users:naver-login"), {"code": "dummy_auth_code", "state": "xyz"}, format="json")
+        response = self.client.post(
+            reverse("users:naver-login"), {"code": "dummy_auth_code", "state": "xyz"}, format="json"
+        )
         self.assertEqual(response.status_code, 200)
+        self.assertIn("detail", response.data)
+        self.assertIn("성공", response.data["detail"])
 
     # ----------------------------------------------------------------------
     # ✅ 지원하지 않는 provider
@@ -132,7 +143,8 @@ class TestSocialAuthView(APITestCase):
     def test_invalid_provider_returns_400(self) -> None:
         response = self.client.post("/api/v1/auth/social/google/", {"code": "dummy_code"}, format="json")
         self.assertEqual(response.status_code, 400)
-        self.assertIn("지원하지 않는 provider", response.data["detail"])
+        self.assertIn("error", response.data)
+        self.assertIn("지원하지 않는 provider", response.data["error"])
 
     # ----------------------------------------------------------------------
     # ❌ 카카오 로그인 실패 - access_token 발급 실패
@@ -144,6 +156,8 @@ class TestSocialAuthView(APITestCase):
         mock_post.return_value.json.return_value = {"error": "invalid_grant"}
         response = self.client.post(reverse("users:kakao-login"), {"code": "wrong_auth_code"}, format="json")
         self.assertEqual(response.status_code, 400)
+        self.assertIn("error", response.data)
+        self.assertIn("오류", response.data["error"])
 
     # ----------------------------------------------------------------------
     # ❌ 카카오 로그인 실패 - 사용자 정보 요청 실패
@@ -157,6 +171,8 @@ class TestSocialAuthView(APITestCase):
         mock_get.return_value.json.return_value = {"error": "server_error"}
         response = self.client.post(reverse("users:kakao-login"), {"code": "dummy_code"}, format="json")
         self.assertEqual(response.status_code, 400)
+        self.assertIn("error", response.data)
+        self.assertIn("오류", response.data["error"])
 
     # ----------------------------------------------------------------------
     # ❌ 네이버 로그인 실패 - userinfo 오류
@@ -170,6 +186,8 @@ class TestSocialAuthView(APITestCase):
         mock_get.return_value.json.return_value = {"error": "not_found"}
         response = self.client.post(reverse("users:naver-login"), {"code": "dummy_code", "state": "xyz"}, format="json")
         self.assertEqual(response.status_code, 400)
+        self.assertIn("error", response.data)
+        self.assertIn("오류", response.data["error"])
 
     # ----------------------------------------------------------------------
     # ❌ MeView - 인증되지 않은 사용자
@@ -177,3 +195,84 @@ class TestSocialAuthView(APITestCase):
     def test_meview_unauthenticated(self) -> None:
         response = self.client.get(reverse("users:me"))
         self.assertEqual(response.status_code, 401)
+        # DRF 기본 응답은 "detail" 키로 들어오므로 일관성 검증
+        self.assertIn("detail", response.data)
+        self.assertIn("자격 인증", response.data["detail"])
+
+        # ----------------------------------------------------------------------
+        # ✅ 로그아웃 성공
+        # ----------------------------------------------------------------------
+        def test_logout_success(self) -> None:
+            """유효한 refresh/access 쿠키가 있을 때 로그아웃 성공"""
+            user = User.objects.create_user(
+                email="logoutuser@example.com",
+                password="1234",
+                name="로그아웃유저",
+                nickname="logoutuser",
+                birthday="1990-01-01",
+                gender="M",
+                phone_number="01012345678",
+            )
+            self.client.force_authenticate(user=user)
+
+            refresh = RefreshToken.for_user(user)
+            access = AccessToken.for_user(user)
+
+            # ✅ 쿠키와 헤더 세팅
+            self.client.cookies[settings.AUTH_REFRESH_COOKIE_NAME] = str(refresh)
+            self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {access}")
+
+            response = self.client.post(reverse("users:auth_logout"), format="json")
+
+            self.assertEqual(response.status_code, 200)
+            self.assertIn("detail", response.data)
+            self.assertIn("로그아웃", response.data["detail"])
+            self.assertIsNone(response.cookies.get(settings.AUTH_REFRESH_COOKIE_NAME))
+
+        # ----------------------------------------------------------------------
+        # ❌ 로그아웃 실패 - 유효하지 않은 토큰
+        # ----------------------------------------------------------------------
+        def test_logout_invalid_token(self) -> None:
+            """refresh 쿠키가 잘못된 값일 때 401 응답"""
+            user = User.objects.create_user(
+                email="invalidlogout@example.com",
+                password="1234",
+                name="로그아웃유저",
+                nickname="invalidlogout",
+                birthday="1990-01-01",
+                gender="M",
+                phone_number="01011112222",
+            )
+            self.client.force_authenticate(user=user)
+
+            self.client.cookies[settings.AUTH_REFRESH_COOKIE_NAME] = "invalid_token"
+            self.client.credentials(HTTP_AUTHORIZATION="Bearer invalid_access")
+
+            response = self.client.post(reverse("users:auth_logout"), format="json")
+
+            self.assertEqual(response.status_code, 401)
+            self.assertIn("error", response.data)
+            self.assertIn("유효하지 않은 토큰", response.data["error"])
+
+        # ----------------------------------------------------------------------
+        # ❌ 로그아웃 실패 - 쿠키 없음
+        # ----------------------------------------------------------------------
+        def test_logout_without_cookie(self) -> None:
+            """refresh 쿠키 없이 요청 시 세션 만료 안내"""
+            user = User.objects.create_user(
+                email="nocookie@example.com",
+                password="1234",
+                name="노쿠키유저",
+                nickname="nocookie",
+                birthday="1990-01-01",
+                gender="M",
+                phone_number="01099997777",
+            )
+            self.client.force_authenticate(user=user)
+
+            # ❌ 쿠키 없이 요청
+            response = self.client.post(reverse("users:auth_logout"), format="json")
+
+            self.assertEqual(response.status_code, 200)
+            self.assertIn("detail", response.data)
+            self.assertIn("세션이 유효하지 않습니다", response.data["detail"])
