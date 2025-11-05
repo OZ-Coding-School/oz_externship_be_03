@@ -1,13 +1,21 @@
+# mypy: ignore-missing-imports
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import requests
-from django.conf import settings
+from allauth.socialaccount.providers.kakao.views import (
+    KakaoOAuth2Adapter,  # type: ignore[import-untyped]
+)
+from allauth.socialaccount.providers.naver.views import (
+    NaverOAuth2Adapter,  # type: ignore[import-untyped]
+)
+from allauth.socialaccount.providers.oauth2.client import (
+    OAuth2Error,  # type: ignore[import-untyped]
+)
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError
 from django.utils import timezone
-from requests.exceptions import RequestException
 
 from apps.users.enums import Gender, Provider
 from apps.users.models import SocialUser, User
@@ -15,144 +23,136 @@ from apps.users.services.auth_services import _issue_tokens
 
 
 class SocialAuthService:
+    """소셜 로그인 서비스"""
 
-    # 사용자 정보 조회
+    # 인가 코드 → access_token 교환
     @staticmethod
-    def get_user_info(provider: str, access_token: str) -> Dict[str, str]:
-        if not access_token:
-            raise ValidationError(f"{provider.capitalize()} access_token이 필요합니다.")
-
+    def exchange_code_for_token(provider: str, code: str) -> str:
+        """OAuth 인가 코드로 access token 교환"""
         try:
             if provider == Provider.KAKAO.value:
-                headers = {"Authorization": f"Bearer {access_token}"}
-                response = requests.get("https://kapi.kakao.com/v2/user/me", headers=headers)
-                response.raise_for_status()
-                kakao_data: dict[str, Any] = response.json()
-                account: dict[str, Any] = kakao_data.get("kakao_account", {})
-                profile: dict[str, Any] = account.get("profile", {})
+                adapter = KakaoOAuth2Adapter()
+            elif provider == Provider.NAVER.value:
+                adapter = NaverOAuth2Adapter()
+            else:
+                raise ValidationError({"error": f"지원하지 않는 provider입니다: {provider}"})
+
+            token = adapter.get_access_token(code)
+            return str(token.token)
+
+        except OAuth2Error as e:
+            raise ValidationError({"error": f"{provider.capitalize()} 토큰 교환 실패: {e}"})
+        except Exception as e:
+            raise ValidationError({"error": f"{provider.capitalize()} 토큰 요청 중 예외 발생: {e}"})
+
+    # 사용자 정보 가져오기
+    @staticmethod
+    def get_user_info(provider: str, access_token: str) -> Dict[str, Any]:
+        """access_token으로 사용자 정보 조회"""
+        try:
+            headers: Dict[str, str] = {"Authorization": f"Bearer {access_token}"}
+
+            if provider == Provider.KAKAO.value:
+                resp = requests.get("https://kapi.kakao.com/v2/user/me", headers=headers, timeout=5)
+                resp.raise_for_status()
+                kakao_data: Dict[str, Any] = resp.json()
+                account: Dict[str, Any] = kakao_data.get("kakao_account", {})
+                profile: Dict[str, Any] = account.get("profile", {})
 
                 return {
-                    "email": str(account.get("email") or ""),
-                    "name": str(account.get("name") or profile.get("nickname") or ""),
-                    "nickname": str(profile.get("nickname") or ""),
-                    "phone_number": str(account.get("phone_number") or ""),
-                    "birthday": str(account.get("birthday") or ""),
-                    "gender": str(account.get("gender") or ""),
-                    "profile_img_url": str(profile.get("profile_image_url") or ""),
-                    "provider": Provider.KAKAO.value,
-                    "provider_id": str(kakao_data.get("id") or ""),
+                    "email": account.get("email", ""),
+                    "name": account.get("name") or profile.get("nickname", ""),
+                    "nickname": profile.get("nickname", ""),
+                    "phone_number": account.get("phone_number", ""),
+                    "birthday": account.get("birthday", ""),
+                    "gender": account.get("gender", ""),
+                    "profile_img_url": profile.get("profile_image_url", ""),
+                    "provider_id": kakao_data.get("id"),
                 }
 
             elif provider == Provider.NAVER.value:
-                headers = {"Authorization": f"Bearer {access_token}"}
-                response = requests.get("https://openapi.naver.com/v1/nid/me", headers=headers)
-                response.raise_for_status()
-                naver_data: dict[str, Any] = response.json().get("response", {})
+                resp = requests.get("https://openapi.naver.com/v1/nid/me", headers=headers, timeout=5)
+                resp.raise_for_status()
+                raw_data: Dict[str, Any] = resp.json()
+                naver_data: Dict[str, Any] = raw_data.get("response", {})
 
                 return {
-                    "email": str(naver_data.get("email") or ""),
-                    "name": str(naver_data.get("name") or ""),
-                    "nickname": str(naver_data.get("nickname") or ""),
-                    "phone_number": str(naver_data.get("mobile") or ""),
-                    "birthday": str(naver_data.get("birthday") or ""),
-                    "gender": str(naver_data.get("gender") or ""),
-                    "profile_img_url": str(naver_data.get("profile_image") or ""),
-                    "provider": Provider.NAVER.value,
-                    "provider_id": str(naver_data.get("id") or ""),
+                    "email": naver_data.get("email", ""),
+                    "name": naver_data.get("name", ""),
+                    "nickname": naver_data.get("nickname", ""),
+                    "phone_number": naver_data.get("mobile", ""),
+                    "birthday": naver_data.get("birthday", ""),
+                    "gender": naver_data.get("gender", ""),
+                    "profile_img_url": naver_data.get("profile_image", ""),
+                    "provider_id": naver_data.get("id"),
                 }
 
             else:
-                raise ValidationError(f"지원하지 않는 provider입니다: {provider}")
+                raise ValidationError({"error": f"지원하지 않는 provider입니다: {provider}"})
 
-        except RequestException as e:
-            raise ValidationError(f"{provider.capitalize()} 사용자 정보 요청 중 오류: {e}")
+        except requests.RequestException as e:
+            raise ValidationError({"error": f"{provider.capitalize()} 사용자 정보 요청 실패: {e}"})
 
-    # 회원가입 / 로그인
+    # 로그인 / 회원가입 처리
     @staticmethod
-    def social_login(provider: str, code: str) -> Dict[str, str]:
-        """인가코드 → access_token 교환 → 사용자 정보 저장 (응답은 detail 메시지만 반환)"""
+    def handle_social_login(provider: str, code: str) -> Dict[str, str]:
+        """소셜 로그인 메인 처리 함수"""
 
-        provider = provider.lower()
-        if provider not in (Provider.KAKAO.value, Provider.NAVER.value):
-            raise ValidationError(f"지원하지 않는 provider입니다: {provider}")
+        access_token: str = SocialAuthService.exchange_code_for_token(provider, code)
+        user_info: Dict[str, Any] = SocialAuthService.get_user_info(provider, access_token)
+        email: str = str(user_info.get("email", "")).strip()
 
-        token_url = (
-            "https://kauth.kakao.com/oauth/token"
-            if provider == Provider.KAKAO.value
-            else "https://nid.naver.com/oauth2.0/token"
-        )
-        payload: Dict[str, str] = {"grant_type": "authorization_code", "code": code}
-
-        if provider == Provider.KAKAO.value:
-            payload.update(
-                {
-                    "client_id": str(settings.KAKAO_CLIENT_ID or ""),
-                    "redirect_uri": str(settings.KAKAO_REDIRECT_URI or ""),
-                }
-            )
-        else:
-            payload.update(
-                {
-                    "client_id": str(settings.NAVER_CLIENT_ID or ""),
-                    "client_secret": str(settings.NAVER_CLIENT_SECRET or ""),
-                }
-            )
-
-        # access_token 요청
-        response = requests.post(token_url, data=payload)
-        response.raise_for_status()
-        access_token: str = str(response.json().get("access_token") or "")
-        if not access_token:
-            raise ValidationError(f"{provider.capitalize()} access_token을 가져올 수 없습니다.")
-
-        # 사용자 정보 조회
-        user_info = SocialAuthService.get_user_info(provider, access_token)
-        email: str = user_info.get("email", "")
         if not email:
-            raise ValidationError(f"{provider.capitalize()} 계정에서 이메일을 가져올 수 없습니다.")
+            raise ValidationError({"error": "이메일 정보를 가져올 수 없습니다."})
 
-        # 기존 유저 존재 → 로그인
-        existing_user = User.objects.filter(email=email).first()
-        if existing_user:
+        # 기존 유저 → 로그인
+        existing_user: Optional[User] = User.objects.filter(email=email).first()
+        if existing_user is not None:
             SocialUser.objects.update_or_create(
                 user=existing_user,
-                provider=Provider(provider).value,
-                defaults={"provider_id": user_info.get("provider_id", ""), "updated_at": timezone.now()},
+                provider=provider,
+                defaults={
+                    "provider_id": str(user_info.get("provider_id", "")),
+                    "updated_at": timezone.now(),
+                },
             )
-            _issue_tokens(existing_user)
-            return {"detail": f"{provider.capitalize()} 로그인에 성공했습니다."}
 
-        # 신규 회원 생성
-        gender_value = user_info.get("gender", "").lower()
-        if gender_value in ("male", "m"):
-            gender = Gender.MALE.value
-        elif gender_value in ("female", "f"):
-            gender = Gender.FEMALE.value
-        else:
-            raise ValidationError(f"{provider.capitalize()} 계정에서 유효하지 않은 성별 형식입니다.")
+            issued_tokens: Dict[str, str] = _issue_tokens(existing_user)
+            return {
+                "detail": f"{provider.capitalize()} 로그인에 성공했습니다.",
+                "access": issued_tokens.get("access", ""),
+                "refresh": issued_tokens.get("refresh", ""),
+            }
+
+        # 신규 유저 생성
+        gender_str = str(user_info.get("gender", "")).lower()
+        # ✅ Gender Enum은 M/F만 있음 → 기본값 F로 지정
+        gender_value: str = Gender.MALE.value if gender_str in ("male", "m", "남성", "m") else Gender.FEMALE.value
 
         try:
-            user = User.objects.create(
+            user: User = User.objects.create(
                 email=email,
                 name=user_info.get("name", ""),
                 nickname=user_info.get("nickname", ""),
                 phone_number=user_info.get("phone_number", "01000000000"),
                 birthday=user_info.get("birthday", "2000-01-01"),
-                gender=gender,
+                gender=gender_value,
                 profile_img_url=user_info.get("profile_img_url", ""),
                 is_active=True,
             )
-        except IntegrityError as e:
-            raise ValidationError(f"{provider.capitalize()} 회원 생성 중 중복된 정보가 있습니다: {e}")
+        except IntegrityError:
+            raise ValidationError({"error": "회원 생성 중 중복된 정보가 있습니다."})
 
-        # 소셜 계정 연결
+        # 소셜 유저 연동
         SocialUser.objects.create(
             user=user,
-            provider=Provider(provider).value,
-            provider_id=user_info.get("provider_id", ""),
+            provider=provider,
+            provider_id=str(user_info.get("provider_id", "")),
         )
 
-        # 토큰 발급
-        _issue_tokens(user)
-
-        return {"detail": f"{provider.capitalize()} 로그인에 성공했습니다."}
+        new_tokens: Dict[str, str] = _issue_tokens(user)
+        return {
+            "detail": f"{provider.capitalize()} 로그인에 성공했습니다.",
+            "access": new_tokens.get("access", ""),
+            "refresh": new_tokens.get("refresh", ""),
+        }
