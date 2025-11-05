@@ -1,16 +1,17 @@
-from typing import Any
+from typing import Any, List, cast
 
 from django.db.models import Count
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import extend_schema
 from rest_framework import parsers, status
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import BasePermission, IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from ..models.groups import StudyGroup
 from ..paginations import StudyGroupPagination
+from ..permissions import IsGroupLeader
 from ..serializers.groups import (
     StudyGroupCreateSerializer,
     StudyGroupDetailSerializer,
@@ -65,9 +66,14 @@ class StudyGroupListCreateView(APIView):
 
 
 class StudyGroupDetailUpdateView(APIView):
-    permission_classes = [IsAuthenticated]
-
     parser_classes = [parsers.JSONParser, parsers.MultiPartParser]
+
+    def get_permissions(self) -> List[BasePermission]:
+        if self.request.method == "GET":
+            return [IsAuthenticated()]
+        if self.request.method == "PUT":
+            return [IsAuthenticated(), IsGroupLeader()]
+        return cast(List[BasePermission], super().get_permissions())
 
     @extend_schema(
         operation_id="v1_studies_groups_detail",
