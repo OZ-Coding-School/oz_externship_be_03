@@ -134,6 +134,7 @@ class InflearnLectureCrawlerAsync(InflearnCategoryCrawler):
             duration_minutes: int = runtime_seconds // 60
 
             lecture_info: Dict[str, Any] = {
+                "inflearn_course_id": course.get("id"),
                 "title": course.get("title", ""),
                 "instructor": instructor.get("name", ""),
                 "average_rating": round(course.get("star", 0.0), 2),

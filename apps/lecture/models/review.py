@@ -16,6 +16,9 @@ class CrawledLectureReview(BaseModel):
     rating = models.CharField(max_length=20, choices=RatingEnum.choices, null=False)
     content = models.TextField(null=False)
 
+    inflearn_review_id = models.BigIntegerField(unique=True, null=True, blank=True)
+    udemy_review_id = models.BigIntegerField(unique=True, null=True, blank=True)
+
     class Meta:
         db_table = "crawled_lecture_reviews"
         ordering = ["-created_at"]
