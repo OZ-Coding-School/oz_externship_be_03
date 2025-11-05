@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date
 
 from django.contrib.auth import get_user_model
 
@@ -16,8 +16,6 @@ User = get_user_model()
 class TasksTest(IsolatedRedisTestClient):
     def setUp(self) -> None:
         super().setUp()
-
-        from datetime import date
 
         self.user = User.objects.create_user(
             email="test@test.com",
