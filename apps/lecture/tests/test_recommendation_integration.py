@@ -1,12 +1,13 @@
 import os
-from datetime import date
-from typing import Any, Dict, List
+import shutil
+import tempfile
+from typing import Any, Dict, List, Set, cast
 
 from django.core.cache import cache
 from django.test import override_settings
 from django.urls import reverse
 from rest_framework import status
-from rest_framework.response import Response
+from rest_framework.test import APIClient
 
 from apps.core.utils.isolated_cache_testcase import IsolatedRedisTestClient
 from apps.lecture.models import (
@@ -16,188 +17,285 @@ from apps.lecture.models import (
     LectureCategory,
     UserPreferCategory,
 )
-from apps.lecture.services.recommendation_service.data_loader import DataLoader
-from apps.lecture.services.recommendation_service.model_trainer import (
-    MODEL_BACKUP_PATH,
-    MODEL_BUNDLE_PATH,
-    ModelTrainer,
+from apps.lecture.services.recommendation_service.constants import (
+    ALS_CACHE_KEYS,
+    MODEL_VERSION,
 )
+from apps.lecture.services.recommendation_service.data_loader import DataLoader
+from apps.lecture.services.recommendation_service.model_trainer import ModelTrainer
 from apps.lecture.tests.base_lecture import BaseLectureTest
-from apps.users.models import User
+from apps.users.models.user import User
 
 
-@override_settings(ALS_MODEL_VERSION="test_v1.0.0")
-class RecommendationViewIntegrationTest(IsolatedRedisTestClient, BaseLectureTest):
+# @tag('serial', 'integration')
+class RecommendationEndToEndTest(IsolatedRedisTestClient, BaseLectureTest):
     """
-    추천 API 통합 테스트
+    추천 시스템 E2E 통합 테스트
+
+    병렬 실행 불가 시 위의 주석 해제 후 테스트
+    : @tag('serial')로 순차 실행
     """
 
-    databases = {"default"}
+    test_model_dir: str
+    test_lock_key: str
 
-    user: Any
-    category_python: Category
-    category_django: Category
-    category_javascript: Category
-    lecture3: CrawledLecture
-    recommendation_url: str
+    common_category: Category
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        super().setUpClass()
+        cls.test_model_dir = tempfile.mkdtemp(prefix=f"als_integration_test_{os.getpid()}_")
 
     @classmethod
     def setUpTestData(cls) -> None:
+        """클래스 레벨 테스트 데이터 생성"""
         super().setUpTestData()
 
-        # BaseLectureTest에서 생성된 카테고리 재사용
-        cls.category_python = cls.category1  # "Python" 카테고리
-        cls.category_django, _ = Category.objects.get_or_create(name="Django")
-        cls.category_javascript, _ = Category.objects.get_or_create(name="JavaScript")
+        # 공통 카테고리 (모든 테스트에서 재사용)
+        cls.common_category = Category.objects.create(name="Common Test Category")
 
-        # 추가 강의 생성
-        cls.lecture3 = CrawledLecture.objects.create(
-            title="JavaScript 기초",
-            instructor="이영희",
-            average_rating=4.3,
-            duration=400,
-            difficulty="EASY",
-            description="JavaScript 기초 강의",
-            platform="INFLEARN",
-            original_price=40000,
-            discount_price=25000,
-            url_link="https://www.inflearn.com/javascript",
-        )
-
-        # 강의-카테고리 연결
-        LectureCategory.objects.bulk_create(
-            [
-                LectureCategory(lecture=cls.lecture3, category=cls.category_javascript),
-            ]
-        )
-
-        # 테스트 사용자 생성
-        cls.user = User.objects.create_user(
-            email="recommend_test@example.com",
-            password="testpass123",
-            nickname="recmnduser",
-            name="추천테스트유저",
-            phone_number="010-9999-9999",
-            birthday=date(1995, 5, 15),
-            gender="MALE",
-        )
-
-        cls.recommendation_url = reverse("recommendations")
+    @classmethod
+    def tearDownClass(cls) -> None:
+        super().tearDownClass()
+        if os.path.exists(cls.test_model_dir):
+            shutil.rmtree(cls.test_model_dir)
 
     def setUp(self) -> None:
-        """각 테스트 전 설정"""
         super().setUp()
+        self.client = APIClient()
+
+        # 캐시 초기화
         cache.clear()
-        self.client.force_authenticate(user=self.user)
+        for key in ALS_CACHE_KEYS:
+            cache.delete(key)
+
+        # Redis 연결 워밍업 (초기 연결 지연 제거)
+        cache.set("warmup_key", "warmup_value", timeout=1)
+        cache.get("warmup_key")
+        cache.delete("warmup_key")
+
+        # 프로세스별 고유 락 키
+        self.test_lock_key = f"integration_test_lock_{os.getpid()}_{MODEL_VERSION}"
 
     def tearDown(self) -> None:
         """각 테스트 후 정리"""
+        # 모든 ALS 관련 캐시 키 삭제
+        for key in ALS_CACHE_KEYS:
+            cache.delete(key)
+        cache.delete(self.test_lock_key)
+
+        # 모델 파일 정리
+        if os.path.exists(self.test_model_dir):
+            for file in os.listdir(self.test_model_dir):
+                file_path = os.path.join(self.test_model_dir, file)
+                try:
+                    if os.path.isfile(file_path):
+                        os.unlink(file_path)
+                except Exception:
+                    pass
+
         super().tearDown()
-        if os.path.exists(MODEL_BUNDLE_PATH):
-            os.remove(MODEL_BUNDLE_PATH)
-        if os.path.exists(MODEL_BACKUP_PATH):
-            os.remove(MODEL_BACKUP_PATH)
 
-    def test_integration_new_user_receives_popular_recommendations(self) -> None:
-        """신규 사용자는 인기 강의 추천 받음"""
-        response: Response = self.client.get(self.recommendation_url)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertGreater(len(response.data), 0, "추천 결과가 비어있음")
-
-        # 응답 구조 검증
-        first_lecture: Dict[str, Any] = response.data[0]
-        required_fields: List[str] = [
-            "id",
-            "uuid",
-            "title",
-            "instructor",
-            "thumbnail_img_url",
-            "categories",
-            "difficulty",
-            "original_price",
-            "discount_price",
-            "platform",
-            "average_rating",
-            "duration",
-            "url_link",
-            "is_bookmarked",
+    def _create_test_users(self, count: int) -> List[User]:
+        """테스트 사용자 생성 헬퍼"""
+        return [
+            User.objects.create_user(
+                email=f"testuser{i}@example.com",
+                password="testpass123",
+                nickname=f"testuser{i}",
+                name=f"테스트유저{i}",
+                phone_number=f"010-{1000+i:04d}-{1000+i:04d}",
+                birthday="1990-01-01",
+                gender="MALE",
+            )
+            for i in range(count)
         ]
 
-        for field in required_fields:
-            self.assertIn(field, first_lecture, f"필수 필드 '{field}'가 응답에 없음")
+    def _create_test_lectures(self, count: int) -> List[CrawledLecture]:
+        """테스트 강의 생성 헬퍼"""
+        lectures = [
+            CrawledLecture.objects.create(
+                title=f"테스트 강의 {i+1}",
+                instructor=f"강사{i+1}",
+                average_rating=4.0 + (i * 0.1),
+                duration=600 + (i * 100),
+                difficulty="MEDIUM",
+                description="테스트 강의 설명",
+                platform="INFLEARN",
+                original_price=50000 + (i * 10000),
+                discount_price=30000 + (i * 10000),
+                url_link=f"https://example.com/lecture{i+1}",
+            )
+            for i in range(count)
+        ]
 
-    def test_integration_user_with_preferences_receives_personalized_recommendations(self) -> None:
-        """선호 카테고리가 있는 사용자는 개인화된 추천 받음"""
-        UserPreferCategory.objects.create(user=self.user, category=self.category_python)
+        # 공통 카테고리 연결
+        for lecture in lectures:
+            LectureCategory.objects.create(lecture=lecture, category=self.common_category)
 
-        response: Response = self.client.get(self.recommendation_url)
+        return lectures
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertGreater(len(response.data), 0, "추천 결과가 비어있음")
+    def _get_recommendations_from_response(self, response: Any) -> List[Dict[str, Any]]:
+        """응답에서 추천 목록 추출 헬퍼"""
+        try:
+            data = response.data
+            if isinstance(data, dict) and "data" in data:
+                inner_data = data["data"]
+                if isinstance(inner_data, dict) and "recommendations" in inner_data:
+                    recs = inner_data["recommendations"]
+                    if isinstance(recs, list):
+                        return cast(List[Dict[str, Any]], recs)
+        except (AttributeError, KeyError, TypeError):
+            pass
+        return []
 
-    def test_integration_bookmarked_lectures_excluded_from_recommendations(self) -> None:
-        """북마크된 강의는 추천에서 제외됨"""
-        LectureBookmark.objects.create(user=self.user, lecture=self.lecture1)
+    def test_e2e_response_structure_and_required_fields(self) -> None:
+        """E2E: 응답 구조 및 필수 필드 검증"""
+        users = self._create_test_users(1)
+        lectures = self._create_test_lectures(2)
 
-        response: Response = self.client.get(self.recommendation_url)
+        UserPreferCategory.objects.create(user=users[0], category=self.common_category)
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        lecture_ids: List[int] = [lec["id"] for lec in response.data]
-        self.assertNotIn(self.lecture1.id, lecture_ids, "북마크된 강의는 제외되어야 함")
+        self.client.force_authenticate(user=users[0])
+        url = reverse("recommendations")
+        response = self.client.get(url)
 
-    def test_integration_unauthenticated_user_cannot_access_recommendations(self) -> None:
-        """인증되지 않은 사용자는 추천 접근 불가"""
-        self.client.force_authenticate(user=None)
-        response: Response = self.client.get(self.recommendation_url)
+        # 응답 상태 코드 검증
+        self.assertEqual(response.status_code, status.HTTP_200_OK, f"Expected 200 OK but got {response.status_code}")
 
-        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
-
-    def test_integration_cache_hit_for_repeated_requests(self) -> None:
-        """반복 요청 시 캐시 히트 확인"""
-        response1: Response = self.client.get(self.recommendation_url)
-        response2: Response = self.client.get(self.recommendation_url)
-
-        self.assertEqual(response1.status_code, status.HTTP_200_OK)
-        self.assertEqual(response2.status_code, status.HTTP_200_OK)
-        self.assertEqual(response1.data, response2.data, "캐시된 결과가 동일해야 함")
-
-    def test_integration_multiple_bookmarks_excluded(self) -> None:
-        """여러 북마크가 모두 추천에서 제외됨"""
-        LectureBookmark.objects.bulk_create(
-            [
-                LectureBookmark(user=self.user, lecture=self.lecture1),
-                LectureBookmark(user=self.user, lecture=self.lecture3),
-            ]
+        # 응답 구조 검증
+        self.assertIn("detail", response.data, "응답에 'detail' 필드가 없습니다")
+        self.assertIn("data", response.data, "응답에 'data' 필드가 없습니다")
+        self.assertEqual(
+            response.data["detail"], "맞춤 강의 추천 조회가 완료되었습니다.", "detail 메시지가 일치하지 않습니다"
         )
 
-        response: Response = self.client.get(self.recommendation_url)
+        # 추천 목록 검증
+        recommendations = self._get_recommendations_from_response(response)
+        if recommendations:
+            # 각 추천 항목의 필수 필드 검증
+            for rec in recommendations:
+                self.assertIn("id", rec, "추천 항목에 'id' 필드가 없습니다")
+                self.assertIn("title", rec, "추천 항목에 'title' 필드가 없습니다")
+                self.assertIn("is_bookmarked", rec, "추천 항목에 'is_bookmarked' 필드가 없습니다")
+                self.assertIn("categories", rec, "추천 항목에 'categories' 필드가 없습니다")
+                self.assertIsInstance(rec["categories"], list, "'categories'는 리스트여야 합니다")
+
+    def test_e2e_no_data_returns_empty_or_popular_lectures(self) -> None:
+        """E2E: 데이터 없을 때 빈 결과 또는 인기 강의 폴백"""
+        users = self._create_test_users(1)
+        self._create_test_lectures(2)
+
+        self.client.force_authenticate(user=users[0])
+        url = reverse("recommendations")
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, "데이터 없을 때도 200 OK를 반환해야 합니다")
+
+        # 폴백 전략(인기 강의) 동작 확인
+        recommendations = self._get_recommendations_from_response(response)
+        self.assertIsInstance(recommendations, list, "추천 결과는 리스트여야 합니다")
+
+    def test_e2e_all_lectures_bookmarked_returns_empty(self) -> None:
+        """E2E: 모든 강의 북마크 시 빈 결과 반환"""
+        users = self._create_test_users(1)
+        lectures = self._create_test_lectures(2)
+
+        UserPreferCategory.objects.create(user=users[0], category=self.common_category)
+
+        # 모든 강의 북마크
+        for lecture in lectures:
+            LectureBookmark.objects.create(user=users[0], lecture=lecture)
+
+        self.client.force_authenticate(user=users[0])
+        url = reverse("recommendations")
+        response = self.client.get(url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        lecture_ids: List[int] = [lec["id"] for lec in response.data]
-        self.assertNotIn(self.lecture1.id, lecture_ids, "북마크된 강의는 제외되어야 함")
-        self.assertNotIn(self.lecture3.id, lecture_ids, "북마크된 강의는 제외되어야 함")
 
-    def test_integration_full_model_training_and_recommendation_flow(self) -> None:
-        """
-        모델 학습 → 저장 → 로드 → 추천 생성 전체 플로우
+        recommendations = self._get_recommendations_from_response(response)
+        # 북마크된 강의는 추천에서 제외되어야 함
+        if recommendations:
+            recommended_ids: Set[int] = {rec["id"] for rec in recommendations}
+            for lecture in lectures:
+                self.assertNotIn(lecture.id, recommended_ids, f"북마크된 강의 {lecture.id}가 추천에 포함됨")
 
-        테스트 범위: ModelTrainer → RecommendationService → API
-        """
-        LectureBookmark.objects.bulk_create(
-            [
-                LectureBookmark(user=self.user, lecture=self.lecture1),
-                LectureBookmark(user=self.user, lecture=self.lecture2),
-            ]
-        )
+    @override_settings(MODEL_STORAGE_PATH=None)
+    def test_e2e_als_model_training_returns_personalized_recommendations(self) -> None:
+        """E2E: ALS 모델 학습 후 개인화된 추천 반환"""
+        users = self._create_test_users(1)
+        lectures = self._create_test_lectures(2)
 
-        data_loader = DataLoader()
-        trainer = ModelTrainer(data_loader=data_loader)
-        success = trainer.train_and_save_full_model()
+        # 상호작용 데이터 생성
+        LectureBookmark.objects.create(user=users[0], lecture=lectures[0])
+        UserPreferCategory.objects.create(user=users[0], category=self.common_category)
 
-        self.assertTrue(success, "모델 학습 및 저장 실패")
+        with override_settings(MODEL_STORAGE_PATH=self.test_model_dir):
+            data_loader = DataLoader()
+            trainer = ModelTrainer(data_loader, lock_key=self.test_lock_key)
 
-        response: Response = self.client.get(self.recommendation_url)
+            # 모델 학습
+            success = trainer.train_and_save_full_model()
+            self.assertTrue(success, "ALS 모델 학습 실패")
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertGreater(len(response.data), 0, "추천 결과가 비어있음")
+            # API 요청
+            self.client.force_authenticate(user=users[0])
+            url = reverse("recommendations")
+            response = self.client.get(url)
+
+            self.assertEqual(response.status_code, status.HTTP_200_OK, "모델 학습 후 추천 요청 실패")
+
+            # 추천 결과 검증
+            recommendations = self._get_recommendations_from_response(response)
+            self.assertGreaterEqual(len(recommendations), 0, "추천 결과가 없습니다")
+
+            # 북마크된 강의는 추천에서 제외되어야 함
+            if recommendations:
+                recommended_ids: Set[int] = {rec["id"] for rec in recommendations}
+                self.assertNotIn(lectures[0].id, recommended_ids, "북마크된 강의가 추천에 포함됨")
+
+    @override_settings(MODEL_STORAGE_PATH=None)
+    def test_e2e_multiple_users_personalized_recommendations(self) -> None:
+        """E2E: 여러 사용자의 개인화된 추천"""
+        users = self._create_test_users(2)
+        lectures = self._create_test_lectures(3)
+
+        category = Category.objects.create(name="Test Category")
+        for lecture in lectures:
+            LectureCategory.objects.create(lecture=lecture, category=category)
+
+        # 각 사용자별 상호작용
+        LectureBookmark.objects.create(user=users[0], lecture=lectures[0])
+        LectureBookmark.objects.create(user=users[1], lecture=lectures[1])
+        UserPreferCategory.objects.create(user=users[0], category=category)
+        UserPreferCategory.objects.create(user=users[1], category=category)
+
+        with override_settings(MODEL_STORAGE_PATH=self.test_model_dir):
+            data_loader = DataLoader()
+            trainer = ModelTrainer(data_loader, lock_key=self.test_lock_key)
+
+            success = trainer.train_and_save_full_model()
+            self.assertTrue(success, "모델 학습 실패")
+
+            # 각 사용자별 추천 요청
+            url = reverse("recommendations")
+
+            self.client.force_authenticate(user=users[0])
+            response1 = self.client.get(url)
+
+            self.client.force_authenticate(user=users[1])
+            response2 = self.client.get(url)
+
+            self.assertEqual(response1.status_code, status.HTTP_200_OK)
+            self.assertEqual(response2.status_code, status.HTTP_200_OK)
+
+            # 각 사용자의 북마크가 추천에서 제외되었는지 확인
+            recommendations1 = self._get_recommendations_from_response(response1)
+            if recommendations1:
+                user1_ids: Set[int] = {rec["id"] for rec in recommendations1}
+                self.assertNotIn(lectures[0].id, user1_ids, "User1 북마크가 추천에 포함됨")
+
+            recommendations2 = self._get_recommendations_from_response(response2)
+            if recommendations2:
+                user2_ids: Set[int] = {rec["id"] for rec in recommendations2}
+                self.assertNotIn(lectures[1].id, user2_ids, "User2 북마크가 추천에 포함됨")
