@@ -1,9 +1,8 @@
+import math
 from datetime import timedelta
-from typing import Any, Dict, cast
-from uuid import UUID
+from typing import Any, Dict
 
 from django.db import transaction
-from django.db.models import QuerySet
 from django.utils import timezone
 from rest_framework import serializers
 
@@ -35,8 +34,8 @@ class StudyGroupCreateSerializer(StudyGroupBaseSerializer):
     )
     profile_img_url = serializers.URLField(required=False, allow_null=True, help_text="프로필 이미지 URL (선택사항)")
     max_headcount = serializers.IntegerField(help_text="최대 인원 수 (2~10명)")
-    start_at = serializers.DateTimeField(help_text="스터디 시작일")
-    end_at = serializers.DateTimeField(help_text="스터디 종료일")
+    start_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S", help_text="스터디 시작일")
+    end_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S", help_text="스터디 종료일")
     lectures = serializers.SlugRelatedField(
         queryset=CrawledLecture.objects.all(),
         many=True,
@@ -116,12 +115,16 @@ class StudyGroupListSerializer(StudyGroupBaseSerializer):
     current_headcount = serializers.IntegerField()
     is_leader = serializers.SerializerMethodField()
     lectures = StudyGroupListLectureSerializer(many=True)
+    total_pages = serializers.SerializerMethodField()
+    total_groups = serializers.SerializerMethodField()
 
     class Meta(StudyGroupBaseSerializer.Meta):
         fields = StudyGroupBaseSerializer.Meta.fields + [
             "current_headcount",
             "is_leader",
             "lectures",
+            "total_pages",
+            "total_groups",
         ]
 
     def get_is_leader(self, obj: StudyGroup) -> bool:
@@ -132,6 +135,15 @@ class StudyGroupListSerializer(StudyGroupBaseSerializer):
         members = obj.group_members.all()
 
         return any(member.user.id == req_user_id and member.is_leader for member in members)
+
+    def get_total_pages(self) -> int:
+        total_groups = StudyGroup.objects.count()
+        page_size = 9
+
+        return math.ceil(total_groups / page_size)
+
+    def get_total_groups(self) -> int:
+        return StudyGroup.objects.count()
 
 
 class StudyGroupDetailLectureSerializer(serializers.ModelSerializer[CrawledLecture]):
@@ -153,21 +165,17 @@ class StudyGroupDetailSerializer(StudyGroupBaseSerializer):
     current_headcount = serializers.SerializerMethodField()
     members = StudyGroupDetailMemberSerializer(source="group_members", many=True)
     lectures = StudyGroupDetailLectureSerializer(many=True)
+    is_me_leader = serializers.SerializerMethodField()
 
     class Meta(StudyGroupBaseSerializer.Meta):
-        fields = StudyGroupBaseSerializer.Meta.fields + ["current_headcount", "members", "lectures"]
+        fields = StudyGroupBaseSerializer.Meta.fields + ["current_headcount", "members", "lectures", "is_me_leader"]
 
     def get_current_headcount(self, obj: StudyGroup) -> int:
         return len(obj.members.all())
 
-    def get_members(self, obj: StudyGroup) -> list[dict[str, int | str | UUID]]:
-        group_members = cast(QuerySet[GroupMember], obj.members.all())
+    def get_is_me_leader(self, obj: StudyGroup) -> bool:
+        request = self.context.get("request")
+        if not request or not hasattr(request, "user"):
+            return False
 
-        return [
-            {
-                "uuid": group_member.user.uuid,
-                "nickname": group_member.user.nickname,
-                "is_leader": group_member.is_leader,
-            }
-            for group_member in group_members
-        ]
+        return obj.members.filter(user=request.user, groupmember__is_leader=True).exists()
