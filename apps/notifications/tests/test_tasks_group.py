@@ -1,23 +1,24 @@
 import asyncio
+from datetime import datetime, timezone
+
 from django.contrib.auth import get_user_model
 
 from apps.core.utils.isolated_cache_testcase import IsolatedRedisTestClient
 from apps.notifications.models import Notification
 from apps.notifications.services.redis_pubsub_classify import notification_pubsub
 from apps.notifications.tasks import send_study_group_notification
-from apps.studies.models import StudyGroup
+from apps.studies.models.groups import StudyGroup
 from apps.users.enums import Gender
 
-from datetime import datetime
-from datetime import timezone
-
 User = get_user_model()
+
 
 class TasksTest(IsolatedRedisTestClient):
     def setUp(self) -> None:
         super().setUp()
 
         from datetime import date
+
         self.user = User.objects.create_user(
             email="test@test.com",
             password="pass123",

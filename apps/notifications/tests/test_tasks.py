@@ -68,4 +68,3 @@ class TasksTest(IsolatedRedisTestClient):
         self.assertEqual(data["id"], self.notification.id)
         self.assertEqual(data["type"], self.notification.type)
         self.assertEqual(data["content"], self.notification.content)
-
