@@ -1,6 +1,8 @@
 from datetime import time
 from typing import Any
+
 from rest_framework import serializers
+
 from apps.studies.models.groups import StudyGroup
 from apps.studies.models.schedules import GroupSchedule, ScheduleParticipant
 
@@ -79,9 +81,7 @@ class GroupScheduleCreateSerializer(StudyScheduleBaseSerializer):
         start = attrs.get("start_time")
         end = attrs.get("end_time")
         if start and end and start >= end:
-            raise serializers.ValidationError(
-                {"end_time": "종료 시간은 시작 시간보다 이후여야 합니다."}
-            )
+            raise serializers.ValidationError({"end_time": "종료 시간은 시작 시간보다 이후여야 합니다."})
         return attrs
 
 
