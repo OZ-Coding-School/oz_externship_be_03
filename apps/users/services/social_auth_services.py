@@ -5,7 +5,6 @@ from typing import Any, Dict, Optional
 
 import requests
 from allauth.socialaccount.providers.kakao.views import KakaoOAuth2Adapter
-
 from allauth.socialaccount.providers.naver.views import NaverOAuth2Adapter
 from allauth.socialaccount.providers.oauth2.client import OAuth2Error
 from django.core.exceptions import ValidationError
