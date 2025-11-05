@@ -136,14 +136,11 @@ class StudyGroupListSerializer(StudyGroupBaseSerializer):
 
         return any(member.user.id == req_user_id and member.is_leader for member in members)
 
-    def get_total_pages(self, obj: StudyGroup) -> int:
-        total_groups = StudyGroup.objects.count()
-        page_size = 9
-
-        return math.ceil(total_groups / page_size)
-
     def get_total_groups(self, obj: StudyGroup) -> int:
-        return StudyGroup.objects.count()
+        return self.context.get("total_groups", 0)
+
+    def get_total_pages(self, obj: StudyGroup) -> int:
+        return self.context.get("total_pages", 0)
 
 
 class StudyGroupDetailLectureSerializer(serializers.ModelSerializer[CrawledLecture]):

@@ -1,3 +1,4 @@
+import math
 from typing import Any, List, cast
 
 from django.db.models import Count
@@ -50,6 +51,8 @@ class StudyGroupListCreateView(APIView):
     def get(self, request: Request) -> Response:
 
         queryset = StudyGroup.objects.order_by("-created_at")
+        total_groups = queryset.count()
+        total_pages = math.ceil(total_groups / StudyGroupPagination.page_size)
 
         status_param = request.query_params.get("status")
         if status_param == "ENDED":
@@ -61,7 +64,7 @@ class StudyGroupListCreateView(APIView):
 
         paginator = self.pagination_class()
         page = paginator.paginate_queryset(queryset, self.request)
-        serializer = StudyGroupListSerializer(page, many=True, context={"request": request})
+        serializer = StudyGroupListSerializer(page, many=True, context={"request": request, "total_pages": total_pages, "total_groups": total_groups})
         return paginator.get_paginated_response(serializer.data)
 
 
