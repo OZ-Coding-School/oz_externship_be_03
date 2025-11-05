@@ -2,25 +2,32 @@ import json
 from typing import AsyncGenerator
 
 from django.http import HttpRequest, StreamingHttpResponse
+from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework_simplejwt.exceptions import InvalidToken
 
 from apps.notifications.services.redis_pubsub_classify import notification_pubsub
 from apps.studies.models.groups import GroupMember
 
 
 async def notification_stream(request: HttpRequest, user_id: int) -> StreamingHttpResponse:
-    # 인증 체크
-    if not request.user.is_authenticated:
+    #인증 체크
+    token = request.GET.get("token")
+    if not token:
         return StreamingHttpResponse(
-            f'data: {json.dumps({"error":"로그인이 필요합니다"},ensure_ascii=False)}\\n\\n',
+            f'data: {json.dumps({"error":"토큰이 필요합니다"}, ensure_ascii=False)}\\n\\n',
             content_type="text/event-stream",
             status=401,
         )
-
-    if request.user.id != user_id:
+    try:
+        jwt_auth = JWTAuthentication()
+        validated_token = jwt_auth.get_validated_token(token)
+        user = jwt_auth.get_user(validated_token)
+        user_id = user.id
+    except InvalidToken:
         return StreamingHttpResponse(
-            f'data: {json.dumps({"error":"인증되지 않은 사용자"},ensure_ascii=False)}\n\n',
+            f'data: {json.dumps({"error":"인증되지않은 토큰"}, ensure_ascii=False)}\\n\\n',
             content_type="text/event-stream",
-            status=403,
+            status=401,
         )
 
     async def async_event_stream() -> AsyncGenerator[str, None]:
