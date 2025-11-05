@@ -5,9 +5,9 @@ from apps.studies.views.groups import (
     StudyGroupListCreateView,
 )
 from apps.studies.views.members import (
-    DelegateLeaderAPIView,
-    MemberKickAPIView,
-    MemberLeaveAPIView,
+    DelegateLeaderView,
+    MemberKickView,
+    MemberLeaveView,
 )
 from apps.studies.views.notes import (
     StudyNoteCreateAPIView,
@@ -34,20 +34,20 @@ urlpatterns = [
     ),
     # 특정 스터디 그룹에 대해서 리더 권한 위임
     path(
-        "groups/<uuid:group_id>/delegate-leader",
-        DelegateLeaderAPIView.as_view(),
+        "groups/<uuid:group_uuid>/delegate-leader",
+        DelegateLeaderView.as_view(),
         name="delegate-leader",
     ),
-    # 스터디 그룹 나가기
+    # REQ-STDY-007: 그룹 탈퇴
     path(
-        "groups/<uuid:group_id>/leave",
-        MemberLeaveAPIView.as_view(),
+        "groups/<uuid:group_uuid>/leave",
+        MemberLeaveView.as_view(),
         name="study-member-leave",
     ),
-    # 스터디 그룹 멤버 추방
+    # REQ-STDY-006: 스터디 그룹 멤버 추방 API
     path(
-        "groups/<uuid:group_id>/members/<int:member_id>",
-        MemberKickAPIView.as_view(),
+        "groups/<uuid:group_uuid>/members/<int:member_id>",
+        MemberKickView.as_view(),
         name="study-member-kick",
     ),
     # Schedule APIs

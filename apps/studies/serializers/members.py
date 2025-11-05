@@ -1,11 +1,21 @@
 from rest_framework import serializers
 
 
-class DelegateLeaderSerializer(serializers.Serializer):  # type: ignore[type-arg]
-    """REQ-STDY-008: 리더 위임 요청 시 사용되는 입력값 검증"""
+class MemberKickSerializer(serializers.Serializer):  # type: ignore[type-arg]
+    """REQ-STDY-006: 리더가 특정 멤버를 추방할 때 사용"""
 
-    target_user_id = serializers.IntegerField(
-        required=True,
-        min_value=1,  # DB에 존재할 수 없는 값 방어용
-        help_text="리더로 위임할 대상 멤버의 유저 ID",
-    )
+    member_id = serializers.IntegerField(required=True, min_value=1, help_text="추방할 멤버의 GroupMember ID")
+
+
+class MemberLeaveSerializer(serializers.Serializer):  # type: ignore[type-arg]
+    """REQ-STDY-007: 멤버 자진 탈퇴 요청용"""
+
+    pass
+
+
+class DelegateLeaderSerializer(serializers.Serializer):  # type: ignore[type-arg]
+    """REQ-STDY-008: 리더 위임 요청 및 결과 직렬화"""
+
+    target_member_id = serializers.IntegerField(required=True, min_value=1)
+    previous_leader_id = serializers.IntegerField(read_only=True)
+    new_leader_id = serializers.IntegerField(read_only=True)
