@@ -6,7 +6,7 @@ from apps.recruitments.models.recruitments import Recruitment
 
 class RecruitmentImage(BaseModel):
     recruitment = models.ForeignKey(Recruitment, on_delete=models.CASCADE, related_name="images")
-    img_url = models.URLField()
+    img_url = models.URLField(max_length=500)
 
     class Meta:
         db_table = "recruitment_images"

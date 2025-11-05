@@ -1,4 +1,6 @@
 from datetime import date, timedelta
+from typing import Callable
+from uuid import UUID
 
 from django.urls import reverse
 from django.utils import timezone
@@ -54,9 +56,13 @@ class BookmarkAPITestCase(APITestCase):
             close_at=now + timedelta(days=7),
         )
 
-        # ✅ 실제 엔드포인트 기반으로 수정
-        self.list_url = "/api/v1/recruitments/bookmark/"
-        self.detail_url = lambda uuid: f"/api/v1/recruitments/bookmark/{uuid}/"
+        # reverse 기반 URL 설정
+        self.list_url = reverse("recruitments-bookmark-list-create")
+
+        def get_detail_url(bookmark_uuid: UUID) -> str:
+            return reverse("bookmark-detail-destroy", args=[bookmark_uuid])
+
+        self.detail_url: Callable[[UUID], str] = get_detail_url
 
         # 미리 북마크 하나 생성
         self.bookmark = Bookmark.objects.create(user=self.user, recruitment=self.recruitment)
@@ -109,8 +115,8 @@ class BookmarkAPITestCase(APITestCase):
 
     def test_delete_bookmark_success(self) -> None:
         """북마크 삭제 성공"""
-        # ✅ 실제 URL 네임스페이스 반영
-        url = f"/api/v1/recruitments/bookmark/{self.bookmark.uuid}/"
+        # 🔵 reverse() 기반 detail URL 사용
+        url = self.detail_url(self.bookmark.uuid)
         response = self.client.delete(url)
 
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
@@ -121,7 +127,7 @@ class BookmarkAPITestCase(APITestCase):
         import uuid
 
         invalid_uuid = uuid.uuid4()
-        url = f"/api/v1/recruitments/bookmark/{invalid_uuid}/"
+        url = self.detail_url(invalid_uuid)  # 🔵 reverse 기반 URL 사용
         response = self.client.delete(url)
 
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
