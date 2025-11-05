@@ -80,15 +80,19 @@ class SocialAuthService:
         payload: Dict[str, str] = {"grant_type": "authorization_code", "code": code}
 
         if provider == Provider.KAKAO:
-            payload.update({
-                "client_id": str(settings.KAKAO_CLIENT_ID or ""),
-                "redirect_uri": str(settings.KAKAO_REDIRECT_URI or ""),
-            })
+            payload.update(
+                {
+                    "client_id": str(settings.KAKAO_CLIENT_ID or ""),
+                    "redirect_uri": str(settings.KAKAO_REDIRECT_URI or ""),
+                }
+            )
         else:
-            payload.update({
-                "client_id": str(settings.NAVER_CLIENT_ID or ""),
-                "client_secret": str(settings.NAVER_CLIENT_SECRET or ""),
-            })
+            payload.update(
+                {
+                    "client_id": str(settings.NAVER_CLIENT_ID or ""),
+                    "client_secret": str(settings.NAVER_CLIENT_SECRET or ""),
+                }
+            )
 
         # access_token 요청
         response = requests.post(token_url, data=payload)
