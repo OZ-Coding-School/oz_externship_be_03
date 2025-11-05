@@ -10,7 +10,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from ..models.groups import StudyGroup
+from ..models.groups import StudyGroup, StudyGroupStatus
 from ..paginations import StudyGroupPagination
 from ..permissions import IsGroupLeader
 from ..serializers.groups import (
@@ -55,7 +55,7 @@ class StudyGroupListCreateView(APIView):
         total_pages = math.ceil(total_groups / StudyGroupPagination.page_size)
 
         status_param = request.query_params.get("status")
-        if status_param:
+        if status_param in StudyGroupStatus.values:
             queryset = queryset.filter(status=status_param)
 
         queryset = queryset.annotate(current_headcount=Count("members"))
