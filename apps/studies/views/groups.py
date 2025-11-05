@@ -64,7 +64,9 @@ class StudyGroupListCreateView(APIView):
 
         paginator = self.pagination_class()
         page = paginator.paginate_queryset(queryset, self.request)
-        serializer = StudyGroupListSerializer(page, many=True, context={"request": request, "total_pages": total_pages, "total_groups": total_groups})
+        serializer = StudyGroupListSerializer(
+            page, many=True, context={"request": request, "total_pages": total_pages, "total_groups": total_groups}
+        )
         return paginator.get_paginated_response(serializer.data)
 
 
