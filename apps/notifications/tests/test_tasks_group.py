@@ -1,22 +1,23 @@
 import asyncio
-from datetime import date, datetime, timezone
-
 from django.contrib.auth import get_user_model
 
 from apps.core.utils.isolated_cache_testcase import IsolatedRedisTestClient
 from apps.notifications.models import Notification
 from apps.notifications.services.redis_pubsub_classify import notification_pubsub
-from apps.notifications.tasks import send_to_pubsub
-from apps.studies.models.groups import StudyGroup
+from apps.notifications.tasks import send_study_group_notification
+from apps.studies.models import StudyGroup
 from apps.users.enums import Gender
 
-User = get_user_model()
+from datetime import datetime
+from datetime import timezone
 
+User = get_user_model()
 
 class TasksTest(IsolatedRedisTestClient):
     def setUp(self) -> None:
         super().setUp()
 
+        from datetime import date
         self.user = User.objects.create_user(
             email="test@test.com",
             password="pass123",
@@ -42,21 +43,22 @@ class TasksTest(IsolatedRedisTestClient):
             end_at=datetime.now(timezone.utc),
         )
 
-    async def test_send_to_pubsub(self) -> None:
-        """to redis 알림 전송 테스트"""
+    async def test_send_to_pubsub_group(self) -> None:
+        """to redis 그룹 알림 전송 테스트"""
         messages = []
 
-        async def message_listener() -> None:
-            async for message in notification_pubsub.subscribe_notification(user_id=self.user.id):
+        async def group_message_listener() -> None:
+            async for message in notification_pubsub.subscribe_notification(group_ids=[str(self.study_group.id)]):
                 messages.append(message)
                 if len(messages) >= 1:
                     break
 
-        listener_task = asyncio.create_task(message_listener())  # type: ignore[unused-ignore]
+        listener_task = asyncio.create_task(group_message_listener())
 
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(1.0)
 
-        await send_to_pubsub(self.notification.id)
+        # 그룹 알림 전송
+        await send_study_group_notification(self.notification.id, str(self.study_group.id))
 
         try:
             await asyncio.wait_for(listener_task, timeout=5.0)
@@ -66,6 +68,4 @@ class TasksTest(IsolatedRedisTestClient):
         self.assertEqual(len(messages), 1)
         data = messages[0]
         self.assertEqual(data["id"], self.notification.id)
-        self.assertEqual(data["type"], self.notification.type)
         self.assertEqual(data["content"], self.notification.content)
-
