@@ -2,78 +2,101 @@ from __future__ import annotations
 
 from typing import Any
 
-from drf_spectacular.utils import extend_schema
-from rest_framework import status
+from drf_spectacular.utils import OpenApiParameter, extend_schema
+from rest_framework import generics, status
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny
 from rest_framework.request import Request
 from rest_framework.response import Response
-from rest_framework.views import APIView
 
+from apps.recruitments.models import RecruitmentTag, Tag
 from apps.recruitments.serializers.tag import TagSerializer
 
 
-@extend_schema(tags=["RecruitmentTags"])
-class TagListCreateView(APIView):
-    """전체 태그(Mock) 목록 조회 및 생성"""
+class TagPagination(PageNumberPagination):
+    """태그 목록 페이지네이션 설정"""
 
-    permission_classes = [AllowAny]
+    page_size: int = 5
+    page_size_query_param: str = "page_size"
+    max_page_size: int = 50
+
+
+@extend_schema(
+    tags=["RecruitmentTags"],
+    parameters=[
+        OpenApiParameter(
+            name="recruitment_id",
+            type=int,
+            location=OpenApiParameter.PATH,
+            description="공고 ID (URL 경로에서 전달됨)",
+            required=True,
+        ),
+        OpenApiParameter(
+            name="q",
+            type=str,
+            location=OpenApiParameter.QUERY,
+            description="태그명 검색 키워드 (부분 일치 검색)",
+            required=False,
+        ),
+    ],
+)
+class RecruitmentTagListCreateView(generics.ListCreateAPIView[Tag]):
+    """특정 공고의 태그 목록 조회 및 신규 태그 등록 API"""
+
     serializer_class = TagSerializer
+    permission_classes = [AllowAny]
+    pagination_class = TagPagination
 
-    MOCK_TAGS: list[dict[str, str]] = [
-        {"id": "1", "name": "Python"},
-        {"id": "2", "name": "Django"},
-        {"id": "3", "name": "JavaScript"},
-        {"id": "4", "name": "AI"},
-        {"id": "5", "name": "Frontend"},
-        {"id": "6", "name": "React"},
-        {"id": "7", "name": "Vue"},
-    ]
+    def get_queryset(self) -> Any:
+        """특정 공고에 연결된 태그 목록 조회 (검색 포함)"""
+        recruitment_id = self.kwargs.get("recruitment_id")
+        if recruitment_id is None:
+            return Tag.objects.none()
 
-    class Pagination(PageNumberPagination):
-        page_size = 3  # 한 페이지에 3개씩 표시
+        q = self.request.query_params.get("q", "").strip()
+        queryset = Tag.objects.filter(recruitment_tags__recruitment_id=recruitment_id).order_by("id")
+        if q:
+            queryset = queryset.filter(name__icontains=q)
+        return queryset
 
-    @extend_schema(
-        summary="전체 태그 목록 조회 (Mock, 페이지네이션 포함)",
-        description="전체 태그(Mock 데이터)를 페이지네이션과 함께 반환합니다.",
-        responses={200: TagSerializer(many=True)},
-    )
-    def get(self, request: Request) -> Response:
-        """전체 태그(Mock) 목록 조회 (페이지네이션 포함)"""
-        paginator = self.Pagination()
+    def list(self, request: Request, *args: Any, **kwargs: Any) -> Response:
+        """페이지네이션 직접 적용 (page_size 반영 보장)"""
+        queryset = self.get_queryset()
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
 
-        # paginate_queryset()은 QuerySet을 기대하지만, Mock 데이터(list)를 사용하므로 type ignore
-        page: list[dict[str, str]] | None = paginator.paginate_queryset(self.MOCK_TAGS, request)  # type: ignore[arg-type]
-        if page is None:
-            page = self.MOCK_TAGS
-
-        # TagSerializer도 Model 인스턴스를 기대하지만 Mock dict를 사용하므로 type ignore
-        serializer = TagSerializer(page, many=True)  # type: ignore[arg-type]
-        return paginator.get_paginated_response(serializer.data)
-
-    @extend_schema(
-        summary="새로운 태그 생성 (Mock)",
-        description="입력된 이름으로 새로운 태그(Mock)를 생성합니다. 시리얼라이저를 통한 검증 포함.",
-        request=TagSerializer,
-        responses={
-            201: TagSerializer,
-            400: {"example": {"detail": "태그 이름은 필수입니다."}},
-        },
-    )
-    def post(self, request: Request) -> Response:
-        """새로운 태그(Mock) 생성 (시리얼라이저 검증 적용)"""
-        serializer = TagSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        name: str = serializer.validated_data["name"]
-
-        # 중복 검사
-        if any(tag["name"].lower() == name.lower() for tag in self.MOCK_TAGS):
+    def create(self, request: Request, *args: Any, **kwargs: Any) -> Response:
+        """기존 태그 재사용 및 RecruitmentTag 연결 생성"""
+        recruitment_id = self.kwargs.get("recruitment_id")
+        if not recruitment_id:
             return Response(
-                {"detail": "이미 존재하는 태그입니다."},
+                {"detail": "URL에 recruitment_id가 누락되었습니다."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # 새로운 태그 생성 (Mock)
-        new_tag: dict[str, Any] = {"id": str(len(self.MOCK_TAGS) + 1), "name": name}
-        return Response(new_tag, status=status.HTTP_201_CREATED)
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        name: str = serializer.validated_data["name"]
+
+        existing_tag = Tag.objects.filter(name__iexact=name).first()
+        if existing_tag:
+            tag = existing_tag
+        else:
+            tag = Tag.objects.create(name=name)
+
+        # 이미 연결되어 있으면 400 반환
+        if RecruitmentTag.objects.filter(recruitment_id=recruitment_id, tag=tag).exists():
+            return Response(
+                {"detail": "이미 이 공고에 연결된 태그입니다."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        RecruitmentTag.objects.create(recruitment_id=recruitment_id, tag=tag)
+        return Response(
+            self.get_serializer(tag).data,
+            status=status.HTTP_201_CREATED,
+        )

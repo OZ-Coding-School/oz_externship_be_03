@@ -1,3 +1,3 @@
-from django.urls import URLPattern, URLResolver
+from .recruitments import urlpatterns as recruitments_urlpatterns
 
-urlpatterns: list[URLPattern | URLResolver] = []
+urlpatterns = recruitments_urlpatterns

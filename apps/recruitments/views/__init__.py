@@ -1,6 +1,7 @@
-class TagListCreateSpecView:
-    pass
+from __future__ import annotations
 
+from apps.recruitments.views.tag import RecruitmentTagListCreateView
 
-class TagDeleteSpecView:
-    pass
+__all__ = [
+    "RecruitmentTagListCreateView",
+]
