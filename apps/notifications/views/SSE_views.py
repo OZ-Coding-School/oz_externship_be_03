@@ -1,9 +1,9 @@
 import json
-from typing import Any, AsyncGenerator
+from typing import Any, AsyncGenerator, Union
 
 from asgiref.sync import sync_to_async
 from django.contrib.auth import get_user_model
-from django.http import HttpRequest, StreamingHttpResponse
+from django.http import HttpRequest, JsonResponse, StreamingHttpResponse
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.exceptions import InvalidToken
 
@@ -13,13 +13,12 @@ from apps.studies.models.groups import GroupMember
 User = get_user_model()
 
 
-async def notification_stream(request: HttpRequest) -> StreamingHttpResponse:
+async def notification_stream(request: HttpRequest) -> Union[StreamingHttpResponse, JsonResponse]:
     # 인증 체크
     token = request.GET.get("token")
     if not token:
-        return StreamingHttpResponse(
-            f'data: {json.dumps({"error":"토큰이 필요합니다"}, ensure_ascii=False)}\\n\\n',
-            content_type="text/event-stream",
+        return JsonResponse(
+            {"error": "토큰이 필요합니다."},
             status=401,
         )
     try:
@@ -29,16 +28,14 @@ async def notification_stream(request: HttpRequest) -> StreamingHttpResponse:
         if isinstance(user, User):
             user_id = user.id
         else:
-            return StreamingHttpResponse(
-                f'data: {json.dumps({"error":"사용자를 찾을 수 없습니다"}, ensure_ascii=False)}\\n\\n',
-                content_type="text/event-stream",
+            return JsonResponse(
+                {"error": "사용자를 찾을 수 없습니다,"},
                 status=401,
             )
 
     except InvalidToken:
-        return StreamingHttpResponse(
-            f'data: {json.dumps({"error":"인증되지않은 토큰"}, ensure_ascii=False)}\\n\\n',
-            content_type="text/event-stream",
+        return JsonResponse(
+            {"error": "인증되지않은 토큰"},
             status=401,
         )
 

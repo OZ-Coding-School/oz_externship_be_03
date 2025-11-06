@@ -3,7 +3,7 @@ import logging
 from datetime import date, datetime
 
 from django.contrib.auth import get_user_model
-from django.http import HttpRequest, QueryDict
+from django.http import HttpRequest, QueryDict, StreamingHttpResponse
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.core.utils.isolated_cache_testcase import IsolatedRedisTestClient
@@ -71,6 +71,9 @@ class TestSSEViews(IsolatedRedisTestClient):
         self.assertEqual(response["Content-Type"], "text/event-stream")
         self.assertEqual(response["Cache-Control"], "no-cache")
         self.assertEqual(response["Connection"], "keep-alive")
+        # 타입 검증을 위한 코드
+        self.assertIsInstance(response, StreamingHttpResponse)
+        assert isinstance(response, StreamingHttpResponse)
 
         async def publish_notification() -> None:
             await asyncio.sleep(0.2)
@@ -99,7 +102,7 @@ class TestSSEViews(IsolatedRedisTestClient):
         response = await notification_stream(request)
 
         self.assertEqual(response.status_code, 401)
-        self.assertEqual(response["Content-Type"], "text/event-stream")
+        self.assertEqual(response["Content-Type"], "application/json")
 
     async def test_notification_stream_expired_token(self) -> None:
         """만료된 토큰 테스트"""
@@ -109,4 +112,4 @@ class TestSSEViews(IsolatedRedisTestClient):
         response = await notification_stream(request)
 
         self.assertEqual(response.status_code, 401)
-        self.assertEqual(response["Content-Type"], "text/event-stream")
+        self.assertEqual(response["Content-Type"], "application/json")
