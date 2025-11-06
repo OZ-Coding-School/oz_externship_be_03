@@ -182,7 +182,7 @@ class StudyGroupDetailSerializer(StudyGroupBaseSerializer):
 class AdminStudyGroupListSerializer(serializers.ModelSerializer[StudyGroup]):
     current_headcount = serializers.SerializerMethodField()
     max_headcount = serializers.IntegerField(read_only=True)
-    study_status_display = serializers.CharField(source="get_status_display", read_only=True)
+    status = serializers.CharField(source="get_status_display", read_only=True)
 
     class Meta:
         model = StudyGroup
@@ -210,7 +210,7 @@ class AdminStudyGroupDetailSerializer(serializers.ModelSerializer[StudyGroup]):
     lectures = StudyGroupDetailLectureSerializer(many=True, read_only=True)
     current_headcount = serializers.SerializerMethodField()
     max_headcount = serializers.IntegerField(read_only=True)
-    study_status_display = serializers.CharField(source="get_status_display", read_only=True)
+    status = serializers.CharField(source="get_status_display", read_only=True)
 
     class Meta:
         model = StudyGroup
