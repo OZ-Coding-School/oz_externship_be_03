@@ -19,9 +19,12 @@ class RecruitmentSerializer(serializers.ModelSerializer[Recruitment]):
             "author": {"required": False},
         }
 
+
 class RecruitmentDetailSerializer(RecruitmentSerializer):
     """공고 상세 조회 시 태그 정보를 함께 직렬화"""
+
     tags = TagSerializer(many=True, read_only=True)
+
     class Meta:
         model = Recruitment
         fields = [
@@ -35,4 +38,3 @@ class RecruitmentDetailSerializer(RecruitmentSerializer):
             "is_closed",
             "tags",
         ]
-
