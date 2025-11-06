@@ -21,5 +21,5 @@ app.conf.beat_schedule = {
     "send-today-schedule-notifications": {
         "task": "send_today_schedule_notifications",
         "schedule": crontab(hour=0, minute=1),
-    }
+    },
 }
