@@ -1,3 +1,4 @@
+import logging
 from datetime import timedelta
 
 import numpy as np
@@ -34,6 +35,12 @@ class DataLoaderTestBase(IsolatedRedisTestClient, BaseLectureTest):
     data_loader: DataLoader
     user1: User
     user2: User
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        super().setUpClass()
+        # 로거 레벨을 WARNING으로 설정
+        logging.getLogger("apps.lecture.services.recommendation_service.data_loader").setLevel(logging.WARNING)
 
     @classmethod
     def setUpTestData(cls) -> None:

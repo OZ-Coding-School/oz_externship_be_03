@@ -2,10 +2,12 @@ import logging
 import os
 import time
 import unittest
+import warnings
 from contextlib import contextmanager
 from typing import Any, Callable, Generator, List, Optional, Tuple
 from unittest import mock
 
+import implicit  # type: ignore
 import numpy as np
 from django.core.cache import cache
 from implicit.als import AlternatingLeastSquares  # type: ignore
@@ -37,6 +39,17 @@ class RecommendationServiceTestBase(IsolatedRedisTestClient, BaseLectureTest):
     user2: User
 
     @classmethod
+    def setUpClass(cls) -> None:
+        """클래스 레벨 설정: 로거 레벨을 WARNING으로 설정"""
+        super().setUpClass()
+        # 테스트 시 WARNING 이상만 출력
+        logging.getLogger("apps.lecture.services.recommendation_service.recommender").setLevel(logging.WARNING)
+        logging.getLogger("apps.lecture.services.recommendation_service.model_trainer").setLevel(logging.WARNING)
+        warnings.filterwarnings("ignore", category=RuntimeWarning, module="implicit")
+        warnings.filterwarnings("ignore", module="implicit.utils")
+        implicit.cpu.als.logger.setLevel(logging.ERROR)
+
+    @classmethod
     def setUpTestData(cls) -> None:
         super().setUpTestData()
 
@@ -59,10 +72,10 @@ class RecommendationServiceTestBase(IsolatedRedisTestClient, BaseLectureTest):
 
     def setUp(self) -> None:
         """각 테스트마다 새로운 RecommendationService 인스턴스 생성"""
-        # 프로세스별 고유 prefix 생성 (병렬 테스트 격리)
-        worker_id = os.getpid()
-        self.cache_prefix = f"test_{worker_id}_"
+        super().setUp()
 
+        # IsolatedRedisTestClient의 CACHE_PREFIX 재사용 (캐시 키 통일)
+        self.cache_prefix = self.CACHE_PREFIX
         self.service = RecommendationService()
 
     def tearDown(self) -> None:
@@ -70,14 +83,16 @@ class RecommendationServiceTestBase(IsolatedRedisTestClient, BaseLectureTest):
         super().tearDown()
 
         # 프로세스별 캐시 키만 삭제
-        if hasattr(self, "cache_prefix"):
+        # CACHE_PREFIX 기반 캐시 키 삭제
+        if hasattr(self, "CACHE_PREFIX"):
             # 테스트에서 사용한 키들을 명시적으로 삭제
             test_keys = [
-                f"{self.cache_prefix}test_key",
-                f"{self.cache_prefix}test_ttl_key",
-                f"{self.cache_prefix}{ALS_MODEL_CACHE_KEY}",
-                f"{self.cache_prefix}{U_TO_IDX_CACHE_KEY}",
-                f"{self.cache_prefix}{L_TO_IDX_CACHE_KEY}",
+                f"{self.CACHE_PREFIX}test_key",
+                f"{self.CACHE_PREFIX}test_ttl_key",
+                f"{self.CACHE_PREFIX}conn_test",
+                f"{self.CACHE_PREFIX}{ALS_MODEL_CACHE_KEY}",
+                f"{self.CACHE_PREFIX}{U_TO_IDX_CACHE_KEY}",
+                f"{self.CACHE_PREFIX}{L_TO_IDX_CACHE_KEY}",
             ]
             cache.delete_many(test_keys)
 
@@ -389,18 +404,29 @@ class CacheTTLTestCase(RecommendationServiceTestBase):
 
     def test_cache_ttl_expiration(self) -> None:
         """캐시 TTL 만료 테스트"""
-        test_key = f"{self.cache_prefix}test_ttl_key"
+        # Redis 연결 검증
+        try:
+            test_conn_key = f"{self.CACHE_PREFIX}conn_test"
+            cache.set(test_conn_key, "ok", timeout=1)
+            if cache.get(test_conn_key) is None:
+                self.skipTest("Redis cache not properly configured")
+            cache.delete(test_conn_key)
+        except Exception as e:
+            self.skipTest(f"Redis connection failed: {e}")
+
+        # 실제 테스트 로직
+        test_key = f"{self.CACHE_PREFIX}test_ttl_key"
         test_value = {"data": "test"}
 
-        # Given: 0.01초 TTL로 캐시 저장
-        cache.set(test_key, test_value, timeout=0.001)
+        # Given: 2초 TTL로 캐시 저장
+        cache.set(test_key, test_value, timeout=2)
 
         # When: TTL 만료 전 조회
         result = cache.get(test_key)
         self.assertEqual(result, test_value, "TTL 만료 전에는 값이 반환되어야 합니다")
 
-        # When: TTL 만료 후 조회 (0.02초 대기)
-        time.sleep(0.002)
+        # When: TTL 만료 후 조회 (3초 대기)
+        time.sleep(3)
         result = cache.get(test_key)
 
         # Then: None 반환
