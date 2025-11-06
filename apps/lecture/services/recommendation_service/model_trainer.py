@@ -148,7 +148,7 @@ class ModelTrainer:
         if os.path.exists(MODEL_BUNDLE_PATH):
             try:
                 shutil.copyfile(MODEL_BUNDLE_PATH, MODEL_BACKUP_PATH)
-                logger.info("[ALS][BACKUP] Existing model file backed up.")
+                logger.debug("[ALS][BACKUP] Existing model file backed up.")
             except Exception as e:
                 logger.error(f"[ALS][BACKUP] Failed to create model backup: {e}")
 
@@ -157,7 +157,7 @@ class ModelTrainer:
             joblib.dump(obj, tmp_path, compress=("xz", 3), protocol=4)
             # 3. 원자적 교체
             os.replace(tmp_path, MODEL_BUNDLE_PATH)
-            logger.info("[ALS][SAVE] Model saved atomically.")
+            logger.debug("[ALS][SAVE] Model saved atomically.")
             # 4. 백업 파일 삭제
             if os.path.exists(MODEL_BACKUP_PATH):
                 os.remove(MODEL_BACKUP_PATH)
@@ -301,7 +301,7 @@ class ModelTrainer:
             # 마지막 시도가 아니면 백오프 대기
             if attempt < MAX_CACHE_LOAD_RETRIES - 1:
                 backoff = INITIAL_BACKOFF_SECONDS * (2**attempt)  # 지수 증가
-                logger.info(
+                logger.debug(
                     f"[ALS][LOCK] Lock busy. Retry {attempt + 1}/{MAX_CACHE_LOAD_RETRIES} "
                     f"after {backoff:.1f}s backoff"
                 )
