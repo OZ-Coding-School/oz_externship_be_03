@@ -3,7 +3,8 @@ import logging
 from datetime import date, datetime
 
 from django.contrib.auth import get_user_model
-from django.http import HttpRequest
+from django.http import HttpRequest, QueryDict, StreamingHttpResponse
+from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.core.utils.isolated_cache_testcase import IsolatedRedisTestClient
 from apps.notifications.models import Notification
@@ -31,6 +32,7 @@ class TestSSEViews(IsolatedRedisTestClient):
             phone_number="010-2222-1111",
             birthday=date(2020, 1, 1),
             gender=Gender.MALE,
+            is_active=True,
         )
 
         self.other_user = User.objects.create(
@@ -41,7 +43,14 @@ class TestSSEViews(IsolatedRedisTestClient):
             phone_number="010-2222-1112",
             birthday=date(1995, 1, 11),
             gender=Gender.MALE,
+            is_active=True,
         )
+
+        self.refresh = RefreshToken.for_user(self.user)
+        self.access_token = str(self.refresh.access_token)
+
+        self.other_refresh = RefreshToken.for_user(self.other_user)
+        self.other_access_token = str(self.other_refresh.access_token)
 
         self.test_notification = {
             "id": 1,
@@ -54,14 +63,17 @@ class TestSSEViews(IsolatedRedisTestClient):
     async def test_notification_stream(self) -> None:
         """SSE 스트림 테스트"""
         request = HttpRequest()
-        request.user = self.user
+        request.GET = QueryDict(f"token={self.access_token}")
 
-        response = await notification_stream(request, self.user.id)
+        response = await notification_stream(request)
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response["Content-Type"], "text/event-stream")
         self.assertEqual(response["Cache-Control"], "no-cache")
         self.assertEqual(response["Connection"], "keep-alive")
+        # 타입 검증을 위한 코드
+        self.assertIsInstance(response, StreamingHttpResponse)
+        assert isinstance(response, StreamingHttpResponse)
 
         async def publish_notification() -> None:
             await asyncio.sleep(0.2)
@@ -85,19 +97,19 @@ class TestSSEViews(IsolatedRedisTestClient):
     async def test_notification_stream_unauthenticated_user(self) -> None:
         """미인증 유저 테스트"""
         request = HttpRequest()
-        request.user = type("User", (), {"is_authenticated": False})()
+        request.GET = QueryDict("")
 
-        response = await notification_stream(request, self.user.id)
+        response = await notification_stream(request)
 
         self.assertEqual(response.status_code, 401)
-        self.assertEqual(response["Content-Type"], "text/event-stream")
+        self.assertEqual(response["Content-Type"], "application/json")
 
-    async def test_notification_stream_wrong_user(self) -> None:
-        """userid 다를시 error 테스트"""
+    async def test_notification_stream_expired_token(self) -> None:
+        """만료된 토큰 테스트"""
         request = HttpRequest()
-        request.user = self.other_user
+        request.GET = QueryDict("token=expired_or_invalid_token")
 
-        response = await notification_stream(request, self.user.id)
+        response = await notification_stream(request)
 
-        self.assertEqual(response.status_code, 403)
-        self.assertEqual(response["Content-Type"], "text/event-stream")
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response["Content-Type"], "application/json")

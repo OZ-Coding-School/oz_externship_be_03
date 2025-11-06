@@ -1,26 +1,42 @@
 import json
-from typing import AsyncGenerator
+from typing import Any, AsyncGenerator, Union
 
-from django.http import HttpRequest, StreamingHttpResponse
+from asgiref.sync import sync_to_async
+from django.contrib.auth import get_user_model
+from django.http import HttpRequest, JsonResponse, StreamingHttpResponse
+from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework_simplejwt.exceptions import InvalidToken
 
 from apps.notifications.services.redis_pubsub_classify import notification_pubsub
 from apps.studies.models.groups import GroupMember
 
+User = get_user_model()
 
-async def notification_stream(request: HttpRequest, user_id: int) -> StreamingHttpResponse:
+
+async def notification_stream(request: HttpRequest) -> Union[StreamingHttpResponse, JsonResponse]:
     # 인증 체크
-    if not request.user.is_authenticated:
-        return StreamingHttpResponse(
-            f'data: {json.dumps({"error":"로그인이 필요합니다"},ensure_ascii=False)}\\n\\n',
-            content_type="text/event-stream",
+    token = request.GET.get("token")
+    if not token:
+        return JsonResponse(
+            {"error": "토큰이 필요합니다."},
             status=401,
         )
+    try:
+        jwt_auth = JWTAuthentication()
+        validated_token = jwt_auth.get_validated_token(token.encode())
+        user: Any = await sync_to_async(jwt_auth.get_user)(validated_token)  # type: ignore[arg-type]
+        if isinstance(user, User):
+            user_id = user.id
+        else:
+            return JsonResponse(
+                {"error": "사용자를 찾을 수 없습니다,"},
+                status=401,
+            )
 
-    if request.user.id != user_id:
-        return StreamingHttpResponse(
-            f'data: {json.dumps({"error":"인증되지 않은 사용자"},ensure_ascii=False)}\n\n',
-            content_type="text/event-stream",
-            status=403,
+    except InvalidToken:
+        return JsonResponse(
+            {"error": "인증되지않은 토큰"},
+            status=401,
         )
 
     async def async_event_stream() -> AsyncGenerator[str, None]:
