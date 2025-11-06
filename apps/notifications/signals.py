@@ -66,14 +66,19 @@ def study_member_joined_created(sender: Any, instance: Application, created: boo
             study_group = recruitment.study_group
             new_member = instance.user
 
-            notification = Notification.objects.create(
-                user_id=new_member.id,
-                content=f"{study_group.name}에 {new_member.nickname}님이 참여했습니다. 환영해주세요!",
-                type=Notification.NotificationType.STUDY_MEMBER_JOINED,
-                back_url_link=f"{settings.FRONTEND_DOMAIN}/api/v1/chat/ws/study-groups/{study_group.id}",
-            )
+            # 기존 그룹 멤버들에게 각각 개별 알림 생성 (새 멤버 제외)
+            existing_member = GroupMember.objects.filter(study_group=study_group).exclude(user=new_member)
 
-            send_study_group_notification.delay(notification.id, str(study_group.id))
+            for member in existing_member:
+
+                notification = Notification.objects.create(
+                    user_id=member.user.id,
+                    content=f"{study_group.name}에 {new_member.nickname}님이 참여했습니다. 환영해주세요!",
+                    type=Notification.NotificationType.STUDY_MEMBER_JOINED,
+                    back_url_link=f"{settings.FRONTEND_DOMAIN}/api/v1/chat/ws/study-groups/{study_group.id}",
+                )
+                send_to_pubsub.delay(notification.id)
+
 
 @receiver(post_save, sender=StudyGroup)
 def study_group_review_created(sender:Any, instance: StudyGroup, created: bool, **kwargs: Any) -> None:
