@@ -27,4 +27,4 @@ class RecruitmentDetailSerializer(RecruitmentSerializer):
 
     class Meta:
         model = Recruitment
-        fields = RecruitmentSerializer.Meta.fields + ["tags"]
+        fields = "__all__"
