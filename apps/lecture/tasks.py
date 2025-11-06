@@ -101,31 +101,46 @@ def crawl_inflearn_lectures() -> Dict[str, Any]:
             logger.info("크롤링된 데이터 없음")
             return {"status": "failed", "count": 0}
 
-        created_count = 0
-        updated_count = 0
-
         with transaction.atomic():
-            for lecture_info in lectures_data:
-                _, created = CrawledLecture.objects.update_or_create(
-                    platform=lecture_info["platform"],
-                    title=lecture_info["title"],
-                    instructor=lecture_info["instructor"],
-                    defaults={
-                        "average_rating": lecture_info["average_rating"],
-                        "duration": lecture_info["duration"],
-                        "difficulty": lecture_info["difficulty"],
-                        "description": lecture_info["description"],
-                        "original_price": lecture_info["original_price"],
-                        "discount_price": lecture_info["discount_price"],
-                        "url_link": lecture_info["url_link"],
-                        "thumbnail_img_url": lecture_info["thumbnail_img_url"],
-                    },
-                )
+            # 로그용 기존 강의 수
+            before_count = CrawledLecture.objects.filter(platform="INFLEARN").count()
 
-                if created:
-                    created_count += 1
-                else:
-                    updated_count += 1
+            lecture_to_save = [
+                CrawledLecture(
+                    platform=info["platform"],
+                    title=info["title"],
+                    instructor=info["instructor"],
+                    average_rating=info["average_rating"],
+                    duration=info["duration"],
+                    difficulty=info["difficulty"],
+                    description=info["description"],
+                    original_price=info["original_price"],
+                    discount_price=info["discount_price"],
+                    url_link=info["url_link"],
+                    thumbnail_img_url=info["thumbnail_img_url"],
+                )
+                for info in lectures_data
+            ]
+
+            CrawledLecture.objects.bulk_create(
+                lecture_to_save,
+                update_conflicts=True,
+                unique_fields=["platform", "title", "instructor"],
+                update_fields=[
+                    "average_rating",
+                    "duration",
+                    "difficulty",
+                    "description",
+                    "original_price",
+                    "discount_price",
+                    "url_link",
+                    "thumbnail_img_url",
+                ],
+            )
+
+            after_count = CrawledLecture.objects.filter(platform="INFLEARN").count()
+            created_count = after_count - before_count
+            updated_count = len(lectures_data) - created_count
 
         logger.info(f"크롤링 완료 - 신규: {created_count}, 업데이트: {updated_count}")
         return {"status": "success", "created": created_count, "updated": updated_count, "total": len(lectures_data)}

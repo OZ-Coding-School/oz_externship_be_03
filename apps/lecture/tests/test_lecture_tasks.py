@@ -5,6 +5,7 @@ from django.test import TestCase
 
 from apps.lecture.models import CrawledLecture
 from apps.lecture.tasks import crawl_inflearn_lectures
+from config.celery import app
 
 
 class CrawlLecturesTaskTest(TestCase):
@@ -93,3 +94,28 @@ class CrawlLecturesTaskTest(TestCase):
 
         self.assertEqual(result["status"], "error")
         self.assertEqual(CrawledLecture.objects.count(), 0)
+
+
+class CeleryBeatScheduleTest(TestCase):
+    """Celery Beat 스케줄 테스트"""
+
+    def test_crawl_inflearn_schedule_registered(self) -> None:
+        """스케줄 등록 확인"""
+
+        schedule = app.conf.beat_schedule
+
+        self.assertIn("crawl-inflearn-lectures-daily", schedule)
+
+    def test_crawl_inflearn_schedule_configuration(self) -> None:
+        """인프런 크롤링 스케줄 설정 체크"""
+
+        schedule = app.conf.beat_schedule["crawl-inflearn-lectures-daily"]
+
+        # Task 이름 검증
+        self.assertEqual(schedule["task"], "crawl_inflearn_lectures")
+
+        # Crontab 설정 검증
+        cron = schedule["schedule"]
+        self.assertEqual(cron.hour, {0})
+        self.assertEqual(cron.minute, {0})
+        self.assertEqual(cron.day_of_week, {0, 1, 2, 3, 4, 5, 6})
