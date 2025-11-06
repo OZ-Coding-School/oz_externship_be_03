@@ -157,12 +157,10 @@ class RecommendationEndToEndTest(IsolatedRedisTestClient, BaseLectureTest):
         """응답에서 추천 목록 추출 헬퍼"""
         try:
             data = response.data
-            if isinstance(data, dict) and "data" in data:
-                inner_data = data["data"]
-                if isinstance(inner_data, dict) and "recommendations" in inner_data:
-                    recs = inner_data["recommendations"]
-                    if isinstance(recs, list):
-                        return cast(List[Dict[str, Any]], recs)
+            if isinstance(data, dict) and "recommended_lectures" in data:
+                recs = data["recommended_lectures"]
+                if isinstance(recs, list):
+                    return cast(List[Dict[str, Any]], recs)
         except (AttributeError, KeyError, TypeError):
             pass
         return []
@@ -175,18 +173,15 @@ class RecommendationEndToEndTest(IsolatedRedisTestClient, BaseLectureTest):
         UserPreferCategory.objects.create(user=users[0], category=self.common_category)
 
         self.client.force_authenticate(user=users[0])
-        url = reverse("recommendations")
+        url = reverse("lecture-list")
         response = self.client.get(url)
 
         # 응답 상태 코드 검증
         self.assertEqual(response.status_code, status.HTTP_200_OK, f"Expected 200 OK but got {response.status_code}")
 
-        # 응답 구조 검증
-        self.assertIn("detail", response.data, "응답에 'detail' 필드가 없습니다")
-        self.assertIn("data", response.data, "응답에 'data' 필드가 없습니다")
-        self.assertEqual(
-            response.data["detail"], "맞춤 강의 추천 조회가 완료되었습니다.", "detail 메시지가 일치하지 않습니다"
-        )
+        self.assertIn("user_nickname", response.data)
+        self.assertIn("recommended_lectures", response.data)
+        self.assertEqual(response.data["user_nickname"], "testuser0")
 
         # 추천 목록 검증
         recommendations = self._get_recommendations_from_response(response)
@@ -205,7 +200,7 @@ class RecommendationEndToEndTest(IsolatedRedisTestClient, BaseLectureTest):
         self._create_test_lectures(2)
 
         self.client.force_authenticate(user=users[0])
-        url = reverse("recommendations")
+        url = reverse("lecture-list")
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK, "데이터 없을 때도 200 OK를 반환해야 합니다")
@@ -226,7 +221,7 @@ class RecommendationEndToEndTest(IsolatedRedisTestClient, BaseLectureTest):
             LectureBookmark.objects.create(user=users[0], lecture=lecture)
 
         self.client.force_authenticate(user=users[0])
-        url = reverse("recommendations")
+        url = reverse("lecture-list")
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -258,7 +253,7 @@ class RecommendationEndToEndTest(IsolatedRedisTestClient, BaseLectureTest):
 
             # API 요청
             self.client.force_authenticate(user=users[0])
-            url = reverse("recommendations")
+            url = reverse("lecture-list")
             response = self.client.get(url)
 
             self.assertEqual(response.status_code, status.HTTP_200_OK, "모델 학습 후 추천 요청 실패")
@@ -296,7 +291,7 @@ class RecommendationEndToEndTest(IsolatedRedisTestClient, BaseLectureTest):
             self.assertTrue(success, "모델 학습 실패")
 
             # 각 사용자별 추천 요청
-            url = reverse("recommendations")
+            url = reverse("lecture-list")
 
             self.client.force_authenticate(user=users[0])
             response1 = self.client.get(url)
@@ -317,3 +312,8 @@ class RecommendationEndToEndTest(IsolatedRedisTestClient, BaseLectureTest):
             if recommendations2:
                 user2_ids: Set[int] = {rec["id"] for rec in recommendations2}
                 self.assertNotIn(lectures[1].id, user2_ids, "User2 북마크가 추천에 포함됨")
+
+    def test_user_no_authenticated(self) -> None:
+        """로그인 안한 사용자"""
+        response = self.client.get(reverse("lecture-list"))
+        self.assertNotIn("recommended_lectures", response.data)
