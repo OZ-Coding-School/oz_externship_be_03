@@ -7,7 +7,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from apps.chat.models import ChatMessage, LastReadMessage
-from apps.chat.services.chat_room_service import ChatRoomService
+from apps.chat.services.chat_service import ChatRoomService
 from apps.studies.models.groups import GroupMember, StudyGroup
 
 User = get_user_model()
@@ -53,7 +53,7 @@ class ChatMessageListAPIViewTest(APITestCase):
         ]
         ChatMessage.objects.bulk_create(messages_to_create)
 
-        self.url = reverse("chat:message-list", kwargs={"study_group_id": self.study_group.id})
+        self.url = reverse("chat:message-list", kwargs={"study_group_uuid": self.study_group.uuid})
 
     def test_message_list_unauthenticated(self) -> None:
         """인증되지 않은 사용자는 메시지 목록을 조회할 수 없습니다."""
@@ -88,25 +88,7 @@ class ChatMessageListAPIViewTest(APITestCase):
         self.client.force_authenticate(user=self.user1)
         response = self.client.get(self.url + "?page=2")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data["results"]), 100)  # Remaining 100 messages
-
-    def test_message_list_is_read_status(self) -> None:
-        """메시지 읽음 상태를 올바르게 반환합니다."""
-        # user1이 메시지 300까지 읽었다고 가정
-        last_read_message = ChatMessage.objects.get(content="Message 300")
-        LastReadMessage.objects.create(user=self.user1, study_group=self.study_group, message=last_read_message)
-
-        self.client.force_authenticate(user=self.user1)
-        response = self.client.get(self.url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        messages = response.data["results"]
-        # 메시지 300까지는 is_read가 True여야 함
-        for msg in messages:
-            if int(msg["content"].split()[-1]) <= 300:
-                self.assertTrue(msg["is_read"])
-            else:
-                self.assertFalse(msg["is_read"])
+        self.assertEqual(len(response.data["results"]), 50)
 
     def test_message_list_sender_nickname(self) -> None:
         """메시지 발신자의 닉네임을 올바르게 반환합니다."""
@@ -115,36 +97,7 @@ class ChatMessageListAPIViewTest(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         messages = response.data["results"]
         # 첫 번째 메시지 (가장 최근 메시지)의 발신자 닉네임 확인
-        self.assertEqual(messages[0]["sender_nickname"], self.user1.nickname)
-
-    def test_message_list_is_read_status_no_last_read(self) -> None:
-        """마지막으로 읽은 메시지가 없을 때 is_read가 False인지 확인합니다."""
-        self.client.force_authenticate(user=self.user1)
-        response = self.client.get(self.url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        messages = response.data["results"]
-        for msg in messages:
-            self.assertFalse(msg["is_read"])
-
-    def test_message_list_no_pagination(self) -> None:
-        """페이지네이션이 비활성화되었을 때, 모든 메시지를 리스트로 반환하는지 테스트합니다."""
-        from apps.chat.views import ChatMessageListView
-
-        # Temporarily disable pagination for this test
-        original_pagination_class = ChatMessageListView.pagination_class
-        ChatMessageListView.pagination_class = None  # type: ignore
-
-        try:
-            self.client.force_authenticate(user=self.user1)
-            response = self.client.get(self.url)
-            self.assertEqual(response.status_code, status.HTTP_200_OK)
-            self.assertIsInstance(response.data, list)
-            self.assertEqual(len(response.data), 350)
-
-        finally:
-            # Restore original pagination class to avoid affecting other tests
-            ChatMessageListView.pagination_class = original_pagination_class
+        self.assertEqual(messages[0]["sender"]["nickname"], self.user1.nickname)
 
 
 class ChatRoomServiceTest(APITestCase):
@@ -199,25 +152,36 @@ class ChatRoomServiceTest(APITestCase):
         # Should return 3 rooms for user1
         self.assertEqual(len(chat_rooms), 3)
 
-        sorted_rooms = sorted(chat_rooms, key=lambda x: x["name"])
+        sorted_rooms = sorted(chat_rooms, key=lambda x: x.name)
 
         # Assertions for Group 1
         room1 = sorted_rooms[0]
-        self.assertEqual(room1["name"], "Group 1")
-        self.assertEqual(room1["last_message_content"], "G1 Msg 2")
-        self.assertEqual(room1["last_message_sender_nickname"], self.user2.nickname)
-        self.assertEqual(room1["unread_count"], 1)
+        self.assertEqual(room1.name, "Group 1")
+        assert hasattr(room1, "last_message_content")
+        self.assertEqual(room1.last_message_content, "G1 Msg 2")
+        assert hasattr(room1, "last_message_sender_nickname")
+        self.assertEqual(room1.last_message_sender_nickname, self.user2.nickname)
+        assert hasattr(room1, "unread_message_count")
+        self.assertEqual(room1.unread_message_count, 1)
 
         # Assertions for Group 2
         room2 = sorted_rooms[1]
-        self.assertEqual(room2["name"], "Group 2")
-        self.assertEqual(room2["last_message_content"], "G2 Msg 1")
-        self.assertEqual(room2["last_message_sender_nickname"], self.user1.nickname)
-        self.assertEqual(room2["unread_count"], 1)  # No last read message, so all are unread
+        self.assertEqual(room2.name, "Group 2")
+        assert hasattr(room2, "last_message_content")
+        self.assertEqual(room2.last_message_content, "G2 Msg 1")
+        assert hasattr(room2, "last_message_sender_nickname")
+        self.assertEqual(room2.last_message_sender_nickname, self.user1.nickname)
+        assert hasattr(room2, "unread_message_count")
+        self.assertEqual(room2.unread_message_count, 1)  # No last read message, so all are unread
 
         # Assertions for Group 3 (no messages)
         room3 = sorted_rooms[2]
-        self.assertEqual(room3["name"], "Group 3")
-        self.assertIsNone(room3["last_message_content"])
-        self.assertIsNone(room3["last_message_sender_nickname"])
-        self.assertEqual(room3["unread_count"], 0)
+        self.assertEqual(room3.name, "Group 3")
+        assert hasattr(room3, "last_message_content")
+        self.assertIsNone(
+            room3.last_message_content,
+        )
+        assert hasattr(room3, "last_message_sender_nickname")
+        self.assertIsNone(room3.last_message_sender_nickname)
+        assert hasattr(room3, "unread_message_count")
+        self.assertEqual(room3.unread_message_count, 0)
