@@ -72,13 +72,13 @@ urlpatterns = [
     ),
     # 어드민 스터디그룹 목록조회
     path(
-        "groups/admin/groups",
+        "admin/groups",
         AdminStudyGroupListView.as_view(),
         name="admin-study-group-list",
     ),
     # 어드민 스터디그룹 상세조회
     path(
-        "groups/admin/groups/<uuid:group_uuid>",
+        "admin/groups/<uuid:group_uuid>",
         AdminStudyGroupDetailView.as_view(),
         name="admin-study-group-detail",
     ),
