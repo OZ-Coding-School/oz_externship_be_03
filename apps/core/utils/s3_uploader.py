@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import threading
 import uuid
 from typing import Any, ClassVar, Optional
 
@@ -25,7 +24,6 @@ logger = logging.getLogger(__name__)
 # - Presigned URL 생성 (POST)
 # - 파일 검증
 # - 단건/복수 삭제
-# - 초기화 오류 예방차원에서 client = cls.get_client() 를 선언해주고 cls.client 부분을 client로 수정
 ###################################
 
 
@@ -38,38 +36,15 @@ class S3Uploader:
     - 파일 업로드 (테스트 및 관리용)
     """
 
-    s3_client: ClassVar[Any] = None
-    lock: ClassVar[threading.Lock] = threading.Lock()  # 초기화 방지용 Lock
-
+    s3_client: Any = boto3.client(
+        "s3",
+        aws_access_key_id=getattr(settings, "AWS_S3_ACCESS_KEY_ID", None),
+        aws_secret_access_key=getattr(settings, "AWS_S3_SECRET_ACCESS_KEY", None),
+        region_name=getattr(settings, "AWS_S3_REGION", None),
+    )
     BUCKET_NAME: ClassVar[str] = getattr(settings, "AWS_S3_BUCKET_NAME", "")
     REGION_NAME: ClassVar[str] = getattr(settings, "AWS_S3_REGION", "")
     S3_BASE_URL: ClassVar[str] = f"https://{BUCKET_NAME}.s3.{REGION_NAME}.amazonaws.com/"
-
-    @classmethod
-    def get_client(cls) -> Any:
-        """
-        thread-safe Lazy Initialization
-        - 첫 접근 시에만 boto3.client 생성
-        - 예외 발생 시 로그 기록 + APIException
-        """
-        if cls.s3_client is not None:
-            return cls.s3_client  # 초기화 완료
-
-        with cls.lock:  # 여러 스레드/프로세스가 동시에 진입하지 못하게 락 사용
-            if cls.s3_client is not None:  # 더블체크
-                return cls.s3_client
-
-            try:
-                cls.s3_client = boto3.client(
-                    "s3",
-                    aws_access_key_id=getattr(settings, "AWS_S3_ACCESS_KEY_ID", None),
-                    aws_secret_access_key=getattr(settings, "AWS_S3_SECRET_ACCESS_KEY", None),
-                    region_name=getattr(settings, "AWS_S3_REGION", None),
-                )
-                return cls.s3_client
-            except Exception as e:
-                logger.error("로깅 메세지", exc_info=True)  # exc_info = True : 로깅 경로 표기 (파일명, 코드 위치)
-                raise APIException(f"s3 클라이언트 초기화 실패: {str(e)}")
 
     @classmethod
     def validate_file_extension(cls, ext: str) -> None:
@@ -127,10 +102,9 @@ class S3Uploader:
             prefix += "/"
 
         key = f"{prefix}{uuid.uuid4().hex}.{ext}"
-        client = cls.get_client()
 
         try:
-            client.upload_fileobj(
+            cls.s3_client.upload_fileobj(
                 Fileobj=file,
                 Bucket=cls.BUCKET_NAME,
                 Key=key,
@@ -149,8 +123,6 @@ class S3Uploader:
         if prefix and not prefix.endswith("/"):
             prefix += "/"
 
-        client = cls.get_client()
-
         for file in files:
             file_name = file.get("file_name")
             content_type = file.get("content_type")
@@ -168,7 +140,7 @@ class S3Uploader:
             key = f"{prefix}{uuid.uuid4()}_{file_name}"
 
             try:
-                presigned_post = client.generate_presigned_post(
+                presigned_post = cls.s3_client.generate_presigned_post(
                     Bucket=cls.BUCKET_NAME,
                     Key=key,
                     Fields={"acl": "public-read", "Content-Type": content_type},
@@ -199,9 +171,8 @@ class S3Uploader:
     @classmethod
     def delete_file(cls, key: str) -> None:
         """단일 파일삭제 (S3.Client.delete_object)"""
-        client = cls.get_client()
         try:
-            client.delete_object(Bucket=cls.BUCKET_NAME, Key=key)
+            cls.s3_client.delete_object(Bucket=cls.BUCKET_NAME, Key=key)
         except Exception as e:
             logger.error("로깅 메세지")
             raise APIException(f"Unexpected S3 Delete Object Error: {str(e)}")
@@ -210,9 +181,8 @@ class S3Uploader:
     def delete_files(cls, keys: list[str]) -> None:
         """복수 파일 삭제 (S3.Client.delete_objects)"""
         key_map = {"Objects": [{"Key": key} for key in keys]}
-        client = cls.get_client()
         try:
-            client.delete_objects(Delete=key_map, Bucket=cls.BUCKET_NAME)
+            cls.s3_client.delete_objects(Delete=key_map, Bucket=cls.BUCKET_NAME)
         except Exception as e:
             logger.error("로깅 메시지")
             raise APIException(f"Unexpected S3 Delete Objects Error: {str(e)}")

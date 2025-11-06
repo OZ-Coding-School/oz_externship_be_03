@@ -88,13 +88,13 @@ urlpatterns = [
     ),
     # 그룹 대표 이미지 Presigned URL 발급
     path(
-        "group/presigned-url/",
+        "group/presigned-url",
         StudyGroupS3PresignedView.as_view(),
         name="study_group_presigned",
     ),
     # 노트 첨부파일 / 이미지 Presigned URL 발급
     path(
-        "notes/presigned-url/",
+        "notes/presigned-url",
         StudyNoteS3PresignedView.as_view(),
         name="study_note_presigned",
     ),
