@@ -9,7 +9,7 @@ from django.conf import settings
 from django.core.files.uploadedfile import UploadedFile
 from rest_framework.exceptions import APIException, ParseError, ValidationError
 
-from apps.core.constants.storage_MIME import (
+from apps.core.constants.s3_allowed_extensions import (
     ALLOWED_ATTACHMENT_EXTENSIONS,
     ALLOWED_IMAGE_EXTENSIONS,
     ATTACHMENT_MIME_BY_EXT,
@@ -47,20 +47,33 @@ class S3Uploader:
     S3_BASE_URL: ClassVar[str] = f"https://{BUCKET_NAME}.s3.{REGION_NAME}.amazonaws.com/"
 
     @classmethod
-    def validate_file_extension(cls, ext: str) -> None:
+    def validate_file_extension(cls, file: UploadedFile) -> None:
         """
         파일 확장자 검증
-        constants/storage 상수 사용
+        constants/s3_allowed_extensions 상수 사용
         """
+        ext = file.name.rsplit(".", 1)[-1].lower()
         if ext in ALLOWED_IMAGE_EXTENSIONS or ext in ALLOWED_ATTACHMENT_EXTENSIONS:
             return
+
+        raise ValidationError("허용된 확장자만 등록 가능합니다.")
+
+    @classmethod
+    def validate_file_content_type(cls, content_type: str) -> None:
+        """
+        파일 확장자 검증
+        constants/s3_allowed_extensions 상수 사용
+        """
+        if content_type in IMAGE_MIME_BY_EXT.values():
+            return
+
         raise ValidationError("허용된 확장자만 등록 가능합니다.")
 
     @classmethod
     def validate_file_mime(cls, ext: str, content_type: Optional[str]) -> None:
         """
         MIME 타입 검증
-        constants/storage 상수 사용
+        constants/s3_allowed_extensions 상수 사용
         """
         if not content_type:
             raise ParseError("유효한 Content-Type이 필요합니다.")
@@ -90,13 +103,6 @@ class S3Uploader:
         filename = name
         ext = filename.rsplit(".", 1)[-1].lower()
 
-        # 확장자 검증 (이미지/첨부파일 확인)
-        cls.validate_file_extension(ext)
-
-        # MIME 검증
-        content_type = getattr(file, "content_type", None)
-        cls.validate_file_mime(ext, content_type)
-
         # prefix 보정
         if prefix and not prefix.endswith("/"):
             prefix += "/"
@@ -111,7 +117,7 @@ class S3Uploader:
             )
             return cls.S3_BASE_URL + key
         except Exception as e:
-            logger.error("로깅 메시지")
+            logger.error("로깅 메시지", exc_info=True)
             raise APIException(f"Unexpected S3 Upload Error: {str(e)}")
 
     @classmethod
@@ -126,16 +132,7 @@ class S3Uploader:
         for file in files:
             file_name = file.get("file_name")
             content_type = file.get("content_type")
-
-            # "." 방어 + 파일명/확장자 검증 + MIME 검증 (업로드와 정책 일치)
-            if not file_name or not content_type:
-                raise ValidationError("file_name, content_type는 필수입니다.")
-            if "." not in file_name or file_name.rsplit(".", 1)[0] == "":
-                raise ValidationError("유효하지 않은 파일명입니다.")
-
             ext = file_name.rsplit(".", 1)[-1].lower()
-            cls.validate_file_extension(ext)
-            cls.validate_file_mime(ext, content_type)
 
             key = f"{prefix}{uuid.uuid4()}_{file_name}"
 
