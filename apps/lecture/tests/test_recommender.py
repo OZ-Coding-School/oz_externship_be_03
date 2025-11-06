@@ -1,5 +1,4 @@
 import logging
-import os
 import time
 import unittest
 import warnings
@@ -7,7 +6,6 @@ from contextlib import contextmanager
 from typing import Any, Callable, Generator, List, Optional, Tuple
 from unittest import mock
 
-import implicit  # type: ignore
 import numpy as np
 from django.core.cache import cache
 from implicit.als import AlternatingLeastSquares  # type: ignore
@@ -47,7 +45,6 @@ class RecommendationServiceTestBase(IsolatedRedisTestClient, BaseLectureTest):
         logging.getLogger("apps.lecture.services.recommendation_service.model_trainer").setLevel(logging.WARNING)
         warnings.filterwarnings("ignore", category=RuntimeWarning, module="implicit")
         warnings.filterwarnings("ignore", module="implicit.utils")
-        implicit.cpu.als.logger.setLevel(logging.ERROR)
 
     @classmethod
     def setUpTestData(cls) -> None:
