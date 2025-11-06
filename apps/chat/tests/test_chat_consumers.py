@@ -3,7 +3,7 @@ from typing import Any, Optional
 from asgiref.sync import sync_to_async
 from channels.testing import WebsocketCommunicator
 from django.contrib.auth.models import AnonymousUser
-from rest_framework.test import APITestCase
+from django.test import TransactionTestCase
 
 from apps.chat.consumers import ChatConsumer
 from apps.chat.models.chat_message import ChatMessage
@@ -11,7 +11,7 @@ from apps.studies.models.groups import GroupMember, StudyGroup
 from apps.users.models.user import User
 
 
-class ChatConsumerTest(APITestCase):
+class ChatConsumerTest(TransactionTestCase):
     @sync_to_async
     def _create_user(self, **kwargs: Any) -> User:
         """동기 방식으로 유저 생성 후 async로 래핑"""
@@ -114,8 +114,7 @@ class ChatConsumerTest(APITestCase):
             await communicator1.disconnect()
             await communicator2.disconnect()
 
-    async def test_successful_connection(self) -> None:
-        user = await User.objects.acreate_user(
+        user = await self._create_user(
             email="testuser@example.com",
             password="password123",
             nickname="testuser",
@@ -163,12 +162,12 @@ class ChatConsumerTest(APITestCase):
 
         connected, subprotocol = await communicator.connect()
         self.assertFalse(connected)
-        self.assertEqual(subprotocol, "403")
+        self.assertEqual(subprotocol, 403)
 
         await communicator.disconnect()
 
     async def test_connection_failure_invalid_study_group(self) -> None:
-        user = await User.objects.acreate_user(
+        user = await self._create_user(
             email="testuser@example.com",
             password="password123",
             nickname="testuser",
@@ -184,14 +183,16 @@ class ChatConsumerTest(APITestCase):
             ChatConsumer.as_asgi(),
             f"/ws/study-groups/{invalid_study_group_id}/chat/",
         )
+        communicator.scope["url_route"] = {"kwargs": {"study_group_id": invalid_study_group_id}}
+        communicator.scope["user"] = user
         connected, subprotocol = await communicator.connect()
         self.assertFalse(connected)
-        self.assertEqual(subprotocol, "403")
+        self.assertEqual(subprotocol, 403)
 
         await communicator.disconnect()
 
     async def test_connection_failure_not_group_member(self) -> None:
-        user = await User.objects.acreate_user(
+        user = await self._create_user(
             email="testuser@example.com",
             password="password123",
             nickname="testuser",
@@ -214,6 +215,6 @@ class ChatConsumerTest(APITestCase):
         communicator.scope["url_route"] = {"kwargs": {"study_group_id": study_group.id}}
         connected, subprotocol = await communicator.connect()
         self.assertFalse(connected)
-        self.assertEqual(subprotocol, "403")
+        self.assertEqual(subprotocol, 403)
 
         await communicator.disconnect()
