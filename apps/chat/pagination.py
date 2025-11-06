@@ -23,7 +23,7 @@ class ChatMessagePagination(PageNumberPagination):
 
         return self.page_size
 
-    def get_page_number(self, request: Request, paginator: Paginator[ChatMessage]) -> int:
+    def get_page_number(self, request: Request, paginator: Paginator) -> int:  # type: ignore[type-arg]
         page_number = int(super().get_page_number(request, paginator))
         if page_number >= 2:
             page_number = page_number + 2
