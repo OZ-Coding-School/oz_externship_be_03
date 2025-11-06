@@ -201,14 +201,9 @@ class AdminStudyGroupListSerializer(serializers.ModelSerializer[StudyGroup]):
         ]
 
 
-
 # 어드민 스터디그룹 상세 조회
 class AdminStudyGroupDetailSerializer(serializers.ModelSerializer[StudyGroup]):
-    members = StudyGroupDetailMemberSerializer(
-        source="group_members",
-        many=True,
-        read_only=True
-    )
+    members = StudyGroupDetailMemberSerializer(source="group_members", many=True, read_only=True)
     lectures = StudyGroupDetailLectureSerializer(many=True, read_only=True)
     current_headcount = serializers.IntegerField(source="members.count", read_only=True)
     max_headcount = serializers.IntegerField(read_only=True)
