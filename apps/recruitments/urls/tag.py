@@ -4,7 +4,7 @@ from apps.recruitments.views.tag import RecruitmentTagListCreateView
 
 urlpatterns = [
     path(
-        "recruitments/<int:recruitment_id>/tags/",
+        "recruitments/<int:recruitment_id>/tags",
         RecruitmentTagListCreateView.as_view(),
         name="recruitment-tag-list",
     ),

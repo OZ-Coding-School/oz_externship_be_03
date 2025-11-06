@@ -92,9 +92,7 @@ class TestRecruitmentTagView(TestCase):
         response: Any = self.client.post(self.url, {"name": "Python"})
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["name"], "Python")
-        # 태그는 중복 생성되지 않아야 함 (하나만 존재)
         self.assertEqual(Tag.objects.filter(name="Python").count(), 1)
-        # RecruitmentTag 관계는 정확히 하나 생성되어야 함
         self.assertTrue(RecruitmentTag.objects.filter(recruitment=self.recruitment, tag__name="Python").exists())
 
     def test_post_already_linked_tag(self) -> None:
@@ -108,6 +106,6 @@ class TestRecruitmentTagView(TestCase):
 
     def test_post_missing_recruitment_id(self) -> None:
         """recruitment_id 누락 시 404"""
-        invalid_url = "/api/v1/recruitments/tags/"  # 잘못된 경로
+        invalid_url = "/api/v1/recruitments/tags"  # 잘못된 경로 (슬래시 제거)
         response: Any = self.client.post(invalid_url, {"name": "FastAPI"})
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
