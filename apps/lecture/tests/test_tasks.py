@@ -1,3 +1,14 @@
+import os
+
+os.environ["TQDM_DISABLE"] = "1"
+
+import sys
+from unittest.mock import MagicMock
+
+sys.modules["tqdm"] = MagicMock()
+sys.modules["tqdm.auto"] = MagicMock()
+import logging
+import warnings
 from typing import Any, Dict, cast
 from unittest import mock
 
@@ -16,6 +27,17 @@ class BaseCeleryTaskTests(TestCase):
     success_message: str
     failure_message: str
     EXPECTED_ERROR_LOG_COUNT: int
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        super().setUpClass()
+        logging.getLogger("apps.lecture.services.recommendation_service.model_trainer").setLevel(logging.CRITICAL + 1)
+        logging.getLogger("apps.lecture.services.recommendation_service.recommender").setLevel(logging.CRITICAL + 1)
+        logging.getLogger("apps.lecture.services.recommendation_service.data_loader").setLevel(logging.CRITICAL + 1)
+        logging.getLogger("apps.lecture.tasks").setLevel(logging.CRITICAL + 1)
+        # 외부 라이브러리 경고 억제
+        warnings.filterwarnings("ignore", category=RuntimeWarning, module="implicit")
+        warnings.filterwarnings("ignore", module="implicit.utils")
 
     def setUp(self) -> None:
         """각 테스트 전에 공통 mock 설정"""

@@ -1,4 +1,14 @@
+import os
+
+os.environ["TQDM_DISABLE"] = "1"
+
+import sys
+from unittest.mock import MagicMock
+
+sys.modules["tqdm"] = MagicMock()
+sys.modules["tqdm.auto"] = MagicMock()
 import logging
+import warnings
 from datetime import timedelta
 
 import numpy as np
@@ -39,8 +49,14 @@ class DataLoaderTestBase(IsolatedRedisTestClient, BaseLectureTest):
     @classmethod
     def setUpClass(cls) -> None:
         super().setUpClass()
-        # 로거 레벨을 WARNING으로 설정
-        logging.getLogger("apps.lecture.services.recommendation_service.data_loader").setLevel(logging.WARNING)
+        logging.getLogger("apps.lecture.services.recommendation_service.model_trainer").setLevel(logging.CRITICAL + 1)
+        logging.getLogger("apps.lecture.services.recommendation_service.recommender").setLevel(logging.CRITICAL + 1)
+        logging.getLogger("apps.lecture.services.recommendation_service.data_loader").setLevel(logging.CRITICAL + 1)
+        logging.getLogger("apps.lecture.tasks").setLevel(logging.CRITICAL + 1)
+
+        # 외부 라이브러리 경고 억제
+        warnings.filterwarnings("ignore", category=RuntimeWarning, module="implicit")
+        warnings.filterwarnings("ignore", module="implicit.utils")
 
     @classmethod
     def setUpTestData(cls) -> None:

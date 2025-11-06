@@ -1,6 +1,16 @@
 import os
+
+os.environ["TQDM_DISABLE"] = "1"
+
+import sys
+from unittest.mock import MagicMock
+
+sys.modules["tqdm"] = MagicMock()
+sys.modules["tqdm.auto"] = MagicMock()
+import logging
 import shutil
 import tempfile
+import warnings
 from typing import Any, Dict, List, Set, cast
 
 from django.core.cache import cache
@@ -45,6 +55,14 @@ class RecommendationEndToEndTest(IsolatedRedisTestClient, BaseLectureTest):
     def setUpClass(cls) -> None:
         super().setUpClass()
         cls.test_model_dir = tempfile.mkdtemp(prefix=f"als_integration_test_{os.getpid()}_")
+        logging.getLogger("apps.lecture.services.recommendation_service.model_trainer").setLevel(logging.CRITICAL + 1)
+        logging.getLogger("apps.lecture.services.recommendation_service.recommender").setLevel(logging.CRITICAL + 1)
+        logging.getLogger("apps.lecture.services.recommendation_service.data_loader").setLevel(logging.CRITICAL + 1)
+        logging.getLogger("apps.lecture.tasks").setLevel(logging.CRITICAL + 1)
+
+        # 외부 라이브러리 경고 억제
+        warnings.filterwarnings("ignore", category=RuntimeWarning, module="implicit")
+        warnings.filterwarnings("ignore", module="implicit.utils")
 
     @classmethod
     def setUpTestData(cls) -> None:
