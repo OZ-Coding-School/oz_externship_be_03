@@ -13,6 +13,7 @@ from django.db.models import (
 )
 from django.shortcuts import get_object_or_404
 
+from apps.core.exceptions import Conflict
 from apps.users.enums import Role, UserStatus
 from apps.users.models import User, Withdrawal
 
@@ -117,50 +118,83 @@ class AdminUserService:
         return qs.order_by(order)
 
     # 회원 상세 조회
-
     @staticmethod
     def get_user(user_id: int) -> User:
         return get_object_or_404(User, id=user_id)
 
     # 회원 정보 수정
-
     @staticmethod
     def update_user_info(user: User, update_data: Dict[str, Any]) -> User:
+        """
+        중복 검사 포함 (nickname, phone_number)
+        """
+        nickname = update_data.get("nickname")
+        phone_number = update_data.get("phone_number")
+
+        # --- 중복 검사 ---
+        dup_q = Q()
+        if nickname is not None:
+            dup_q |= Q(nickname__iexact=nickname)
+        if phone_number is not None:
+            dup_q |= Q(phone_number=phone_number)
+
+        if dup_q:
+            exists = User.objects.filter(dup_q).exclude(id=user.id).values("nickname", "phone_number")[:1]
+            if exists:
+                fields: list[str] = []
+                if nickname is not None and User.objects.filter(nickname__iexact=nickname).exclude(id=user.id).exists():
+                    fields.append("닉네임")
+                if (
+                    phone_number is not None
+                    and User.objects.filter(phone_number=phone_number).exclude(id=user.id).exists()
+                ):
+                    fields.append("휴대폰 번호")
+                field_msg = " 및 ".join(fields) if fields else "항목"
+                raise Conflict({"error": f"이미 사용 중인 {field_msg}입니다."})
+
+        # --- 이전 값과 다른 새 값만 반영 ---
+        update_fields: list[str] = []
         for field, value in update_data.items():
-            if hasattr(user, field):
+            if not hasattr(user, field):
+                continue
+            if getattr(user, field) != value:
                 setattr(user, field, value)
-        user.save()
+                update_fields.append(field)
+
+        if not update_fields:
+            return user
+
+        user.save(update_fields=update_fields)
         return user
 
+    # 회원 권한 변경
     @staticmethod
     def change_user_role(user: User, new_role: str) -> User:
         """
         사용 가능한 Role Enum 값: ADMIN, STAFF, USER
         """
-        if isinstance(new_role, str):
+        role_enum: Role
+        if isinstance(new_role, Role):
+            role_enum = new_role
+        else:
             try:
-                new_role = Role[new_role.upper()]
+                role_enum = Role[new_role.upper()]
             except KeyError:
                 raise ValueError(f"지원하지 않는 권한입니다. 사용 가능한 값: {[r.name for r in Role]}")
 
-        # 권한 변경 로직
-        if new_role == Role.ADMIN:
-            user.is_superuser = True
-            user.is_staff = True
-        elif new_role == Role.STAFF:
-            user.is_superuser = False
-            user.is_staff = True
-        elif new_role == Role.USER:
-            user.is_superuser = False
-            user.is_staff = False
-        else:
-            raise ValueError(f"지원하지 않는 권한입니다. 사용 가능한 값: admin,staff,user")
+        target_is_superuser = role_enum == Role.ADMIN
+        target_is_staff = role_enum in (Role.ADMIN, Role.STAFF)
 
-        user.save()
+        # 이전 권한과 같으면 변경 생략
+        if user.is_superuser == target_is_superuser and user.is_staff == target_is_staff:
+            return user
+
+        user.is_superuser = target_is_superuser
+        user.is_staff = target_is_staff
+        user.save(update_fields=["is_superuser", "is_staff"])
         return user
 
     # 회원 삭제
-
     @staticmethod
     def delete_user(user: User) -> None:
         user.delete()

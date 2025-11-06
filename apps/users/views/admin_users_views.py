@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Dict
 
 from django.http import Http404
 from drf_spectacular.types import OpenApiTypes
-from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import status
-from rest_framework.exceptions import PermissionDenied
-from rest_framework.permissions import IsAdminUser, IsAuthenticated
+from rest_framework.permissions import BasePermission, IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -15,13 +14,13 @@ from rest_framework.views import APIView
 from apps.core.paginators import StandardPageNumberPagination
 from apps.core.views import ExceptionHandledAPIView
 from apps.users.enums import Role, UserStatus
-from apps.users.permissions import IsStaffRole
+from apps.users.permissions import IsAdminRole, IsStaffRole
 from apps.users.serializers.admin_users_serializer import (
     AdminUserDetailSerializer,
     AdminUserItemSerializer,
     AdminUserListResponseSerializer,
     AdminUserRoleUpdateRequestSerializer,
-    AdminUserRoleUpdateResponseSerializer,
+    AdminUserUpdateResponseSerializer,
     AdminUserUpdateSerializer,
 )
 from apps.users.services.admin_users_services import AdminUserService
@@ -87,27 +86,30 @@ class AdminUserListView(ExceptionHandledAPIView):
 
 
 # 관리자 - 회원 상세 조회, 회원 정보 수정, 회원 정보 삭제
-@extend_schema_view(
-    get=extend_schema(
+class AdminUserView(ExceptionHandledAPIView):
+    """
+    관리자 - 회원 상세 조회 / 수정 / 삭제
+    - GET/PATCH: 스태프 이상 접근 허용
+    - DELETE   : 관리자(superuser)만 허용
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    # 메서드별 퍼미션 분기 (DELETE만 관리자 권한 필요)
+    def get_permissions(self) -> list[BasePermission]:
+        base: list[BasePermission] = [IsAuthenticated()]
+        if self.request.method == "DELETE":
+            return base + [IsAdminRole()]
+        if self.request.method in ("GET", "PATCH"):
+            return base + [IsStaffRole()]
+        return base
+
+    @extend_schema(
         tags=["Admin"],
         summary="관리자 - 회원 상세 조회",
-        responses={200: AdminUserDetailSerializer},
-    ),
-    patch=extend_schema(
-        tags=["Admin"],
-        summary="관리자 - 회원 정보 수정",
-        request=AdminUserUpdateSerializer,
-        responses={200: AdminUserDetailSerializer},
-    ),
-    delete=extend_schema(
-        tags=["Admin"],
-        summary="관리자 - 회원 삭제",
-        responses={204: None},
-    ),
-)
-class AdminUserView(APIView):
-    permission_classes = [IsAdminUser]
-
+        responses={200: AdminUserDetailSerializer, 404: OpenApiTypes.OBJECT},
+        operation_id="v1_admin_users_retrieve_detail",
+    )
     def get(self, request: Request, user_id: int) -> Response:
         # 회원 상세 조회
         try:
@@ -124,13 +126,26 @@ class AdminUserView(APIView):
             status=status.HTTP_200_OK,
         )
 
+    @extend_schema(
+        tags=["Admin"],
+        summary="관리자 - 회원 정보 수정",
+        request=AdminUserUpdateSerializer,
+        responses={200: AdminUserUpdateResponseSerializer, 404: OpenApiTypes.OBJECT},
+    )
     def patch(self, request: Request, user_id: int) -> Response:
         # 회원 정보 수정
-        user = AdminUserService.get_user(user_id)
-        serializer = AdminUserUpdateSerializer(data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
-        updated_user = AdminUserService.update_user_info(user, serializer.validated_data)
-        response_data = AdminUserDetailSerializer(updated_user).data
+        try:
+            user = AdminUserService.get_user(user_id)
+        except Http404:
+            return Response({"error": "회원 정보를 찾을 수 없습니다."}, status=status.HTTP_404_NOT_FOUND)
+
+        ser = AdminUserUpdateSerializer(instance=user, data=request.data, partial=True)
+        ser.is_valid(raise_exception=True)
+        validated: Dict[str, Any] = dict(ser.validated_data)
+
+        updated_user = AdminUserService.update_user_info(user, validated)
+        response_data = AdminUserUpdateResponseSerializer(updated_user).data
+
         return Response(
             {
                 "detail": "회원 정보가 수정되었습니다.",
@@ -139,11 +154,10 @@ class AdminUserView(APIView):
             status=status.HTTP_200_OK,
         )
 
+    @extend_schema(
+        tags=["Admin"], summary="관리자 - 회원 삭제", responses={200: OpenApiTypes.OBJECT, 404: OpenApiTypes.OBJECT}
+    )
     def delete(self, request: Request, user_id: int) -> Response:
-        # 회원 정보 삭제
-        if not request.user.is_superuser:
-            raise PermissionDenied("관리자만 회원을 삭제할 수 있습니다.")
-
         try:
             user = AdminUserService.get_user(user_id)
         except Http404:
@@ -155,7 +169,7 @@ class AdminUserView(APIView):
         AdminUserService.delete_user(user)
         return Response(
             {"detail": "회원이 삭제되었습니다."},
-            status=status.HTTP_204_NO_CONTENT,
+            status=status.HTTP_200_OK,
         )
 
 
@@ -164,29 +178,31 @@ class AdminUserView(APIView):
     tags=["Admin"],
     summary="관리자 - 회원 권한 변경",
     request=AdminUserRoleUpdateRequestSerializer,
-    responses={200: AdminUserRoleUpdateResponseSerializer},
-    operation_id=" v1_admin_update_role",
+    responses={200: OpenApiTypes.OBJECT, 404: OpenApiTypes.OBJECT},
+    operation_id="v1_admin_users_update_role",
 )
 class AdminUserRoleUpdateView(APIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAuthenticated, IsAdminRole]
 
     def patch(self, request: Request, user_id: int, *args: Any, **kwargs: Any) -> Response:
-
-        if not request.user.is_superuser:
-            raise PermissionDenied("관리자만 회원 권한을 변경할 수 있습니다.")
-
         serializer = AdminUserRoleUpdateRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         role = serializer.validated_data["role"]
-        user = AdminUserService.get_user(user_id)
-        updated_user = AdminUserService.change_user_role(user, role)
 
-        response_serializer = AdminUserRoleUpdateResponseSerializer(updated_user)
+        try:
+            user = AdminUserService.get_user(user_id)
+        except Http404:
+            return Response(
+                {"error": "회원 정보를 찾을 수 없습니다."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        AdminUserService.change_user_role(user, role)
+
         return Response(
             {
                 "detail": "회원 권한이 변경되었습니다.",
-                "data": response_serializer.data,
             },
             status=status.HTTP_200_OK,
         )
