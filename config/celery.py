@@ -14,4 +14,8 @@ app.conf.beat_schedule = {
         "task": "crawl_inflearn_lectures",
         "schedule": crontab(hour=0, minute=0),
     },
+    "send-upcoming-schedule-notifications": {
+        "task": "send_tomorrow_schedule_notifications",
+        "schedule": crontab(hour=0, minute=1),
+    }
 }
