@@ -31,7 +31,7 @@ class StudyGroupS3PresignedView(APIView):
         request=PresignedRequestSerializer,
         responses={
             200: PresignedRequestSerializer,
-        }
+        },
     )
     def post(self, request: Request, *args: object, **kwargs: object) -> Response:
         serializer = PresignedRequestSerializer(data=request.data)
@@ -40,11 +40,12 @@ class StudyGroupS3PresignedView(APIView):
         files = serializer.validated_data["files"]
 
         for f in files:
+            S3Uploader.validate_file_name(f.get("file_name"))
             S3Uploader.validate_file_content_type(f.get("content_type"))
 
         prefix = GROUP_IMAGE_PREFIX
-        #대표 이미지는 단일 업로드겠지만 노트와 공용시리얼라이저 사용 + 썸네일 도입 등을 감안해서 files 복수형 유지
-        presigned_urls = S3Uploader.generate_presigned_urls(prefix, files)[0] # 이중리스트같아서 리스트 감싸기 해제
+        # 대표 이미지는 단일 업로드겠지만 노트와 공용시리얼라이저 사용 + 썸네일 도입용이함 등을 감안해서 files 복수형 유지
+        presigned_urls = S3Uploader.generate_presigned_urls(prefix, files)[0]  # 이중리스트같아서 리스트 감싸기 해제
 
         return Response(
             {
@@ -63,13 +64,13 @@ class StudyNoteS3PresignedView(APIView):
     """
 
     permission_classes = [IsAuthenticated]
+
     @extend_schema(
         request=PresignedRequestSerializer,
         responses={
             200: PresignedRequestSerializer,
-        }
+        },
     )
-
     def post(self, request: Request, *args: object, **kwargs: object) -> Response:
         serializer = PresignedRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -77,12 +78,20 @@ class StudyNoteS3PresignedView(APIView):
         files = serializer.validated_data["files"]
 
         for f in files:
-            S3Uploader.validate_file_content_type(f.get("content_type"))
+            file_name = f.get("file_name")
             content_type = f.get("content_type")
+
+            S3Uploader.validate_file_name(file_name)
+
+            ext = file_name.rsplit(".", 1)[-1].lower()
+
+            S3Uploader.validate_file_content_type(content_type)
+            S3Uploader.validate_file_mime(ext, content_type)
+            S3Uploader.validate_file_extension(file_name)
 
             prefix = NOTE_IMAGE_PREFIX if content_type.startswith("image/") else NOTE_FILE_PREFIX
 
-            presigned_urls = S3Uploader.generate_presigned_urls(prefix, files) # 멀티 업로드 경우 대비 [0] 제거
+            presigned_urls = S3Uploader.generate_presigned_urls(prefix, files)  # 멀티 업로드 경우 대비 [0] 제거
 
         return Response(
             {
