@@ -1,3 +1,12 @@
+import os
+
+os.environ["TQDM_DISABLE"] = "1"
+
+import sys
+from unittest.mock import MagicMock
+
+sys.modules["tqdm"] = MagicMock()
+sys.modules["tqdm.auto"] = MagicMock()
 import logging
 import time
 import unittest
@@ -38,11 +47,14 @@ class RecommendationServiceTestBase(IsolatedRedisTestClient, BaseLectureTest):
 
     @classmethod
     def setUpClass(cls) -> None:
-        """클래스 레벨 설정: 로거 레벨을 WARNING으로 설정"""
+        """클래스 레벨 설정"""
         super().setUpClass()
-        # 테스트 시 WARNING 이상만 출력
-        logging.getLogger("apps.lecture.services.recommendation_service.recommender").setLevel(logging.WARNING)
-        logging.getLogger("apps.lecture.services.recommendation_service.model_trainer").setLevel(logging.WARNING)
+        logging.getLogger("apps.lecture.services.recommendation_service.model_trainer").setLevel(logging.CRITICAL + 1)
+        logging.getLogger("apps.lecture.services.recommendation_service.recommender").setLevel(logging.CRITICAL + 1)
+        logging.getLogger("apps.lecture.services.recommendation_service.data_loader").setLevel(logging.CRITICAL + 1)
+        logging.getLogger("apps.lecture.tasks").setLevel(logging.CRITICAL + 1)
+
+        # 외부 라이브러리 경고 억제
         warnings.filterwarnings("ignore", category=RuntimeWarning, module="implicit")
         warnings.filterwarnings("ignore", module="implicit.utils")
 
