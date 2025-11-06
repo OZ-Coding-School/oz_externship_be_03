@@ -180,7 +180,7 @@ class StudyGroupDetailSerializer(StudyGroupBaseSerializer):
 
 # 어드민 스터디그룹 목록 조회
 class AdminStudyGroupListSerializer(serializers.ModelSerializer[StudyGroup]):
-    current_headcount = serializers.SerializerMethodField()
+    current_headcount = serializers.IntegerField(source="members.count", read_only=True)
     max_headcount = serializers.IntegerField(read_only=True)
     status = serializers.CharField(source="get_status_display", read_only=True)
 
@@ -200,15 +200,17 @@ class AdminStudyGroupListSerializer(serializers.ModelSerializer[StudyGroup]):
             "updated_at",
         ]
 
-    def get_current_headcount(self, obj: StudyGroup) -> int:
-        return obj.members.count()
 
 
 # 어드민 스터디그룹 상세 조회
 class AdminStudyGroupDetailSerializer(serializers.ModelSerializer[StudyGroup]):
-    members = serializers.SerializerMethodField()
+    members = StudyGroupDetailMemberSerializer(
+        source="group_members",
+        many=True,
+        read_only=True
+    )
     lectures = StudyGroupDetailLectureSerializer(many=True, read_only=True)
-    current_headcount = serializers.SerializerMethodField()
+    current_headcount = serializers.IntegerField(source="members.count", read_only=True)
     max_headcount = serializers.IntegerField(read_only=True)
     status = serializers.CharField(source="get_status_display", read_only=True)
 
@@ -229,11 +231,3 @@ class AdminStudyGroupDetailSerializer(serializers.ModelSerializer[StudyGroup]):
             "created_at",
             "updated_at",
         ]
-
-    def get_members(self, obj: StudyGroup) -> ReturnList[Any]:
-        members = obj.group_members.select_related("user").order_by("-is_leader", "user__nickname")
-        data = StudyGroupDetailMemberSerializer(members, many=True).data
-        return cast(ReturnList[Any], data)
-
-    def get_current_headcount(self, obj: StudyGroup) -> int:
-        return obj.members.count()
