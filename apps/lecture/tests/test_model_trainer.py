@@ -7,7 +7,6 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 from unittest import mock
 
-import implicit  # type: ignore
 import joblib  # type: ignore
 import numpy as np
 from django.core.cache import cache
@@ -80,7 +79,6 @@ class ModelTrainerTestBase(IsolatedRedisTestClient):
         logging.getLogger("apps.lecture.services.recommendation_service.recommender").setLevel(logging.WARNING)
         warnings.filterwarnings("ignore", category=RuntimeWarning, module="implicit")
         warnings.filterwarnings("ignore", module="implicit.utils")
-        implicit.cpu.als.logger.setLevel(logging.ERROR)
 
     def setUp(self) -> None:
         super().setUp()
