@@ -58,6 +58,9 @@ class StudyGroupListCreateView(APIView):
         if status_param in StudyGroupStatus.values:
             queryset = queryset.filter(status=status_param)
 
+        if request.query_params.get("search"):
+            queryset = queryset.filter(name__icontains=request.query_params.get("search"))
+
         queryset = queryset.annotate(current_headcount=Count("members"))
 
         queryset = queryset.prefetch_related("members", "lectures")
