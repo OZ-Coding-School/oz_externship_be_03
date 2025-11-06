@@ -98,10 +98,20 @@ class AdminUserUpdateSerializer(serializers.ModelSerializer[UserModel]):
         extra_kwargs = {field: {"required": False} for field in fields}
 
 
-# [관리자] 회원 삭제 응답
-class AdminUserDeleteResponseSerializer(serializers.Serializer[Any]):
+# [관리자] 회원 정보 수정 응답
+class AdminUserUpdateResponseSerializer(serializers.Serializer[UserModel]):
+    id = serializers.IntegerField()
+    email = serializers.EmailField()
+    nickname = serializers.CharField()
+    name = serializers.CharField()
+    gender = serializers.CharField()
+    phone_number = serializers.CharField(read_only=True)
+    status = serializers.SerializerMethodField()
+    profile_img_url = serializers.URLField()
+    updated_at = serializers.DateTimeField()
 
-    detail = serializers.CharField(help_text="삭제 완료 메시지")
+    def get_status(self, obj: UserModel) -> str:
+        return AdminUserService.get_user_status(obj)
 
 
 # [관리자] 회원 권한 변경 요청
@@ -109,20 +119,3 @@ class AdminUserRoleUpdateRequestSerializer(serializers.Serializer[Any]):
     role = serializers.ChoiceField(
         choices=[(r.value, r.name) for r in Role], help_text="변경할 권한 (user | staff | admin)"
     )
-
-
-# [관리자] 회원 권한 변경 응답
-class AdminUserRoleUpdateResponseSerializer(serializers.Serializer[Any]):
-
-    role = serializers.ChoiceField(choices=Role.choices, read_only=True)
-    detail = serializers.CharField(default="회원 권한이 변경되었습니다.")
-
-    class Meta:
-        model = User
-        fields = [
-            "id",
-            "email",
-            "name",
-            "role",
-            "updated_at",
-        ]
