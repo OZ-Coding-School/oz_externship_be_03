@@ -4,7 +4,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 
 from apps.recruitments.models import Recruitment
-from apps.recruitments.serializers.recruitment_serializers import (
+from apps.recruitments.serializers.recruitments import (
     RecruitmentDetailSerializer,
 )
 
