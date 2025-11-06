@@ -13,12 +13,6 @@ class PresignedFileSerializer(serializers.Serializer[Any]):
 class PresignedRequestSerializer(serializers.Serializer[Any]):
     """
     Presigned URL 발급 요청 검증용 Serializer
-    {
-      "files": [
-        {"file_name": "example.png", "content_type": "image/png"},
-        {"file_name": "notes.pdf", "content_type": "application/pdf"}
-      ]
-    }
     """
 
     files = PresignedFileSerializer(many=True)
