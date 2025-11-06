@@ -7,7 +7,7 @@ from django.test import TestCase
 from apps.notifications.models import Notification
 from apps.recruitments.models import Recruitment
 from apps.recruitments.models.application import Application, ApplicationStatus
-from apps.studies.models.groups import GroupMember, StudyGroup
+from apps.studies.models.groups import GroupMember, StudyGroup, StudyGroupStatus
 from apps.users.enums import Gender
 
 User = get_user_model()
@@ -160,3 +160,28 @@ class SignalTest(TestCase):
 
         self.assertEqual(mock_delay.call_count, 3)
         mock_delay.assert_called_with(notification.id)
+
+    @patch("apps.notifications.tasks.send_to_pubsub.delay")
+    def test_study_group_review_notification(self, mock_delay: MagicMock) -> None:
+        """스터디 그룹 리뷰 알림 생성 테스트"""
+        GroupMember.objects.create(
+            study_group=self.study_group,
+            user=self.applicant,
+            is_leader=False,
+        )
+        self.study_group.status = StudyGroupStatus.ENDED
+        self.study_group.save()
+
+        notifications = Notification.objects.filter(type=Notification.NotificationType.STUDY_REVIEW_REQUEST)
+
+        self.assertEqual(notifications.count(), 2)
+
+        notification1 = notifications.get(user=self.existing_member)
+        expected_content = f"오늘은 {self.study_group.name}의 종료일이에요! 스터디 후기를 기록해주세요!"
+        self.assertEqual(notification1.content, expected_content)
+        assert notification1.back_url_link is not None
+        self.assertIn("/reviews", notification1.back_url_link)
+
+        notification2 = notifications.get(user=self.applicant)
+        self.assertEqual(notification2.content, expected_content)
+        self.assertEqual(mock_delay.call_count, 2)
