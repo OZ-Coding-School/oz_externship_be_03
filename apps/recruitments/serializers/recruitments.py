@@ -27,14 +27,4 @@ class RecruitmentDetailSerializer(RecruitmentSerializer):
 
     class Meta:
         model = Recruitment
-        fields = [
-            "id",
-            "title",
-            "content",
-            "estimated_fee",
-            "expected_headcount",
-            "views_count",
-            "close_at",
-            "is_closed",
-            "tags",
-        ]
+        fields = RecruitmentSerializer.Meta.fields + ["tags"]
