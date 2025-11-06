@@ -1,9 +1,15 @@
+import asyncio
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from celery import Task, shared_task  # type: ignore
 from celery.exceptions import SoftTimeLimitExceeded  # type: ignore
+from django.db import transaction
 
+from apps.lecture.crawlers.inflearn_lecture_crawler_async import (
+    InflearnLectureCrawlerAsync,
+)
+from apps.lecture.models import CrawledLecture
 from apps.lecture.services.recommendation_service.data_loader import DataLoader
 from apps.lecture.services.recommendation_service.model_trainer import ModelTrainer
 
@@ -77,3 +83,68 @@ def partial_fit_model_task(self: Task) -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"[CELERY][ALS] Partial fit failed: {e}", exc_info=True)
         raise self.retry(exc=e, countdown=60 * (2**self.request.retries))
+
+
+@shared_task(name="crawl_inflearn_lectures")  # type: ignore[misc]
+def crawl_inflearn_lectures() -> Dict[str, Any]:
+    """
+    인프런 강의 크롤링 Task
+    매일 자정 실행
+    """
+    try:
+        logger.info("인프런 강의 크롤링 시작")
+
+        crawler = InflearnLectureCrawlerAsync()
+        lectures_data: List[Dict[str, Any]] = asyncio.run(crawler.crawl_and_process(max_concurrent=10))
+
+        if not lectures_data:
+            logger.info("크롤링된 데이터 없음")
+            return {"status": "failed", "count": 0}
+
+        with transaction.atomic():
+            # 로그용 기존 강의 수
+            before_count = CrawledLecture.objects.filter(platform="INFLEARN").count()
+
+            lecture_to_save = [
+                CrawledLecture(
+                    platform=info["platform"],
+                    title=info["title"],
+                    instructor=info["instructor"],
+                    average_rating=info["average_rating"],
+                    duration=info["duration"],
+                    difficulty=info["difficulty"],
+                    description=info["description"],
+                    original_price=info["original_price"],
+                    discount_price=info["discount_price"],
+                    url_link=info["url_link"],
+                    thumbnail_img_url=info["thumbnail_img_url"],
+                )
+                for info in lectures_data
+            ]
+
+            CrawledLecture.objects.bulk_create(
+                lecture_to_save,
+                update_conflicts=True,
+                unique_fields=["platform", "title", "instructor"],
+                update_fields=[
+                    "average_rating",
+                    "duration",
+                    "difficulty",
+                    "description",
+                    "original_price",
+                    "discount_price",
+                    "url_link",
+                    "thumbnail_img_url",
+                ],
+            )
+
+            after_count = CrawledLecture.objects.filter(platform="INFLEARN").count()
+            created_count = after_count - before_count
+            updated_count = len(lectures_data) - created_count
+
+        logger.info(f"크롤링 완료 - 신규: {created_count}, 업데이트: {updated_count}")
+        return {"status": "success", "created": created_count, "updated": updated_count, "total": len(lectures_data)}
+
+    except Exception as e:
+        logger.info(f"크롤링 실패: {e}", exc_info=True)
+        return {"status": "error"}
