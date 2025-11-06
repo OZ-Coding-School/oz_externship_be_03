@@ -2,9 +2,9 @@ import asyncio
 import logging
 from typing import Any, Dict, List
 
-from django.db import transaction
 from celery import Task, shared_task  # type: ignore
 from celery.exceptions import SoftTimeLimitExceeded  # type: ignore
+from django.db import transaction
 
 from apps.lecture.crawlers.inflearn_lecture_crawler_async import (
     InflearnLectureCrawlerAsync,
