@@ -195,7 +195,7 @@ class AdminStudyGroupListSerializer(serializers.ModelSerializer[StudyGroup]):
             "profile_img_url",
             "start_at",
             "end_at",
-            "study_status_display",
+            "status",
             "created_at",
             "updated_at",
         ]
@@ -224,7 +224,7 @@ class AdminStudyGroupDetailSerializer(serializers.ModelSerializer[StudyGroup]):
             "profile_img_url",
             "start_at",
             "end_at",
-            "study_status_display",
+            "status",
             "lectures",
             "created_at",
             "updated_at",
