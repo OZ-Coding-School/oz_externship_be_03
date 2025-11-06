@@ -1,10 +1,13 @@
+import logging
 import os
 import shutil
 import tempfile
+import warnings
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 from unittest import mock
 
+import implicit  # type: ignore
 import joblib  # type: ignore
 import numpy as np
 from django.core.cache import cache
@@ -68,18 +71,28 @@ class ModelTrainerTestBase(IsolatedRedisTestClient):
     EMPTY_LECTURES: List[int] = []
     EMPTY_DICT: Dict[int, int] = {}
 
+    @classmethod
+    def setUpClass(cls) -> None:
+        """클래스 레벨 설정: 로거 레벨을 WARNING으로 설정"""
+        super().setUpClass()
+        # 테스트 시 WARNING 이상만 출력
+        logging.getLogger("apps.lecture.services.recommendation_service.model_trainer").setLevel(logging.WARNING)
+        logging.getLogger("apps.lecture.services.recommendation_service.recommender").setLevel(logging.WARNING)
+        warnings.filterwarnings("ignore", category=RuntimeWarning, module="implicit")
+        warnings.filterwarnings("ignore", module="implicit.utils")
+        implicit.cpu.als.logger.setLevel(logging.ERROR)
+
     def setUp(self) -> None:
         super().setUp()
 
-        # 프로세스별 고유 prefix 생성 (병렬 테스트 격리)
-        worker_id = os.getpid()
-        self.cache_prefix = f"test_{worker_id}_"
+        # IsolatedRedisTestClient의 CACHE_PREFIX 재사용 (UUID 기반)
+        self.cache_prefix = self.CACHE_PREFIX
 
-        # 프로세스별 고유 락 키 생성
-        self.test_lock_key = f"{self.cache_prefix}{ALS_TRAINING_LOCK_KEY}"
+        # 프로세스별 고유 락 키 생성 (UUID prefix 사용)
+        self.test_lock_key = f"{self.CACHE_PREFIX}{ALS_TRAINING_LOCK_KEY}"
 
-        # 임시 모델 저장 디렉토리 생성 (프로세스 ID 포함)
-        self.test_model_dir = tempfile.mkdtemp(prefix=f"als_test_{worker_id}_")
+        # 임시 모델 저장 디렉토리 생성 (UUID 사용)
+        self.test_model_dir = tempfile.mkdtemp(prefix=f"als_test_{self.CACHE_PREFIX}_")
         self.addCleanup(shutil.rmtree, self.test_model_dir)
 
         # 테스트용 경로 설정
@@ -89,7 +102,7 @@ class ModelTrainerTestBase(IsolatedRedisTestClient):
         # Mock DataLoader 설정
         self.mock_data_loader = mock.MagicMock(spec=DataLoader)
 
-        # Mock 패칭 설정 (경로만 패치, 락 키는 생성자 주입으로 처리)
+        # Mock 패칭 설정
         self.model_dir_patcher = mock.patch(f"{self.MODEL_TRAINER_MODULE}.MODEL_DIR", self.test_model_dir)
         self.bundle_path_patcher = mock.patch(f"{self.MODEL_TRAINER_MODULE}.MODEL_BUNDLE_PATH", self.test_bundle_path)
         self.backup_path_patcher = mock.patch(f"{self.MODEL_TRAINER_MODULE}.MODEL_BACKUP_PATH", self.test_backup_path)
@@ -102,11 +115,11 @@ class ModelTrainerTestBase(IsolatedRedisTestClient):
         self.addCleanup(self.bundle_path_patcher.stop)
         self.addCleanup(self.backup_path_patcher.stop)
 
-        # 프로세스별 캐시 키 초기화
+        # UUID prefix 기반 캐시 키 초기화
         cache.delete_many(
             [
                 self.test_lock_key,
-                *[f"{self.cache_prefix}{key}" for key in ALS_CACHE_KEYS],
+                *[f"{self.CACHE_PREFIX}{key}" for key in ALS_CACHE_KEYS],
             ]
         )
 
@@ -114,12 +127,12 @@ class ModelTrainerTestBase(IsolatedRedisTestClient):
         self.trainer = ModelTrainer(self.mock_data_loader, lock_key=self.test_lock_key)
 
     def tearDown(self) -> None:
-        """각 테스트 후 실행: 프로세스별 캐시 키만 정리"""
-        # 프로세스별 캐시 키만 삭제 (다른 프로세스 영향 없음)
+        """각 테스트 후 실행: UUID prefix 기반 캐시 키만 정리"""
+        # UUID prefix 기반 캐시 키만 삭제
         cache.delete_many(
             [
                 self.test_lock_key,
-                *[f"{self.cache_prefix}{key}" for key in ALS_CACHE_KEYS],
+                *[f"{self.CACHE_PREFIX}{key}" for key in ALS_CACHE_KEYS],
             ]
         )
         super().tearDown()
