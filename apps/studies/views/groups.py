@@ -126,14 +126,13 @@ class StudyGroupDetailUpdateView(APIView):
         return Response(response.data, status=status.HTTP_200_OK)
 
 
-# 어드민 스터디그룹 목록 조회
 class AdminStudyGroupListView(APIView):
     permission_classes = [IsAuthenticated]
     pagination_class = StudyGroupPagination
 
     @extend_schema(
         operation_id="v1_admin_studies_groups_list",
-        tags=["A StudyGroup"],
+        tags=["StudyGroup"],
         summary="어드민용 스터디 그룹 목록 조회",
         description=(
             "관리자 전용. "
@@ -143,7 +142,7 @@ class AdminStudyGroupListView(APIView):
         responses={200: AdminStudyGroupListSerializer(many=True)},
     )
     def get(self, request: Request) -> Response:
-        # 접근 제약: 관리자 허용
+        # 관리자 접근 제약
         if not request.user.is_superuser:
             return Response({"detail": "관리자만 접근 가능합니다."}, status=status.HTTP_403_FORBIDDEN)
 
@@ -154,7 +153,7 @@ class AdminStudyGroupListView(APIView):
         if search_param:
             queryset = queryset.filter(name__icontains=search_param)
 
-        # 필터 (종료 여부)
+        # 필터 (상태)
         status_param = request.query_params.get("status")
         if status_param in StudyGroupStatus.values:
             queryset = queryset.filter(status=status_param)
@@ -170,41 +169,8 @@ class AdminStudyGroupListView(APIView):
         queryset = queryset.order_by(ordering_map.get(ordering, "-created_at"))
 
         # 페이지네이션
-        total_groups = queryset.count()
-        total_pages = math.ceil(total_groups / self.pagination_class.page_size)
         paginator = self.pagination_class()
         page = paginator.paginate_queryset(queryset, request)
 
-        serializer = AdminStudyGroupListSerializer(
-            page,
-            many=True,
-            context={"request": request, "total_groups": total_groups, "total_pages": total_pages},
-        )
+        serializer = AdminStudyGroupListSerializer(page, many=True, context={"request": request})
         return paginator.get_paginated_response(serializer.data)
-
-
-# 어드민 스터디그룹 상세 조회
-class AdminStudyGroupDetailView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    @extend_schema(
-        operation_id="v1_admin_studies_groups_detail",
-        tags=["StudyGroup"],
-        summary="관리자 스터디 그룹 상세 조회",
-        description="관리자 전용. 리더는 멤버 목록 최상단에 정렬되어 표시됩니다.",
-        responses={200: AdminStudyGroupDetailSerializer},
-    )
-    def get(self, request: Request, group_uuid: str) -> Response:
-        if not request.user.is_superuser:
-            return Response({"detail": "관리자만 접근 가능합니다."}, status=status.HTTP_403_FORBIDDEN)
-
-        group = get_object_or_404(
-            StudyGroup.objects.prefetch_related(
-                "group_members__user",
-                "lectures",
-            ),
-            uuid=group_uuid,
-        )
-
-        serializer = AdminStudyGroupDetailSerializer(group, context={"request": request})
-        return Response(serializer.data, status=status.HTTP_200_OK)
