@@ -103,7 +103,7 @@ class ChatRoomAPITestCase(APITestCase):
         room1_data = next((r for r in response.data if r["name"] == "Test Group 1"), None)
 
         assert room1_data is not None
-        self.assertEqual(room1_data["unread_count"], 3)
+        self.assertEqual(room1_data["unread_message_count"], 3)
 
     def test_unread_count_with_some_messages_read(self) -> None:
         """일부 메시지를 읽었을 때, 안 읽은 메시지 수가 정확해야 함"""
@@ -115,7 +115,7 @@ class ChatRoomAPITestCase(APITestCase):
         room1_data = next((r for r in response.data if r["name"] == "Test Group 1"), None)
 
         assert room1_data is not None
-        self.assertEqual(room1_data["unread_count"], 1)  # msg3만 안 읽음
+        self.assertEqual(room1_data["unread_message_count"], 1)  # msg3만 안 읽음
 
     def test_unread_count_with_all_messages_read(self) -> None:
         """모든 메시지를 읽었을 때, 안 읽은 메시지 수는 0이어야 함"""
@@ -127,4 +127,4 @@ class ChatRoomAPITestCase(APITestCase):
         room1_data = next((r for r in response.data if r["name"] == "Test Group 1"), None)
 
         assert room1_data is not None
-        self.assertEqual(room1_data["unread_count"], 0)
+        self.assertEqual(room1_data["unread_message_count"], 0)
