@@ -1,19 +1,18 @@
 # apps/chat/consumers.py
 
 import json
-from typing import Any
+from typing import Any, cast
 
-from channels.db import database_sync_to_async  # type: ignore[import-untyped]
-from channels.generic.websocket import (  # type: ignore[import-untyped]
+from channels.db import database_sync_to_async
+from channels.generic.websocket import (
     AsyncJsonWebsocketConsumer,
 )
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AbstractBaseUser
 
-from apps.chat.models import ChatMessage, LastReadMessage
+from apps.chat.models import ChatMessage
 from apps.studies.models.groups import GroupMember, StudyGroup
-
-from .services import ChatMessageService
+from apps.users.models.user import User
 
 
 class ChatConsumer(AsyncJsonWebsocketConsumer):  # type: ignore[misc]
@@ -32,24 +31,6 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):  # type: ignore[misc]
         # Join room group
         await self.channel_layer.group_add(self.room_group_name, self.channel_name)
         await self.accept()
-
-        # '읽음 처리' 로직 구현
-        if user.is_authenticated:
-            try:
-                latest_message = (
-                    await ChatMessage.objects.filter(study_group_id=self.study_group_id)
-                    .order_by("-created_at")
-                    .afirst()
-                )
-
-                if latest_message:
-                    await LastReadMessage.objects.aupdate_or_create(
-                        user=user,
-                        study_group_id=self.study_group_id,
-                        defaults={"message": latest_message},
-                    )
-            except ChatMessage.DoesNotExist:
-                pass
 
     async def disconnect(self, close_code: int) -> None:
         # Leave room group
@@ -89,8 +70,8 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):  # type: ignore[misc]
         Asynchronously creates a chat message in the database.
         """
         study_group = await StudyGroup.objects.aget(id=self.study_group_id)
-        await database_sync_to_async(ChatMessageService.create_chat_message)(
-            sender=user,
+        await ChatMessage.objects.acreate(
+            sender=cast(User, user),
             study_group=study_group,
             content=content,
         )
