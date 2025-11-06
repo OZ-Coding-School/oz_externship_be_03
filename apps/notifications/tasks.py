@@ -83,5 +83,37 @@ def send_tomorrow_schedule_notifications() -> None:
     except Exception as e:
         logger.error(f"예정 스케줄 알림 태스크 오류: {e}")
 
+@shared_task(name="send_today_schedule_notifications")
+def send_today_schedule_notifications() -> None:
+    """당일 스케줄 알림 생성 및 배치 작업"""
+    try:
+        today = date.today()
 
+        participants = ScheduleParticipant.objects.filter(
+            schedule__session_date=today
+        ).select_related(
+            'schedule',
+            'schedule__study_group', # ScheduleParticipant -> schedule -> study_group
+            'member__user'
+        )
+
+        for participant in participants:
+            schedule = participant.schedule
+            study_group = participant.schedule.study_group
+            user = participant.member.user
+
+            start_time= schedule.start_time.strftime("%H:%M")
+            end_time= schedule.end_time.strftime("%H:%M")
+
+            notification = Notification.objects.create(
+                user_id=user.id,
+                content=f"금일 {start_time}부터 {end_time}까지 {study_group.name}에서 {schedule.title}이 예정되어 있습니다! 잊지말고 참여해주세요!",
+                type=Notification.NotificationType.STUDY_SCHEDULE_TODAY,
+                back_url_link=f"{settings.FRONTEND_DOMAIN}/api/v1/studies/groups/{study_group.id}"
+            )
+
+            send_to_pubsub.delay(notification.id)
+
+    except Exception as e:
+        logger.error(f"금일 스케줄 알림 태스크 오류: {e}")
 
