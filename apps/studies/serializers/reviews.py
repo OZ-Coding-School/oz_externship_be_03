@@ -82,15 +82,17 @@ class ReviewUpdateSerializer(serializers.ModelSerializer[Review]):
 
 DATETIME_MINUTE_FMT = "%Y-%m-%d %H:%M"
 
-class _AdminReviewStudyGroupSerializer(serializers.Serializer):
+
+class _AdminReviewStudyGroupSerializer(serializers.Serializer[Any]):
     id = serializers.IntegerField()
     uuid = serializers.UUIDField()
     name = serializers.CharField()
 
 
-class _AdminReviewAuthorSerializer(serializers.Serializer):
+class _AdminReviewAuthorSerializer(serializers.Serializer[Any]):
     nickname = serializers.CharField()
     email = serializers.EmailField()
+
 
 class AdminReviewListSerializer(serializers.ModelSerializer[Review]):
 
