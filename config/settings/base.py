@@ -232,7 +232,7 @@ TWILIO_VERIFY_SERVICE_SID = os.environ.get("TWILIO_VERIFY_SERVICE_SID", "TWILIO_
 KAKAO_CLIENT_ID = os.getenv("KAKAO_CLIENT_ID")
 KAKAO_REDIRECT_URI = os.getenv("KAKAO_REDIRECT_URI")
 KAKAO_ADMIN_KEY = os.getenv("KAKAO_ADMIN_KEY")
-KAKAO_UNLINK_URL = os.getenv("KAKAO_UNLINK_URL")
+KAKAO_UNLINK_URL = os.getenv("KAKAO_UNLINK_URL", "https://kapi.kakao.com/v1/user/unlink")
 
 # NAVER OAuth Settings
 NAVER_CLIENT_ID = os.getenv("NAVER_CLIENT_ID")
