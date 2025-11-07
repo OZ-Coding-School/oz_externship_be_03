@@ -60,7 +60,7 @@ urlpatterns = [
     path("study-schedules", GroupScheduleCreateView.as_view(), name="study-schedules-create"),
     # StudyNote APIs
     path(
-        "groups/<uuid:group_id>/notes",
+        "groups/<uuid:group_uuid>/notes",
         StudyNoteListAPIView.as_view(),
         name="study-note-list",
     ),

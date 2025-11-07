@@ -16,6 +16,6 @@ class MemberLeaveSerializer(serializers.Serializer):  # type: ignore[type-arg]
 class DelegateLeaderSerializer(serializers.Serializer):  # type: ignore[type-arg]
     """REQ-STDY-008: 리더 위임 요청 및 결과 직렬화"""
 
-    target_member_id = serializers.IntegerField(required=True, min_value=1)
+    target_member_uuid = serializers.UUIDField(required=True)
     previous_leader_id = serializers.IntegerField(read_only=True)
     new_leader_id = serializers.IntegerField(read_only=True)

@@ -6,7 +6,6 @@ from rest_framework import serializers
 from rest_framework.request import Request
 
 from apps.lecture.models import RatingEnum
-from apps.studies.models.groups import StudyGroup
 from apps.studies.models.reviews import Review
 
 

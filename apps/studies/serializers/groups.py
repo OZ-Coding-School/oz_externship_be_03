@@ -4,7 +4,6 @@ from typing import Any, Dict, cast
 from django.db import transaction
 from django.utils import timezone
 from rest_framework import serializers
-from rest_framework.utils.serializer_helpers import ReturnList
 
 from apps.lecture.models import CrawledLecture
 from apps.studies.models.groups import GroupMember, StudyGroup

@@ -1,4 +1,5 @@
 from typing import Any
+from uuid import UUID
 
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
@@ -12,11 +13,8 @@ class MemberService:
 
     @staticmethod
     @transaction.atomic
-    def kick_member(*, user: Any, study_group: StudyGroup, target_member_id: int, is_leader: bool) -> None:
+    def kick_member(study_group: StudyGroup, target_member_id: int) -> None:
         """REQ-STDY-006: 리더가 특정 멤버를 추방"""
-        if not is_leader:
-            raise ValidationError("리더만 멤버를 추방할 수 있습니다.")
-
         try:
             target = GroupMember.objects.get(id=target_member_id, study_group=study_group)
         except ObjectDoesNotExist:
@@ -43,20 +41,15 @@ class MemberService:
 
     @staticmethod
     @transaction.atomic
-    def delegate_leader(
-        *, user: Any, study_group: StudyGroup, target_member_id: int, is_leader: bool
-    ) -> dict[str, Any]:
+    def delegate_leader(study_group: StudyGroup, target_member_uuid: UUID) -> dict[str, Any]:
         """REQ-STDY-008: 리더 권한 위임"""
-        if not is_leader:
-            raise ValidationError("리더만 다른 멤버에게 리더를 위임할 수 있습니다.")
-
         try:
             current_leader = GroupMember.objects.get(study_group=study_group, is_leader=True)
         except ObjectDoesNotExist:
             raise ValidationError("현재 리더를 찾을 수 없습니다.")
 
         try:
-            new_leader = GroupMember.objects.get(id=target_member_id, study_group=study_group)
+            new_leader = GroupMember.objects.get(user__uuid=target_member_uuid, study_group=study_group)
         except ObjectDoesNotExist:
             raise ValidationError("위임 대상 멤버를 찾을 수 없습니다.")
 

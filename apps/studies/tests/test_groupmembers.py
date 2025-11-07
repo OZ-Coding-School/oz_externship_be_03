@@ -78,7 +78,7 @@ class MemberFeatureAPITestCase(APITestCase):
             kwargs={"group_uuid": self.group.uuid, "member_id": self.leader_member.id},
         )
         response = self.client.delete(url)
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_kick_member_unauthenticated(self) -> None:
         """비로그인 사용자는 추방 요청 불가"""
@@ -119,7 +119,7 @@ class MemberFeatureAPITestCase(APITestCase):
         """리더가 다른 멤버에게 리더 권한을 위임할 수 있다."""
         self.client.force_authenticate(user=self.leader)
         url = reverse("studies:delegate-leader", kwargs={"group_uuid": self.group.uuid})
-        data = {"target_member_id": self.member_member.id}
+        data = {"target_member_uuid": self.member_member.user.uuid}
         response = self.client.post(url, data, format="json")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.member_member.refresh_from_db()
@@ -131,14 +131,14 @@ class MemberFeatureAPITestCase(APITestCase):
         """리더가 아닌 사용자는 리더 위임 요청 불가"""
         self.client.force_authenticate(user=self.member)
         url = reverse("studies:delegate-leader", kwargs={"group_uuid": self.group.uuid})
-        data = {"target_member_id": self.leader_member.id}
+        data = {"target_member_uuid": self.leader_member.user.uuid}
         response = self.client.post(url, data, format="json")
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_delegate_leader_unauthenticated(self) -> None:
         """비로그인 사용자는 리더 위임 요청 불가"""
         self.client.logout()
         url = reverse("studies:delegate-leader", kwargs={"group_uuid": self.group.uuid})
-        data = {"target_member_id": self.member_member.id}
+        data = {"target_member_uuid": self.member_member.user.uuid}
         response = self.client.post(url, data, format="json")
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
