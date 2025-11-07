@@ -10,8 +10,8 @@ from apps.notifications.tasks import (
     send_tomorrow_schedule_notifications,
 )
 from apps.studies.models import StudyGroup
-from apps.studies.models.schedules import GroupSchedule, ScheduleParticipant
 from apps.studies.models.groups import GroupMember
+from apps.studies.models.schedules import GroupSchedule, ScheduleParticipant
 from apps.users.enums import Gender
 
 User = get_user_model()
