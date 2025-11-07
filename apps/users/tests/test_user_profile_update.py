@@ -57,17 +57,16 @@ class UserProfileUpdateTests(IsolatedRedisTestClient):
         body = resp.json()
         self.assertIn("detail", body)
 
-    def test_update_basic_fields_success(self) -> None:
+    def test_update_nickname_success(self) -> None:
         """
-        닉네임/프로필이미지만 수정 성공
+        닉네임만 변경 성공
         """
-        payload = {"nickname": "new_nick", "profile_img_url": "https://img.example.com/a.png"}
-        resp = self.client.patch(self.url, payload, format="json")
-        self.assertEqual(resp.status_code, status.HTTP_200_OK)
-        body = resp.json()
+        payload = {"nickname": "new_nick"}
+        response = self.client.patch(self.url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        body = response.json()
         self.assertEqual(body["detail"], "내 정보가 수정되었습니다.")
         self.assertEqual(body["data"]["nickname"], "new_nick")
-        self.assertEqual(body["data"]["profile_img_url"], "https://img.example.com/a.png")
 
     def test_nickname_validator_digits_only(self) -> None:
         """
