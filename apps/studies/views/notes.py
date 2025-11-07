@@ -6,13 +6,16 @@ from django.db.models import Count
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import extend_schema
 from rest_framework import parsers, status
-from rest_framework.permissions import AllowAny  # 전환 시 IsAuthenticated 로 교체
+from rest_framework.permissions import (  # 전환 시 IsAuthenticated 로 교체
+    IsAuthenticated,
+)
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.studies.models import StudyGroup
 from apps.studies.models.notes import StudyNote
-from apps.studies.permissions import IsGroupMember  # 생성 시 사용
+from apps.studies.permissions import IsGroupMember, IsStudyNoteAuthor  # 생성 시 사용
 
 # from apps.studies.permissions import IsStudyNoteAuthor  # Detail 뷰 전환 시 활성화
 from apps.studies.serializers.notes import (
@@ -32,13 +35,13 @@ class StudyNoteListAPIView(APIView):
     - GET: 정책상 공개(지금은 AllowAny) 추후 IsAuthenticated 로 교체
     """
 
-    permission_classes = [AllowAny, IsGroupMember]  # 나중엔 [IsAuthenticated, IsGroupMember]
+    permission_classes = [IsAuthenticated, IsGroupMember]  # 나중엔 [IsAuthenticated, IsGroupMember]
     parser_classes = [parsers.JSONParser, parsers.MultiPartParser]  # S3 도입 후 정리
 
     @extend_schema(summary="스터디 노트 목록 조회 API")
-    def get(self, request: Request, group_id: UUID) -> Response:
+    def get(self, request: Request, group_uuid: UUID) -> Response:
         notes = (
-            StudyNote.objects.filter(study_group__uuid=group_id)
+            StudyNote.objects.filter(study_group__uuid=group_uuid)
             .select_related("author", "study_group")
             .prefetch_related("attachments")
             .annotate(files_count=Count("attachments", distinct=True))
@@ -62,7 +65,7 @@ class StudyNoteCreateAPIView(APIView):
     - POST: IsGroupMember.has_permission() 에서 group_uuid 기반 멤버 검증 + view._group 주입
     """
 
-    permission_classes = [AllowAny, IsGroupMember]  # 나중엔 [IsAuthenticated, IsGroupMember]
+    permission_classes = [IsAuthenticated, IsGroupMember]  # 나중엔 [IsAuthenticated, IsGroupMember]
     parser_classes = [parsers.JSONParser, parsers.MultiPartParser]  # S3 도입 후 정리
 
     @extend_schema(summary="스터디 노트 생성 API")
@@ -73,6 +76,9 @@ class StudyNoteCreateAPIView(APIView):
             context={"request": request, "view": self},
         )
         serializer.is_valid(raise_exception=True)
+
+        self.check_object_permissions(request, serializer.validated_data["study_group"])
+
         serializer.save()  # author HiddenField, study_group은 validate()에서 주입
 
         return Response(
@@ -93,7 +99,7 @@ class StudyNoteDetailAPIView(APIView):
       * PATCH/DELETE: [IsAuthenticated, IsGroupMember, IsStudyNoteAuthor]
     """
 
-    permission_classes = [AllowAny]  # 추후 교체
+    permission_classes = [IsAuthenticated, IsGroupMember]  # 추후 교체
     parser_classes = [parsers.JSONParser, parsers.MultiPartParser]  # S3 도입 후 정리
 
     def _get_note(self, note_id: int) -> StudyNote:
@@ -105,6 +111,9 @@ class StudyNoteDetailAPIView(APIView):
     @extend_schema(summary="스터디 노트 단일 조회 API")
     def get(self, request: Request, note_id: int) -> Response:
         note = self._get_note(note_id)
+
+        self.check_object_permissions(request, obj=note.study_group)
+
         serializer = StudyNoteDetailSerializer(note)
         return Response(
             {
@@ -118,8 +127,7 @@ class StudyNoteDetailAPIView(APIView):
     @extend_schema(summary="스터디 노트 수정 API")
     def patch(self, request: Request, note_id: int) -> Response:
         note = self._get_note(note_id)
-        # 나중에 권한 전환 시, 아래 라인 활성화(메서드별 퍼미션 구성이 적용되면 객체권한 검사도 동작)
-        # self.check_object_permissions(request, note)
+        self.check_object_permissions(request, obj=note.study_group)
 
         serializer = StudyNoteUpdateSerializer(note, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
@@ -137,7 +145,6 @@ class StudyNoteDetailAPIView(APIView):
     @extend_schema(summary="스터디 노트 삭제 API")
     def delete(self, request: Request, note_id: int) -> Response:
         note = self._get_note(note_id)
-        # 나중에 권한 전환 시 활성화
-        # self.check_object_permissions(request, note)
+        self.check_object_permissions(request, obj=note.study_group)
         note.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)

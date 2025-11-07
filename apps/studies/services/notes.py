@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from datetime import timedelta
-from typing import Any, Optional
 
 from django.utils import timezone
 

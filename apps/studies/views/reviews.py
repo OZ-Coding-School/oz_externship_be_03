@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from typing import Any, Dict
-from uuid import UUID
 
 from django.db import IntegrityError
 from django.db.models import Avg, Case, IntegerField, QuerySet, Sum, Value, When
@@ -15,15 +14,14 @@ from drf_spectacular.utils import (
     extend_schema_view,
 )
 from rest_framework import generics, permissions, serializers, status
-from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import BasePermission
 from rest_framework.request import Request
 from rest_framework.response import Response
 
 from apps.lecture.models import RatingEnum
-from apps.studies.models.groups import GroupMember, StudyGroup
+from apps.studies.models.groups import StudyGroup
 from apps.studies.models.reviews import Review
-from apps.studies.permissions import IsGroupMemberDOP, IsReviewOwner
+from apps.studies.permissions import IsGroupMember, IsReviewOwner
 from apps.studies.serializers.reviews import (
     ReviewCreateSerializer,
     ReviewListItemSerializer,
@@ -83,7 +81,7 @@ class GroupReviewListCreateView(generics.ListCreateAPIView[Review]):
 
     def get_permissions(self) -> list[BasePermission]:
         if self.request.method == "GET":
-            return [permissions.IsAuthenticated(), IsGroupMemberDOP()]
+            return [permissions.IsAuthenticated(), IsGroupMember()]
         return [permissions.IsAuthenticated()]
 
     def get_serializer_class(self) -> type[serializers.Serializer[Any]]:

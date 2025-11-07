@@ -46,7 +46,7 @@ class StudyNoteCRUDRefactoredTestCase(APITestCase):
 
         # ✅ URL 분리
         self.create_url = reverse("studies:study-note-create")
-        self.list_url = reverse("studies:study-note-list", kwargs={"group_id": self.group.uuid})
+        self.list_url = reverse("studies:study-note-list", kwargs={"group_uuid": self.group.uuid})
 
     # ----------------------------------------------------------------------
 
@@ -55,7 +55,7 @@ class StudyNoteCRUDRefactoredTestCase(APITestCase):
         payload = {
             "title": "Django REST Framework 학습",
             "content": "APIView와 GenericAPIView 차이점 정리",
-            "group_uuid": str(self.group.uuid),
+            "study_group": str(self.group.uuid),
         }
 
         # ▶ 생성
