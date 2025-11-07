@@ -18,6 +18,9 @@ from apps.lecture.serializers import (
     LectureListSerializer,
     LectureReviewSerializer,
 )
+from apps.lecture.services.recommendation_service.recommender import (
+    RecommendationService,
+)
 
 
 class LecturePagination(PageNumberPagination):
@@ -58,7 +61,26 @@ class LectureListView(APIView):
         paginator = LecturePagination()
         page = paginator.paginate_queryset(queryset, request)
         serializer = LectureListSerializer(page, many=True, context={"request": request})
-        return paginator.get_paginated_response(serializer.data)
+
+        response_data = paginator.get_paginated_response(serializer.data).data
+
+        if request.user.is_authenticated:
+            try:
+                recommendation_service = RecommendationService()
+                recommended_queryset = recommendation_service.recommend_lectures(user_id=request.user.id, top_n=3)
+
+                response_data["user_nickname"] = request.user.nickname
+                response_data["recommended_lectures"] = LectureListSerializer(
+                    recommended_queryset,
+                    many=True,
+                    context={"request": request},
+                ).data
+
+            except Exception as e:
+                response_data["user_nickname"] = request.user.nickname
+                response_data["recommended_lectures"] = []
+
+        return Response(response_data)
 
 
 class LectureReviewListView(APIView):
