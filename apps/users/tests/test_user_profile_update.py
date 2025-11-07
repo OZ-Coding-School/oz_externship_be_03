@@ -195,7 +195,7 @@ class UserProfileUpdateTests(IsolatedRedisTestClient):
         self.assertEqual(resp.json().get("error"), "이미 사용 중인 닉네임입니다.")
 
     # --- moto S3 helper (이미지 테스트에서만 사용) ---
-    _moto:Any = None
+    _moto: Any = None
     bucket: str
     region: str
 
