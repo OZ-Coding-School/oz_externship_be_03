@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
-from apps.recruitments.models.recruitments import Recruitment
+from apps.recruitments.models import Recruitment
+from apps.recruitments.serializers.tag import TagSerializer
 
 
 class RecruitmentSerializer(serializers.ModelSerializer[Recruitment]):
@@ -20,4 +21,10 @@ class RecruitmentSerializer(serializers.ModelSerializer[Recruitment]):
 
 
 class RecruitmentDetailSerializer(RecruitmentSerializer):
-    pass
+    """공고 상세 조회 시 태그 정보를 함께 직렬화"""
+
+    tags = TagSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Recruitment
+        fields = "__all__"
