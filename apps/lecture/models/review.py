@@ -15,13 +15,12 @@ class CrawledLectureReview(BaseModel):
     lecture = models.ForeignKey("lecture.CrawledLecture", on_delete=models.CASCADE, null=False, related_name="reviews")
     rating = models.CharField(max_length=20, choices=RatingEnum.choices, null=False)
     content = models.TextField(null=False)
-
-    inflearn_review_id = models.BigIntegerField(unique=True, null=True, blank=True)
-    udemy_review_id = models.BigIntegerField(unique=True, null=True, blank=True)
+    external_id = models.BigIntegerField()
 
     class Meta:
         db_table = "crawled_lecture_reviews"
         ordering = ["-created_at"]
+        unique_together = ("lecture", "external_id")
 
     def __str__(self) -> str:
         return f"{self.lecture.title} - {self.rating}"
