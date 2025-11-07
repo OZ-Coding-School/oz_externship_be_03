@@ -481,7 +481,7 @@ class AdminReviewListAPITests(_BaseFixtures):
 
         # study_group의 리뷰만 나와야 함 (review1, review2)
         self.assertEqual(len(results), 2)
-        group_names = [r["study_group_name"] for r in results]
+        group_names = [r["study_group"]["name"] for r in results]
         self.assertTrue(all(name == self.study_group.name for name in group_names))
 
     def test_list_reviews_invalid_group_uuid(self) -> None:
@@ -516,21 +516,27 @@ class AdminReviewListAPITests(_BaseFixtures):
         res = self.client.get(self._url())
         self.assertEqual(res.status_code, 200)
 
-        if "results" in res.data:
-            results = res.data["results"]
-        else:
-            results = res.data
+        results = res.data["results"] if "results" in res.data else res.data
+        if not results:
+            return
 
-        if results:
-            review = results[0]
-            self.assertIn("id", review)
-            self.assertIn("study_group_name", review)
-            self.assertIn("user_nickname", review)
-            self.assertIn("user_email", review)
-            self.assertIn("star_rating", review)
-            self.assertIn("content", review)
-            self.assertIn("created_at", review)
-            self.assertIn("updated_at", review)
+        review = results[0]
+
+        self.assertIn("id", review)
+        self.assertIn("study_group", review)
+        self.assertIn("author", review)
+        self.assertIn("star_rating", review)
+        self.assertIn("content", review)
+        self.assertIn("created_at", review)
+        self.assertIn("updated_at", review)
+
+        # nested 까지
+        self.assertIn("id", review["study_group"])
+        self.assertIn("uuid", review["study_group"])
+        self.assertIn("name", review["study_group"])
+
+        self.assertIn("nickname", review["author"])
+        self.assertIn("email", review["author"])
 
 
 class AdminReviewDetailAPITests(_BaseFixtures):
@@ -588,43 +594,45 @@ class AdminReviewDetailAPITests(_BaseFixtures):
         self.assertEqual(res.status_code, 404)
 
     def test_detail_review_response_structure(self) -> None:
-        """응답 구조가 올바른지 확인"""
         self.client.force_authenticate(user=self.admin_user)
         res = self.client.get(self._url(self.review))
         self.assertEqual(res.status_code, 200)
 
-        # 필수 필드 확인
         self.assertIn("id", res.data)
-        self.assertIn("study_group_id", res.data)
-        self.assertIn("study_group_uuid", res.data)
-        self.assertIn("study_group_name", res.data)
-        self.assertIn("study_group_introduction", res.data)
-        self.assertIn("study_group_start_at", res.data)
-        self.assertIn("study_group_end_at", res.data)
-        self.assertIn("user_nickname", res.data)
-        self.assertIn("user_email", res.data)
+        self.assertIn("study_group", res.data)
+        self.assertIn("author", res.data)
         self.assertIn("star_rating", res.data)
         self.assertIn("content", res.data)
         self.assertIn("created_at", res.data)
         self.assertIn("updated_at", res.data)
 
+        sg = res.data["study_group"]
+        self.assertIn("id", sg)
+        self.assertIn("uuid", sg)
+        self.assertIn("name", sg)
+        self.assertIn("introduction", sg)
+        self.assertIn("start_at", sg)
+        self.assertIn("end_at", sg)
+
+        author = res.data["author"]
+        self.assertIn("nickname", author)
+        self.assertIn("email", author)
+
     def test_detail_review_data_correctness(self) -> None:
-        """응답 데이터가 올바른지 확인"""
         self.client.force_authenticate(user=self.admin_user)
         res = self.client.get(self._url(self.review))
         self.assertEqual(res.status_code, 200)
 
-        # 리뷰 데이터 확인
         self.assertEqual(res.data["id"], self.review.pk)
         self.assertEqual(res.data["content"], self.review.content)
         self.assertEqual(res.data["star_rating"], 5)
 
-        # 스터디 그룹 데이터 확인
-        self.assertEqual(res.data["study_group_id"], self.study_group.id)
-        self.assertEqual(str(res.data["study_group_uuid"]), str(self.study_group.uuid))
-        self.assertEqual(res.data["study_group_name"], self.study_group.name)
-        self.assertEqual(res.data["study_group_introduction"], self.study_group.introduction)
+        sg = res.data["study_group"]
+        self.assertEqual(sg["id"], self.study_group.id)
+        self.assertEqual(str(sg["uuid"]), str(self.study_group.uuid))
+        self.assertEqual(sg["name"], self.study_group.name)
+        self.assertEqual(sg["introduction"], self.study_group.introduction)
 
-        # 사용자 데이터 확인
-        self.assertEqual(res.data["user_nickname"], self.user.nickname)
-        self.assertEqual(res.data["user_email"], self.user.email)
+        author = res.data["author"]
+        self.assertEqual(author["nickname"], self.user.nickname)
+        self.assertEqual(author["email"], self.user.email)
