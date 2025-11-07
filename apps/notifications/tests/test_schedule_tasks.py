@@ -46,13 +46,13 @@ class ScheduleTasksTestCase(TestCase):
         self.member1 = GroupMember.objects.create(
             study_group=self.study_group,
             user=self.user1,
-            is_Leader=True,
+            is_leader=True,
         )
 
         self.member2 = GroupMember.objects.create(
             study_group=self.study_group,
             user=self.user2,
-            is_Leader=False,
+            is_leader=False,
         )
 
         self.schedule = GroupSchedule.objects.create(
@@ -128,3 +128,6 @@ class ScheduleTasksTestCase(TestCase):
         self.assertIn(expected_content, notification2.content)
         self.assertIn(f"/api/v1/studies/groups/", notification2.back_url_link)
 
+        self.assertEqual(mock_send.call_count, 2)
+        mock_send.assert_any_call(notification1.id)
+        mock_send.assert_any_call(notification2.id)
