@@ -57,7 +57,7 @@ def delete_withdrawn_users(*, batch_size: int = 1000) -> int:
                 headers = {"Authorization": f"KakaoAK {settings.KAKAO_ADMIN_KEY}"}
                 data = {"target_id_type": "user_id", "target_id": str(row["provider_id"])}
                 requests.post(
-                    "https://kapi.kakao.com/v1/user/unlink",
+                    f"{settings.KAKAO_UNLINK_URL}",
                     headers=headers,
                     data=data,
                     timeout=UNLINK_TIMEOUT,
