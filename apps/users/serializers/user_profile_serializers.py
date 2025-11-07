@@ -47,11 +47,11 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer[Any]):
         validators=[validate_korean_phone],
     )
     phone_verify_token = serializers.CharField(write_only=True, required=False)
+    profile_img = serializers.ImageField(required=False, allow_empty_file=False)
 
     class Meta:
         model = User
-        fields = ("nickname", "profile_img_url", "phone_number", "phone_verify_token")
-        extra_kwargs = {"profile_img_url": {"required": False}}
+        fields = ("nickname", "profile_img", "phone_number", "phone_verify_token")
 
 
 class UserProfileUpdateResponseSerializer(serializers.ModelSerializer[Any]):

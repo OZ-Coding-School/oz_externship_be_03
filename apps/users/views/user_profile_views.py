@@ -4,6 +4,7 @@ from drf_spectacular.utils import OpenApiParameter, extend_schema, inline_serial
 from rest_framework import serializers, status
 from rest_framework.authentication import BaseAuthentication
 from rest_framework.exceptions import NotAuthenticated
+from rest_framework.parsers import JSONParser, MultiPartParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -101,6 +102,8 @@ class MeView(APIView):
 
 
 class UserProfileUpdateView(APIView):
+    parser_classes = [MultiPartParser, JSONParser]
+
     @extend_schema(
         tags=["Users"],
         summary="내 정보 수정 - 일반정보 수정 ",
@@ -126,7 +129,7 @@ class UserProfileUpdateView(APIView):
         updated = update_user_profile(
             user=request.user,
             nickname=req_serializer.validated_data.get("nickname"),
-            profile_img_url=req_serializer.validated_data.get("profile_img_url"),
+            profile_img=req_serializer.validated_data.get("profile_img"),
             phone_number=req_serializer.validated_data.get("phone_number"),
             phone_verify_token=req_serializer.validated_data.get("phone_verify_token"),
         )
