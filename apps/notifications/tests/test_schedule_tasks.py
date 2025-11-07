@@ -1,5 +1,5 @@
 
-from datetime import date, datetime, timezone, time
+from datetime import date, datetime, timezone, time, timedelta
 from unittest.mock import MagicMock, patch
 
 from django.contrib.auth import get_user_model
@@ -55,79 +55,74 @@ class ScheduleTasksTestCase(TestCase):
             is_leader=False,
         )
 
-        self.schedule = GroupSchedule.objects.create(
+        today = date.today()
+        tomorrow = today + timedelta(days=1)
+
+        self.today_schedule = GroupSchedule.objects.create(
             study_group=self.study_group,
             title="자료형 학습",
             objective="파이썬 자료형 이해하기",
-            session_date=date(2025, 11, 6),
+            session_date= today,
             start_time=time(9, 30),
             end_time=time(13, 30),
         )
 
-        self.participant1 = ScheduleParticipant.objects.create(
-            schedule=self.schedule,
+        self.tomorrow_schedule = GroupSchedule.objects.create(
+            study_group=self.study_group,
+            title="자료형 학습",
+            objective="파이썬 자료형 이해하기",
+            session_date= tomorrow,
+            start_time=time(9, 30),
+            end_time=time(13, 30),
+        )
+
+        self.tomorrow_participant = ScheduleParticipant.objects.create(
+            schedule=self.tomorrow_schedule,
             member=self.member1,
         )
 
-        self.participant2 = ScheduleParticipant.objects.create(
-            schedule=self.schedule,
+        self.today_participant = ScheduleParticipant.objects.create(
+            schedule=self.today_schedule,
             member=self.member2,
         )
-    @patch("apps.notifications.tasks.date.today")
+
     @patch("apps.notifications.tasks.send_to_pubsub.delay")
-    def test_send_tomorrow_schedule_notifications(self, mock_send:MagicMock, mock_tomorrow: MagicMock) -> None:
+    def test_send_tomorrow_schedule_notifications(self, mock_send:MagicMock) -> None:
         """예정 스케줄 알림 테스트"""
-
-        mock_tomorrow.return_value = date(2025,11,5)
-
         send_tomorrow_schedule_notifications()
 
         notifications = Notification.objects.filter(
             type=Notification.NotificationType.STUDY_SCHEDULE_UPCOMING
         )
 
-        self.assertEqual(notifications.count(), 2)
+        self.assertEqual(notifications.count(), 1)
 
-        notification1 = notifications.get(user=self.user1)
+        notification = notifications.get(user=self.user1)
         expected_content = "내일은 오즈코딩스쿨에서 자료형 학습이 예정되어 있습니다!"
 
-        self.assertIn(expected_content, notification1.content)
-        self.assertIn(f"/api/v1/studies/groups/", notification1.back_url_link)
+        self.assertIn(expected_content, notification.content)
+        self.assertIn("api/v1/studies/groups/",notification.back_url_link)
 
-        notification2 = notifications.get(user=self.user2)
+        self.assertEqual(mock_send.call_count, 1)
+        mock_send.assert_any_call(notification.id)
 
-        self.assertIn(expected_content, notification2.content)
-        self.assertIn(f"/api/v1/studies/groups/", notification2.back_url_link)
-
-        self.assertEqual(mock_send.call_count, 2)
-        mock_send.assert_any_call(notification1.id)
-        mock_send.assert_any_call(notification2.id)
-
-    @patch("apps.notifications.tasks.date.today")
     @patch("apps.notifications.tasks.send_to_pubsub.delay")
-    def test_send_today_schedule_notifications(self, mock_send:MagicMock, mock_today: MagicMock) -> None:
+    def test_send_today_schedule_notifications(self, mock_send:MagicMock) -> None:
         """당일 스케줄 알림 테스트"""
-        mock_today.return_value = date(2025,11,6)
-
         send_today_schedule_notifications()
 
         notifications = Notification.objects.filter(
             type = Notification.NotificationType.STUDY_SCHEDULE_TODAY
         )
 
-        self.assertEqual(notifications.count(), 2)
+        self.assertEqual(notifications.count(), 1)
 
-        notification1 = notifications.get(user=self.user1)
+        notification = notifications.get(user=self.user2)
         expected_content = "금일 09:30부터 13:30까지 오즈코딩스쿨에서 자료형 학습이 예정되어 있습니다!"
 
-        self.assertIn(expected_content, notification1.content)
-        self.assertIn(f"/api/v1/studies/groups/", notification1.back_url_link)
+        self.assertIn(expected_content, notification.content)
+        self.assertIn(f"/api/v1/studies/groups/", notification.back_url_link)
 
-        notification2 = notifications.get(user=self.user2)
+        self.assertEqual(mock_send.call_count, 1)
+        mock_send.assert_any_call(notification.id)
 
-        self.assertIn(expected_content, notification2.content)
-        self.assertIn(f"/api/v1/studies/groups/", notification2.back_url_link)
-
-        self.assertEqual(mock_send.call_count, 2)
-        mock_send.assert_any_call(notification1.id)
-        mock_send.assert_any_call(notification2.id)
