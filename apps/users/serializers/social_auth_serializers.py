@@ -1,17 +1,38 @@
-from __future__ import annotations
-
-from typing import Any
+from typing import Any, Dict
 
 from rest_framework import serializers
 
 
-class SocialAuthRequestSerializer(serializers.Serializer[Any]):  # ✅ 제네릭 타입 지정
-    """소셜 로그인 요청용 (카카오 / 네이버)"""
+class SocialAuthRequestSerializer(serializers.Serializer[Dict[str, Any]]):
 
-    code = serializers.CharField(required=True, help_text="OAuth 인가 코드")
-    state = serializers.CharField(required=False, allow_blank=True, help_text="네이버 로그인 시 전달되는 state 값")
+    code = serializers.CharField(
+        help_text="OAuth 인가 코드 (카카오/네이버 공통)",
+        required=True,
+    )
+    state = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        help_text="네이버 로그인용 state 값 (카카오는 불필요)",
+    )
 
-    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:  # ✅ 타입 명시
-        if not attrs.get("code"):
-            raise serializers.ValidationError({"error": "요청 형식이 올바르지 않습니다. code는 필수값입니다."})
-        return attrs
+
+class SocialAuthResponseSerializer(serializers.Serializer[Dict[str, Any]]):
+
+    detail = serializers.CharField(
+        help_text="응답 메시지 (예: 카카오 로그인에 성공했습니다.)",
+        required=True,
+    )
+    access = serializers.CharField(
+        help_text="JWT access 토큰 (예: eyJ0eXAiOiJKV1QiLCJh...)",
+        required=True,
+    )
+
+    @classmethod
+    def from_service_result(cls, result: Dict[str, Any]) -> "SocialAuthResponseSerializer":
+
+        return cls(
+            {
+                "detail": result.get("detail", ""),
+                "access": result.get("data", {}).get("access", ""),
+            }
+        )

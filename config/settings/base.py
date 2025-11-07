@@ -41,13 +41,6 @@ THIRD_PARTY_APPS = [
     "django_filters",
     "django_celery_beat",
     "channels",
-    "dj_rest_auth",
-    "allauth",
-    "allauth.account",
-    "allauth.socialaccount",
-    # allauth 소셜 프로바이더
-    "allauth.socialaccount.providers.kakao",
-    "allauth.socialaccount.providers.naver",
 ]
 
 LOCAL_APPS = [
@@ -72,7 +65,6 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    "allauth.account.middleware.AccountMiddleware",  # (수정함),
 ]
 
 ROOT_URLCONF = "config.urls"
