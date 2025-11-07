@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
