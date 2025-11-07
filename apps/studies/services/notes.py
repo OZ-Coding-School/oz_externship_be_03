@@ -8,6 +8,7 @@ from typing import ClassVar
 from django.conf import settings
 from django.utils import timezone
 from google import genai
+from google.genai.types import GenerateContentConfig
 
 from apps.studies.models.notes import StudyNote
 
@@ -92,11 +93,11 @@ class StudyNoteService:
             response = cls._CLIENT.models.generate_content(
                 model=cls.MODEL_NAME,
                 contents=prompt,
-                config={
-                    "temperature": 0.7,
-                    "top_p": 0.9,
-                    "max_output_tokens": max_output_tokens,
-                },
+                config = GenerateContentConfig(
+                    temperature=0.7,
+                    top_p=0.9,
+                    max_output_tokens=max_output_tokens,
+                )
             )
 
             ai_summary = response.text.strip()
