@@ -3,17 +3,13 @@ from typing import Any, Dict
 from rest_framework import serializers
 
 
-class SocialAuthRequestSerializer(serializers.Serializer[Dict[str, Any]]):
+class KakaoAuthRequestSerializer(serializers.Serializer[dict[str, Any]]):
+    code = serializers.CharField(help_text="카카오 OAuth 인가 코드")
 
-    code = serializers.CharField(
-        help_text="OAuth 인가 코드 (카카오/네이버 공통)",
-        required=True,
-    )
-    state = serializers.CharField(
-        required=False,
-        allow_blank=True,
-        help_text="네이버 로그인용 state 값 (카카오는 불필요)",
-    )
+
+class NaverAuthRequestSerializer(serializers.Serializer[dict[str, Any]]):
+    code = serializers.CharField(help_text="네이버 OAuth 인가 코드")
+    state = serializers.CharField(help_text="네이버 OAuth state 값")
 
 
 class SocialAuthResponseSerializer(serializers.Serializer[Dict[str, Any]]):
