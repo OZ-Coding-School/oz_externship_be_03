@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-
 from django.utils import timezone
 
 from apps.studies.models.notes import StudyNote
