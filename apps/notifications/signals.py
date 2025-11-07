@@ -8,6 +8,8 @@ from django.dispatch import receiver
 from apps.notifications.models import Notification
 from apps.notifications.tasks import send_study_group_notification, send_to_pubsub
 from apps.recruitments.models.application import Application, ApplicationStatus
+from apps.studies.models import StudyGroup
+from apps.studies.models.groups import GroupMember, StudyGroupStatus
 
 logger = logging.getLogger(__name__)
 
@@ -64,11 +66,43 @@ def study_member_joined_created(sender: Any, instance: Application, created: boo
             study_group = recruitment.study_group
             new_member = instance.user
 
-            notification = Notification.objects.create(
-                user_id=new_member.id,
-                content=f"{study_group.name}에 {new_member.nickname}님이 참여했습니다. 환영해주세요!",
-                type=Notification.NotificationType.STUDY_MEMBER_JOINED,
-                back_url_link=f"{settings.FRONTEND_DOMAIN}/api/v1/chat/ws/study-groups/{study_group.id}",
-            )
+            # 기존 그룹 멤버들에게 각각 개별 알림 생성 (새 멤버 제외)
+            existing_member = GroupMember.objects.filter(study_group=study_group).exclude(user=new_member)
 
-            send_study_group_notification.delay(notification.id, str(study_group.id))
+            notifications = [
+                Notification(
+                    user_id=member.user.id,
+                    content=f"{study_group.name}에 {new_member.nickname}님이 참여했습니다. 환영해주세요!",
+                    type=Notification.NotificationType.STUDY_MEMBER_JOINED,
+                    back_url_link=f"{settings.FRONTEND_DOMAIN}/api/v1/chat/ws/study-groups/{study_group.id}",
+                )
+                for member in existing_member
+            ]
+
+            created_notifications = Notification.objects.bulk_create(notifications)
+
+            for notification in created_notifications:
+                send_to_pubsub.delay(notification.id)
+
+
+@receiver(post_save, sender=StudyGroup)
+def study_group_review_created(sender: Any, instance: StudyGroup, created: bool, **kwargs: Any) -> None:
+    """스터디 그룹 종료시 후기 작성 알림"""
+    if not created and instance.status == StudyGroupStatus.ENDED:
+        # 그룹 멤버들 각각 개별 알림 생성( 알림 조회 API를 위해)
+        group_members = GroupMember.objects.filter(study_group=instance)
+
+        notifications = [
+            Notification(
+                user_id=member.user_id,
+                content=f"오늘은 {instance.name}의 종료일이에요! 스터디 후기를 기록해주세요!",
+                type=Notification.NotificationType.STUDY_REVIEW_REQUEST,
+                back_url_link=f"{settings.FRONTEND_DOMAIN}/api/v1/studies/groups/{instance.id}/reviews",
+            )
+            for member in group_members
+        ]
+
+        created_notifications = Notification.objects.bulk_create(notifications)
+
+        for notification in created_notifications:
+            send_to_pubsub.delay(notification.id)
