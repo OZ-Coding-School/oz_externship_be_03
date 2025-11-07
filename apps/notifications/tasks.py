@@ -81,7 +81,7 @@ def send_tomorrow_schedule_notifications() -> None:
         logger.error(f"예정 스케줄 알림 태스크 오류: {e}")
 
 
-@shared_task(name="send_today_schedule_notifications") # type: ignore[misc]
+@shared_task(name="send_today_schedule_notifications")  # type: ignore[misc]
 def send_today_schedule_notifications() -> None:
     """당일 스케줄 알림 생성 및 배치 작업"""
     try:
