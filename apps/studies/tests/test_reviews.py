@@ -443,12 +443,12 @@ class AdminReviewListAPITests(_BaseFixtures):
         self.client.force_authenticate(user=self.admin_user)
         res = self.client.get(self._url())
         self.assertEqual(res.status_code, 200)
-        self.assertIn("results", res.data or [])
-        # 페이지네이션된 응답이거나 리스트 응답
-        if "results" in res.data:
-            self.assertGreaterEqual(len(res.data["results"]), 3)
-        else:
-            self.assertGreaterEqual(len(res.data), 3)
+
+        detail = res.data["detail"]
+        self.assertIn("results", detail)
+
+        results = detail["results"]
+        self.assertGreaterEqual(len(results), 3)
 
     def test_staff_list_reviews_200(self) -> None:
         """스태프 사용자가 리뷰 목록 조회하면 200"""
@@ -474,12 +474,9 @@ class AdminReviewListAPITests(_BaseFixtures):
         self.assertEqual(res.status_code, 200)
 
         # 페이지네이션된 응답이거나 리스트 응답
-        if "results" in res.data:
-            results = res.data["results"]
-        else:
-            results = res.data
+        detail = res.data["detail"]
+        results = detail["results"]
 
-        # study_group의 리뷰만 나와야 함 (review1, review2)
         self.assertEqual(len(results), 2)
         group_names = [r["study_group"]["name"] for r in results]
         self.assertTrue(all(name == self.study_group.name for name in group_names))
@@ -489,7 +486,11 @@ class AdminReviewListAPITests(_BaseFixtures):
         self.client.force_authenticate(user=self.admin_user)
         res = self.client.get(self._url(), {"group_uuid": "invalid-uuid"})
         self.assertEqual(res.status_code, 200)
-        # 잘못된 UUID는 필터링되지 않고 전체 리뷰 반환
+
+        detail = res.data["detail"]
+        results = detail["results"]
+        # 전체 리뷰 반환됐는지만 보면 됨
+        self.assertGreaterEqual(len(results), 3)
 
     def test_list_reviews_ordering(self) -> None:
         """리뷰는 최신순으로 정렬되어야 함"""
@@ -497,13 +498,10 @@ class AdminReviewListAPITests(_BaseFixtures):
         res = self.client.get(self._url())
         self.assertEqual(res.status_code, 200)
 
-        if "results" in res.data:
-            results = res.data["results"]
-        else:
-            results = res.data
+        detail = res.data["detail"]
+        results = detail["results"]
 
         if len(results) >= 2:
-            # 최신순이므로 첫 번째가 더 최근이어야 함
             from datetime import datetime
 
             first_created = datetime.fromisoformat(results[0]["created_at"].replace("Z", "+00:00"))
@@ -516,9 +514,8 @@ class AdminReviewListAPITests(_BaseFixtures):
         res = self.client.get(self._url())
         self.assertEqual(res.status_code, 200)
 
-        results = res.data["results"] if "results" in res.data else res.data
-        if not results:
-            return
+        detail = res.data["detail"]
+        results = detail["results"]
 
         review = results[0]
 
@@ -565,9 +562,11 @@ class AdminReviewDetailAPITests(_BaseFixtures):
         self.client.force_authenticate(user=self.admin_user)
         res = self.client.get(self._url(self.review))
         self.assertEqual(res.status_code, 200)
-        self.assertEqual(res.data["id"], self.review.pk)
-        self.assertEqual(res.data["content"], "테스트 리뷰 내용")
-        self.assertEqual(res.data["star_rating"], 5)
+
+        detail = res.data["detail"]
+        self.assertEqual(detail["id"], self.review.pk)
+        self.assertEqual(detail["content"], "테스트 리뷰 내용")
+        self.assertEqual(detail["star_rating"], 5)
 
     def test_staff_detail_review_200(self) -> None:
         """스태프 사용자가 리뷰 상세 조회하면 200"""
@@ -598,15 +597,17 @@ class AdminReviewDetailAPITests(_BaseFixtures):
         res = self.client.get(self._url(self.review))
         self.assertEqual(res.status_code, 200)
 
-        self.assertIn("id", res.data)
-        self.assertIn("study_group", res.data)
-        self.assertIn("author", res.data)
-        self.assertIn("star_rating", res.data)
-        self.assertIn("content", res.data)
-        self.assertIn("created_at", res.data)
-        self.assertIn("updated_at", res.data)
+        detail = res.data["detail"]
 
-        sg = res.data["study_group"]
+        self.assertIn("id", detail)
+        self.assertIn("study_group", detail)
+        self.assertIn("author", detail)
+        self.assertIn("star_rating", detail)
+        self.assertIn("content", detail)
+        self.assertIn("created_at", detail)
+        self.assertIn("updated_at", detail)
+
+        sg = detail["study_group"]
         self.assertIn("id", sg)
         self.assertIn("uuid", sg)
         self.assertIn("name", sg)
@@ -614,7 +615,7 @@ class AdminReviewDetailAPITests(_BaseFixtures):
         self.assertIn("start_at", sg)
         self.assertIn("end_at", sg)
 
-        author = res.data["author"]
+        author = detail["author"]
         self.assertIn("nickname", author)
         self.assertIn("email", author)
 
@@ -623,16 +624,18 @@ class AdminReviewDetailAPITests(_BaseFixtures):
         res = self.client.get(self._url(self.review))
         self.assertEqual(res.status_code, 200)
 
-        self.assertEqual(res.data["id"], self.review.pk)
-        self.assertEqual(res.data["content"], self.review.content)
-        self.assertEqual(res.data["star_rating"], 5)
+        detail = res.data["detail"]
 
-        sg = res.data["study_group"]
+        self.assertEqual(detail["id"], self.review.pk)
+        self.assertEqual(detail["content"], self.review.content)
+        self.assertEqual(detail["star_rating"], 5)
+
+        sg = detail["study_group"]
         self.assertEqual(sg["id"], self.study_group.id)
         self.assertEqual(str(sg["uuid"]), str(self.study_group.uuid))
         self.assertEqual(sg["name"], self.study_group.name)
         self.assertEqual(sg["introduction"], self.study_group.introduction)
 
-        author = res.data["author"]
+        author = detail["author"]
         self.assertEqual(author["nickname"], self.user.nickname)
         self.assertEqual(author["email"], self.user.email)

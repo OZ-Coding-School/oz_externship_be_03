@@ -266,6 +266,17 @@ class AdminReviewListView(generics.ListAPIView[Review]):
                 pass
         return qs
 
+    def list(self, request: Request, *args: Any, **kwargs: Any) -> Response:
+        original_response = super().list(request, *args, **kwargs)
+        return Response(
+            {
+                "status": 200,
+                "message": "조회가 완료되었습니다",
+                "detail": original_response.data,
+            },
+            status=200,
+        )
+
 
 @extend_schema(
     operation_id="AdminReviewDetail",
@@ -280,3 +291,15 @@ class AdminReviewDetailView(generics.RetrieveAPIView[Review]):
     lookup_field = "uuid"
     lookup_url_kwarg = "review_uuid"
     queryset = Review.objects.select_related("study_group", "user")
+
+    def retrieve(self, request: Request, *args: Any, **kwargs: Any) -> Response:
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return Response(
+            {
+                "status": 200,
+                "message": "리뷰 상세 조회 완료입니다.",
+                "detail": serializer.data,
+            },
+            status=200,
+        )
