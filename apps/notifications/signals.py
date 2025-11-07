@@ -69,14 +69,19 @@ def study_member_joined_created(sender: Any, instance: Application, created: boo
             # 기존 그룹 멤버들에게 각각 개별 알림 생성 (새 멤버 제외)
             existing_member = GroupMember.objects.filter(study_group=study_group).exclude(user=new_member)
 
-            for member in existing_member:
-
-                notification = Notification.objects.create(
+            notifications = [
+                Notification(
                     user_id=member.user.id,
                     content=f"{study_group.name}에 {new_member.nickname}님이 참여했습니다. 환영해주세요!",
                     type=Notification.NotificationType.STUDY_MEMBER_JOINED,
                     back_url_link=f"{settings.FRONTEND_DOMAIN}/api/v1/chat/ws/study-groups/{study_group.id}",
                 )
+                for member in existing_member
+            ]
+
+            created_notifications = Notification.objects.bulk_create(notifications)
+
+            for notification in created_notifications:
                 send_to_pubsub.delay(notification.id)
 
 
@@ -87,11 +92,17 @@ def study_group_review_created(sender: Any, instance: StudyGroup, created: bool,
         # 그룹 멤버들 각각 개별 알림 생성( 알림 조회 API를 위해)
         group_members = GroupMember.objects.filter(study_group=instance)
 
-        for member in group_members:
-            notification = Notification.objects.create(
+        notifications = [
+            Notification(
                 user_id=member.user_id,
                 content=f"오늘은 {instance.name}의 종료일이에요! 스터디 후기를 기록해주세요!",
                 type=Notification.NotificationType.STUDY_REVIEW_REQUEST,
                 back_url_link=f"{settings.FRONTEND_DOMAIN}/api/v1/studies/groups/{instance.id}/reviews",
             )
+            for member in group_members
+        ]
+
+        created_notifications = Notification.objects.bulk_create(notifications)
+
+        for notification in created_notifications:
             send_to_pubsub.delay(notification.id)
