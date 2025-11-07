@@ -82,7 +82,9 @@ def update_user_profile(
         ext = str(profile_img.name).rsplit(".", 1)[-1].lower()
         S3Uploader.validate_file_mime(ext, content_type)
 
-        prefix = f"profiles/{user.uuid}"
+        prefix = f"profiles/"
+        profile_img.name = f"{user.uuid}_{profile_img.name}"  # 파일명 앞에 uuid 붙여서 구분
+
         new_profile_url = S3Uploader.upload_file(profile_img, prefix=prefix)
         uploaded_new_key = _extract_key_from_url(new_profile_url)
 
