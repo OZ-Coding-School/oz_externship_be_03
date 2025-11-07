@@ -6,9 +6,9 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 
 from apps.notifications.models import Notification
-from apps.notifications.tasks import send_study_group_notification, send_to_pubsub
+from apps.notifications.tasks import send_to_pubsub
 from apps.recruitments.models.application import Application, ApplicationStatus
-from apps.studies.models import StudyGroup
+from apps.studies.models import StudyGroup, StudyNote
 from apps.studies.models.groups import GroupMember, StudyGroupStatus
 
 logger = logging.getLogger(__name__)
@@ -100,6 +100,34 @@ def study_group_review_created(sender: Any, instance: StudyGroup, created: bool,
                 back_url_link=f"{settings.FRONTEND_DOMAIN}/api/v1/studies/groups/{instance.id}/reviews",
             )
             for member in group_members
+        ]
+
+        created_notifications = Notification.objects.bulk_create(notifications)
+
+        for notification in created_notifications:
+            send_to_pubsub.delay(notification.id)
+
+
+@receiver(post_save, sender=StudyNote)
+def study_note_created(sender: Any, instance: StudyNote, created: bool, **kwargs: Any) -> None:
+    """스터디 기록 작성시 그룹 멤버들에게 알림"""
+    if not created:
+        return
+
+    study_group = instance.study_group
+    author = instance.author
+
+    if study_group and author:
+        existing_member = GroupMember.objects.filter(study_group=study_group).exclude(user=author)
+
+        notifications = [
+            Notification(
+                user_id=member.user.id,
+                content=f"{author.nickname}님이 {study_group.name}에 스터디 기록을 작성하셨습니다. 확인해보세요!",
+                type=Notification.NotificationType.STUDY_RECORD_CREATED,
+                back_url_link=f"{settings.FRONTEND_DOMAIN}/api/v1/studies/groups/{study_group.id}",
+            )
+            for member in existing_member
         ]
 
         created_notifications = Notification.objects.bulk_create(notifications)
