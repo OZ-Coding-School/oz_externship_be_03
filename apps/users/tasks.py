@@ -2,14 +2,17 @@ from __future__ import annotations
 
 from typing import List
 
+import requests
 from celery import shared_task  # type: ignore[import-untyped]
+from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.db import transaction
 from django.utils import timezone
 
-from apps.users.models import Withdrawal
+from apps.users.enums import Provider
+from apps.users.models import SocialUser, Withdrawal
 
 User = get_user_model()
+UNLINK_TIMEOUT = 5
 
 
 @shared_task  # type: ignore[misc]
@@ -42,7 +45,27 @@ def delete_withdrawn_users(*, batch_size: int = 1000) -> int:
         chunk = user_ids[start : start + batch_size]
         if not chunk:
             break
-        deleted, _ = User.objects.filter(id__in=chunk).delete()
+
+        # unlink - 토큰 필요 없는 카카오만 수행
+        kakao_rows = SocialUser.objects.filter(
+            user_id__in=chunk,
+            provider=Provider.KAKAO,
+        ).values("user_id", "provider_id")
+
+        for row in kakao_rows:
+            try:
+                headers = {"Authorization": f"KakaoAK {settings.KAKAO_ADMIN_KEY}"}
+                data = {"target_id_type": "user_id", "target_id": str(row["provider_id"])}
+                requests.post(
+                    f"{settings.KAKAO_UNLINK_URL}",
+                    headers=headers,
+                    data=data,
+                    timeout=UNLINK_TIMEOUT,
+                )
+            except Exception:
+                pass
+
+        User.objects.filter(id__in=chunk).delete()
         # delete()는 (삭제된 총 행 수, per-model 분포 dict) 반환
         processed_total += len(chunk)
 
