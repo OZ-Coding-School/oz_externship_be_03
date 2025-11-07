@@ -32,29 +32,29 @@ class AdminRecruitmentAPITestCase(TestCase):
 
     def test_admin_list_recruitments(self) -> None:
         url = reverse("admin_recruitment_list")
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.json()[0]["title"], "테스트 공고")
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.json()[0]["title"], "테스트 공고")
 
     def test_admin_filter_by_is_closed(self) -> None:
         self.recruitment.is_closed = True
         self.recruitment.save()
         url = f"{reverse('admin_recruitment_list')}?is_closed=true"
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        for item in response.json():
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        for item in res.json():
             self.assertTrue(item["is_closed"])
 
     def test_admin_retrieve_recruitment(self) -> None:
         url = reverse("admin_recruitment_detail", args=[self.recruitment.id])
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.json()["title"], "테스트 공고")
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.json()["title"], "테스트 공고")
 
     def test_admin_delete_recruitment(self) -> None:
         url = reverse("admin_recruitment_detail", args=[self.recruitment.id])
-        response = self.client.delete(url)
-        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        res = self.client.delete(url)
+        self.assertEqual(res.status_code, status.HTTP_204_NO_CONTENT)
         self.assertFalse(Recruitment.objects.filter(id=self.recruitment.id).exists())
 
     def test_non_admin_forbidden(self) -> None:
@@ -67,5 +67,25 @@ class AdminRecruitmentAPITestCase(TestCase):
         )
         self.client.force_authenticate(user=user)
         url = reverse("admin_recruitment_list")
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_admin_filter_by_tag_name(self) -> None:
+        url = f"{reverse('admin_recruitment_list')}?tag=테스트"
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+
+    def test_admin_filter_by_is_closed_false(self) -> None:
+        url = f"{reverse('admin_recruitment_list')}?is_closed=false"
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+
+    def test_admin_retrieve_nonexistent_recruitment(self) -> None:
+        url = reverse("admin_recruitment_detail", args=[9999])
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_admin_delete_nonexistent_recruitment(self) -> None:
+        url = reverse("admin_recruitment_detail", args=[9999])
+        res = self.client.delete(url)
+        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
