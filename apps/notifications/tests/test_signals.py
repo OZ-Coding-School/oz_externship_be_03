@@ -7,6 +7,7 @@ from django.test import TestCase
 from apps.notifications.models import Notification
 from apps.recruitments.models import Recruitment
 from apps.recruitments.models.application import Application, ApplicationStatus
+from apps.studies.models import StudyNote
 from apps.studies.models.groups import GroupMember, StudyGroup, StudyGroupStatus
 from apps.users.enums import Gender
 
@@ -25,6 +26,7 @@ class SignalTest(TestCase):
             birthday=date(1995, 1, 11),
             gender=Gender.MALE,
         )
+
         self.applicant = User.objects.create_user(
             email="applicant_{unique_id}@test1.com",
             password="test123",
@@ -62,6 +64,12 @@ class SignalTest(TestCase):
             study_group=self.study_group,
             user=self.existing_member,
             is_leader=True,
+        )
+
+        GroupMember.objects.create(
+            study_group=self.study_group,
+            user=self.author,
+            is_leader=False,
         )
 
     @patch("apps.notifications.signals.send_to_pubsub.delay")
@@ -158,8 +166,8 @@ class SignalTest(TestCase):
         assert notification.back_url_link is not None  # mypy 에서 back_url_link가 optional타입으로 정의되어있어 확인
         self.assertIn(f"/api/v1/chat/ws/study-groups/{self.study_group.id}", notification.back_url_link)
 
-        self.assertEqual(mock_delay.call_count, 3)
-        mock_delay.assert_called_with(notification.id)
+        self.assertEqual(mock_delay.call_count, 4)
+        mock_delay.assert_any_call(notification.id)
 
     @patch("apps.notifications.tasks.send_to_pubsub.delay")
     def test_study_group_review_notification(self, mock_delay: MagicMock) -> None:
@@ -174,7 +182,7 @@ class SignalTest(TestCase):
 
         notifications = Notification.objects.filter(type=Notification.NotificationType.STUDY_REVIEW_REQUEST)
 
-        self.assertEqual(notifications.count(), 2)
+        self.assertEqual(notifications.count(), 3)
 
         notification1 = notifications.get(user=self.existing_member)
         expected_content = f"오늘은 {self.study_group.name}의 종료일이에요! 스터디 후기를 기록해주세요!"
@@ -184,4 +192,26 @@ class SignalTest(TestCase):
 
         notification2 = notifications.get(user=self.applicant)
         self.assertEqual(notification2.content, expected_content)
-        self.assertEqual(mock_delay.call_count, 2)
+        self.assertEqual(mock_delay.call_count, 3)
+
+    @patch("apps.notifications.tasks.send_to_pubsub.delay")
+    def test_study_note_notification(self, mock_delay: MagicMock) -> None:
+        """스터디 노트 생성 알림 테스트"""
+        StudyNote.objects.create(
+            study_group=self.study_group,
+            author=self.author,
+            title="학습 정리",
+            content="손코딩 하기(TDD기반)",
+        )
+
+        notifications = Notification.objects.filter(type=Notification.NotificationType.STUDY_RECORD_CREATED)
+
+        self.assertEqual(notifications.count(), 1)
+        notification = notifications.get()
+        expected_content = (
+            f"{self.author.nickname}님이 {self.study_group.name}에 스터디 기록을 작성하셨습니다. 확인해보세요!"
+        )
+
+        self.assertEqual(notification.content, expected_content)
+        self.assertEqual(mock_delay.call_count, 1)
+        mock_delay.assert_called_with(notification.id)
