@@ -32,6 +32,6 @@ class Command(BaseCommand):
                     "url_link",
                     "thumbnail_img_url",
                 ],
-                unique_fields=["platform", "title", "instructor"],
+                unique_fields=["platform", "external_id"],
             )
             self.stdout.write(self.style.SUCCESS(f"Successfully crawled {len(lectures)} lectures from INFLEARN."))
