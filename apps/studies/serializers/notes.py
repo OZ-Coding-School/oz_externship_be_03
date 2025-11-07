@@ -54,6 +54,7 @@ class StudyNoteListItemSerializer(serializers.ModelSerializer[StudyNote]):
 
     author = StudyNoteAuthorSerializer(read_only=True)
     files_count = serializers.IntegerField(read_only=True)
+    created_at = serializers.DateTimeField(read_only=True, format="%Y-%m-%d %H:%M")
 
     class Meta:
         model = StudyNote
@@ -75,6 +76,8 @@ class StudyNoteDetailSerializer(serializers.ModelSerializer[StudyNote]):
     """
 
     author = StudyNoteAuthorSerializer(read_only=True)
+    created_at = serializers.DateTimeField(read_only=True, format="%Y-%m-%d %H:%M")
+    updated_at = serializers.DateTimeField(read_only=True, format="%Y-%m-%d %H:%M")
 
     class Meta:
         model = StudyNote
@@ -94,9 +97,10 @@ class StudyNoteDetailSerializer(serializers.ModelSerializer[StudyNote]):
 class StudyNoteSummarySerializer(serializers.ModelSerializer[StudyNote]):
     """
     스터디 노트 요약 전용 Serializer
-    - 그룹 정보 제거
+
     """
 
+    # note 생성일을 기준으로 프롬프트(date_str) 사용하여 AI요약하기 때문에 때문에 타임포매팅 x created_at은 형식상 유지
     class Meta:
         model = StudyNote
         fields = (
@@ -105,6 +109,5 @@ class StudyNoteSummarySerializer(serializers.ModelSerializer[StudyNote]):
             "content",
             "ai_summary",
             "created_at",
-            "updated_at",
         )
         read_only_fields = fields
