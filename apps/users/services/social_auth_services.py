@@ -15,12 +15,11 @@ from apps.users.services.auth_services import _issue_tokens
 # ✅ 카카오 로그인 서비스
 # =====================================================
 class KakaoAuthService:
-
+    """카카오 소셜 로그인 서비스"""
 
     @staticmethod
     def exchange_code_for_token(code: str) -> str:
-
-        # ✅ 테스트 환경 목 처리
+        """인가 코드(code) → access_token 교환"""
         if settings.DEBUG and code.startswith("FAKE_"):
             print(f"[MOCK] 카카오 인가 코드 테스트: {code}")
             return "mock_access_token_for_kakao"
@@ -38,20 +37,17 @@ class KakaoAuthService:
             if response.status_code == 400:
                 raise ValidationError("인가 코드 형식이 올바르지 않습니다.")
             response.raise_for_status()
-
             token_data: Dict[str, Any] = response.json()
             access_token = token_data.get("access_token")
-
             if not isinstance(access_token, str):
                 raise ValidationError("액세스 토큰이 발급되지 않았습니다.")
             return access_token
-
         except requests.RequestException:
             raise ValidationError("인가 코드 형식이 올바르지 않습니다.")
 
     @staticmethod
     def get_user_info(access_token: str) -> Dict[str, Any]:
-
+        """카카오 사용자 정보 조회"""
         if settings.DEBUG and access_token.startswith("mock_access_token_for_"):
             print("[MOCK] 카카오 사용자 정보 반환")
             return {
@@ -59,8 +55,7 @@ class KakaoAuthService:
                 "name": "테스트유저_카카오",
                 "nickname": "kakao_mock",
                 "gender": "male",
-                "birthday": "1001",
-                "birthyear": "1998",
+                "birthday": "1998-10-01",
                 "phone_number": "+82 10-1234-5678",
                 "profile_img_url": "https://mock.image/kakao.png",
                 "provider_id": "1234567890",
@@ -74,15 +69,26 @@ class KakaoAuthService:
             kakao_account = data.get("kakao_account", {})
             profile = kakao_account.get("profile", {})
 
+            # ✅ birthdate(카카오) → birthday(DB)로 변환
+            birthdate = kakao_account.get("birthdate")
+            if not birthdate:
+                raise ValidationError("생년월일 제공에 동의하지 않아 로그인할 수 없습니다.")
+            if birthdate.startswith("0000-"):
+                birthdate = birthdate.replace("0000-", "1900-")
+            elif len(birthdate) == 4:
+                birthdate = f"{birthdate}-01-01"
+
+            # ✅ 프로필 이미지
+            profile_img = profile.get("picture") or profile.get("profile_image_url", "")
+
             return {
                 "email": kakao_account.get("email", ""),
                 "name": kakao_account.get("name", profile.get("nickname", "")),
                 "nickname": profile.get("nickname", ""),
                 "gender": kakao_account.get("gender", ""),
-                "birthday": kakao_account.get("birthday", ""),
-                "birthyear": kakao_account.get("birthyear", ""),
+                "birthday": birthdate,  # ✅ DB 필드명 맞춤
                 "phone_number": kakao_account.get("phone_number", ""),
-                "profile_img_url": profile.get("profile_image_url", ""),
+                "profile_img_url": profile_img,
                 "provider_id": str(data.get("id", "")),
             }
 
@@ -91,13 +97,13 @@ class KakaoAuthService:
 
     @staticmethod
     def handle_login(code: str) -> Dict[str, Any]:
-
         access_token = KakaoAuthService.exchange_code_for_token(code)
         user_info = KakaoAuthService.get_user_info(access_token)
 
         email = user_info.get("email", "").strip()
-        if not email:
-            raise ValidationError("유저 정보를 가져올 수 없습니다.")
+        birthday = user_info.get("birthday")
+        if not email or not birthday:
+            raise ValidationError("유저 정보(이메일/생년월일)를 가져올 수 없습니다.")
 
         user, _ = User.objects.get_or_create(
             email=email,
@@ -105,16 +111,14 @@ class KakaoAuthService:
                 "name": user_info.get("name", ""),
                 "nickname": user_info.get("nickname", ""),
                 "gender": Gender.MALE.value if user_info.get("gender") in ["male", "M"] else Gender.FEMALE.value,
-                "birthday": f"{user_info.get('birthyear', '')}-{user_info.get('birthday', '')[:2]}-{user_info.get('birthday', '')[2:]}",
+                "birthday": birthday,
                 "phone_number": user_info.get("phone_number", ""),
                 "profile_img_url": user_info.get("profile_img_url", ""),
                 "is_active": True,
             },
         )
-
         SocialUser.objects.update_or_create(user=user, provider=Provider.KAKAO.value)
         tokens = _issue_tokens(user)
-
         return {
             "detail": "카카오 로그인에 성공했습니다.",
             "data": {"access": tokens["access"], "refresh": tokens["refresh"]},
@@ -129,8 +133,6 @@ class NaverAuthService:
 
     @staticmethod
     def exchange_code_for_token(code: str, state: Optional[str]) -> str:
-        """인가 코드(code) + state → access_token 교환"""
-        # ✅ 테스트 환경 목 처리
         if settings.DEBUG and code.startswith("FAKE_"):
             print(f"[MOCK] 네이버 인가 코드 테스트: {code}")
             return "mock_access_token_for_naver"
@@ -149,21 +151,17 @@ class NaverAuthService:
             if response.status_code == 400:
                 raise ValidationError("인가 코드 형식이 올바르지 않습니다.")
             response.raise_for_status()
-
             token_data: Dict[str, Any] = response.json()
             access_token = token_data.get("access_token")
-
             if not isinstance(access_token, str):
                 raise ValidationError("액세스 토큰이 발급되지 않았습니다.")
             return access_token
-
         except requests.RequestException:
             raise ValidationError("인가 코드 형식이 올바르지 않습니다.")
 
     @staticmethod
     def get_user_info(access_token: str) -> Dict[str, Any]:
         """네이버 사용자 정보 조회"""
-        # ✅ 테스트 환경 목 처리
         if settings.DEBUG and access_token.startswith("mock_access_token_for_"):
             print("[MOCK] 네이버 사용자 정보 반환")
             return {
@@ -171,8 +169,7 @@ class NaverAuthService:
                 "name": "테스트유저_네이버",
                 "nickname": "naver_mock",
                 "gender": "female",
-                "birthday": "0815",
-                "birthyear": "1995",
+                "birthday": "1995-08-15",
                 "phone_number": "+82 10-9876-5432",
                 "profile_img_url": "https://mock.image/naver.png",
                 "provider_id": "9876543210",
@@ -184,13 +181,24 @@ class NaverAuthService:
             resp.raise_for_status()
             naver_account = resp.json().get("response", {})
 
+            birthyear = naver_account.get("birthyear", "")
+            birthday_fragment = naver_account.get("birthday", "")  # ex: "05-05" or "0505"
+
+            # ✅ birthday 포맷 보정
+            if len(birthday_fragment) == 4 and "-" not in birthday_fragment:
+                birthday_fragment = f"{birthday_fragment[:2]}-{birthday_fragment[2:]}"
+
+            if not birthyear or not birthday_fragment:
+                raise ValidationError("생년월일 제공에 동의하지 않아 로그인할 수 없습니다.")
+
+            birthday = f"{birthyear}-{birthday_fragment}"  # YYYY-MM-DD
+
             return {
                 "email": naver_account.get("email", ""),
                 "name": naver_account.get("name", ""),
                 "nickname": naver_account.get("nickname", ""),
                 "gender": naver_account.get("gender", ""),
-                "birthday": naver_account.get("birthday", ""),
-                "birthyear": naver_account.get("birthyear", ""),
+                "birthday": birthday,
                 "phone_number": naver_account.get("mobile", ""),
                 "profile_img_url": naver_account.get("profile_image", ""),
                 "provider_id": str(naver_account.get("id", "")),
@@ -201,13 +209,13 @@ class NaverAuthService:
 
     @staticmethod
     def handle_login(code: str, state: Optional[str]) -> Dict[str, Any]:
-        """네이버 로그인 메인 처리"""
         access_token = NaverAuthService.exchange_code_for_token(code, state)
         user_info = NaverAuthService.get_user_info(access_token)
 
         email = user_info.get("email", "").strip()
-        if not email:
-            raise ValidationError("유저 정보를 가져올 수 없습니다.")
+        birthday = user_info.get("birthday")
+        if not email or not birthday:
+            raise ValidationError("유저 정보(이메일/생년월일)를 가져올 수 없습니다.")
 
         user, _ = User.objects.get_or_create(
             email=email,
@@ -215,16 +223,14 @@ class NaverAuthService:
                 "name": user_info.get("name", ""),
                 "nickname": user_info.get("nickname", ""),
                 "gender": Gender.MALE.value if user_info.get("gender") in ["male", "M"] else Gender.FEMALE.value,
-                "birthday": f"{user_info.get('birthyear', '')}-{user_info.get('birthday', '')[:2]}-{user_info.get('birthday', '')[2:]}",
+                "birthday": birthday,
                 "phone_number": user_info.get("phone_number", ""),
-                "profile_img_url": user_info.get("profile_img_url", ""),  # ✅ 통일
+                "profile_img_url": user_info.get("profile_img_url", ""),
                 "is_active": True,
             },
         )
-
         SocialUser.objects.update_or_create(user=user, provider=Provider.NAVER.value)
         tokens = _issue_tokens(user)
-
         return {
             "detail": "네이버 로그인에 성공했습니다.",
             "data": {"access": tokens["access"], "refresh": tokens["refresh"]},
