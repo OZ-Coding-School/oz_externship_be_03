@@ -63,18 +63,20 @@ def send_tomorrow_schedule_notifications() -> None:
             "schedule", "schedule__study_group", "member__user"  # ScheduleParticipant -> schedule -> study_group
         )
 
-        for participant in participants:
-            schedule = participant.schedule
-            study_group = participant.schedule.study_group
-            user = participant.member.user
-
-            notification = Notification.objects.create(
-                user_id=user.id,
-                content=f"내일은 {study_group.name}에서 {schedule.title}이 예정되어 있습니다! 잊지말고 참여해주세요!",
+        notifications = [
+            Notification(
+                user_id=participant.member.user.id,
+                content=f"내일은 {participant.schedule.study_group.name}에서 "
+                f"{participant.schedule.title}이 예정되어 있습니다! 잊지말고 참여해주세요!",
                 type=Notification.NotificationType.STUDY_SCHEDULE_UPCOMING,
-                back_url_link=f"{settings.FRONTEND_DOMAIN}/api/v1/studies/groups/{study_group.id}",
+                back_url_link=f"{settings.FRONTEND_DOMAIN}/api/v1/studies/groups/{participant.schedule.study_group.id}",
             )
+            for participant in participants
+        ]
 
+        created_notifications = Notification.objects.bulk_create(notifications)
+
+        for notification in created_notifications:
             send_to_pubsub.delay(notification.id)
 
     except Exception as e:
@@ -91,21 +93,22 @@ def send_today_schedule_notifications() -> None:
             "schedule", "schedule__study_group", "member__user"  # ScheduleParticipant -> schedule -> study_group
         )
 
-        for participant in participants:
-            schedule = participant.schedule
-            study_group = participant.schedule.study_group
-            user = participant.member.user
-
-            start_time = schedule.start_time.strftime("%H:%M")
-            end_time = schedule.end_time.strftime("%H:%M")
-
-            notification = Notification.objects.create(
-                user_id=user.id,
-                content=f"금일 {start_time}부터 {end_time}까지 {study_group.name}에서 {schedule.title}이 예정되어 있습니다! 잊지말고 참여해주세요!",
+        notifications = [
+            Notification(
+                user_id=participant.member.user.id,
+                content=f"금일 {participant.schedule.start_time.strftime('%H:%M')}부터 "
+                f"{participant.schedule.end_time.strftime('%H:%M')}까지 "
+                f"{participant.schedule.study_group.name}에서 {participant.schedule.title}이 "
+                f"예정되어 있습니다! 잊지말고 참여해주세요!",
                 type=Notification.NotificationType.STUDY_SCHEDULE_TODAY,
-                back_url_link=f"{settings.FRONTEND_DOMAIN}/api/v1/studies/groups/{study_group.id}",
+                back_url_link=f"{settings.FRONTEND_DOMAIN}/api/v1/studies/groups/{participant.schedule.study_group.id}",
             )
+            for participant in participants
+        ]
 
+        created_notifications = Notification.objects.bulk_create(notifications)
+
+        for notification in created_notifications:
             send_to_pubsub.delay(notification.id)
 
     except Exception as e:
