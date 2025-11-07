@@ -1,19 +1,22 @@
 from __future__ import annotations
 
-from datetime import datetime
-
+from django.db import transaction
 from django.db.models import Case, CharField, Q, Value, When
+from django.utils import timezone
 from drf_spectacular.types import OpenApiTypes
-from drf_spectacular.utils import OpenApiParameter, extend_schema
+from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
 from rest_framework import status
 from rest_framework.pagination import PageNumberPagination
-from rest_framework.permissions import IsAdminUser
+from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.core.views import ExceptionHandledAPIView
 from apps.users.enums import Role
+from apps.users.models.user import User
 from apps.users.models.withdrawal import Withdrawal
+from apps.users.permissions import IsStaffRole
 from apps.users.serializers.admin_withdrawal_serializers import (
     WithdrawalListItemSerializer,
 )
@@ -108,3 +111,54 @@ class AdminWithdrawalListView(APIView):
         }
 
         return response
+
+
+class AdminUserRestoreView(ExceptionHandledAPIView):
+    """
+    어드민 탈퇴 회원 복구
+    """
+
+    permission_classes = [IsAuthenticated, IsStaffRole]
+
+    @extend_schema(
+        tags=["Admin"],
+        operation_id="v1_admin_users_restore_withdrawn_user",
+        summary="관리자 탈퇴 회원 복구",
+        description=("관리자/스태프가 탈퇴 처리된 회원 계정을 복구\n"),
+        parameters=[
+            OpenApiParameter(
+                name="user_id",
+                type=int,
+                location=OpenApiParameter.PATH,
+                required=True,
+                description="복구할 탈퇴 회원의 ID",
+            ),
+        ],
+        responses={
+            200: OpenApiResponse(description="복구 완료된 사용자 정보"),
+            404: OpenApiResponse(description="대상 사용자를 찾을 수 없음"),
+            409: OpenApiResponse(description="복구 불가 상태(이미 활성 사용자 등)"),
+        },
+    )
+    def post(self, request: Request, user_id: int) -> Response:
+        # 아래 작업을 하나의 단위로 수행(성공 시 커밋, 실패 시 롤백)
+        with transaction.atomic():
+            # select_for_update: 트랜잭션 종료까지 다른 트랜잭션의 UPDATE/DELETE 대기
+            user = User.objects.select_for_update().filter(pk=user_id).first()
+            if not user:
+                return Response({"error": "대상 사용자를 찾을 수 없습니다."}, status=status.HTTP_404_NOT_FOUND)
+
+            has_withdrawal = Withdrawal.objects.filter(user_id=user.id).exists()
+            if not has_withdrawal:
+                return Response({"error": "탈퇴 내역을 찾을 수 없습니다."}, status=status.HTTP_404_NOT_FOUND)
+
+            if user.is_active:
+                return Response({"error": "이미 활성화된 계정입니다."}, status=status.HTTP_409_CONFLICT)
+
+            user.is_active = True
+            user.updated_at = timezone.now()
+            user.save(update_fields=["is_active", "updated_at"])
+
+            Withdrawal.objects.filter(user_id=user.id).delete()
+
+        return Response({"detail": "회원 복구에 성공하였습니다."}, status=status.HTTP_200_OK)

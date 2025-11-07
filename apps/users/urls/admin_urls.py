@@ -5,7 +5,10 @@ from apps.users.views.admin_users_views import (
     AdminUserRoleUpdateView,
     AdminUserView,
 )
-from apps.users.views.admin_withdrawal_views import AdminWithdrawalListView
+from apps.users.views.admin_withdrawal_views import (
+    AdminUserRestoreView,
+    AdminWithdrawalListView,
+)
 
 app_name = "admin"
 
@@ -23,5 +26,10 @@ urlpatterns = [
         "admin/withdrawals",
         AdminWithdrawalListView.as_view(),
         name="admin_withdrawal_list",
+    ),
+    path(
+        "admin/users/<int:user_id>/restore",
+        AdminUserRestoreView.as_view(),
+        name="admin_user_restore",
     ),
 ]
