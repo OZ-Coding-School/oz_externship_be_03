@@ -1,6 +1,8 @@
 from django.urls import path
 
 from apps.studies.views.groups import (
+    AdminStudyGroupDetailView,
+    AdminStudyGroupListView,
     StudyGroupDetailUpdateView,
     StudyGroupListCreateView,
 )
@@ -32,19 +34,19 @@ urlpatterns = [
         GroupReviewUpdateView.as_view(),
         name="group-review-detail",
     ),
-    # 특정 스터디 그룹에 대해서 리더 권한 위임
+    # 리더 권한 위임
     path(
         "groups/<uuid:group_uuid>/delegate-leader",
         DelegateLeaderView.as_view(),
         name="delegate-leader",
     ),
-    # REQ-STDY-007: 그룹 탈퇴
+    # 그룹 탈퇴
     path(
         "groups/<uuid:group_uuid>/leave",
         MemberLeaveView.as_view(),
         name="study-member-leave",
     ),
-    # REQ-STDY-006: 스터디 그룹 멤버 추방 API
+    # 스터디 그룹 멤버 추방 API
     path(
         "groups/<uuid:group_uuid>/members/<int:member_id>",
         MemberKickView.as_view(),
@@ -67,5 +69,17 @@ urlpatterns = [
         "notes/<int:note_id>",
         StudyNoteDetailAPIView.as_view(),
         name="study-note-detail",
+    ),
+    # 어드민 스터디그룹 목록조회
+    path(
+        "admin/groups",
+        AdminStudyGroupListView.as_view(),
+        name="admin-study-group-list",
+    ),
+    # 어드민 스터디그룹 상세조회
+    path(
+        "admin/groups/<uuid:group_uuid>",
+        AdminStudyGroupDetailView.as_view(),
+        name="admin-study-group-detail",
     ),
 ]

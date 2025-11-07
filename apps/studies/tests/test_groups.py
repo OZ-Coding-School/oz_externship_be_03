@@ -387,3 +387,138 @@ class StudyGroupDetailUpdateViewTest(TestCase):
         response = self.client.put(wrong_url, data, content_type="application/json")
 
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+# 어드민용 스터디 그룹 목록 / 상세 조회
+class AdminStudyGroupViewTest(TestCase):
+    def setUp(self) -> None:
+        self.client: APIClient = APIClient()
+
+        # 일반 유저와 관리자 생성
+        self.user = User.objects.create_user(
+            email="user@example.com",
+            password="testpass",
+            nickname="user",
+            name="일반유저",
+            birthday="2000-01-01",
+            phone_number="01000000045",
+        )
+        self.admin = User.objects.create_superuser(
+            email="admin@example.com",
+            password="adminpass",
+            nickname="관리자",
+            name="관리자유저",
+            birthday="2000-01-01",
+            phone_number="01000000089",
+        )
+
+        # 스터디 그룹 2개 생성
+        self.group1 = StudyGroup.objects.create(
+            uuid=uuid.uuid4(),
+            name="스터디A",
+            max_headcount=5,
+            start_at=timezone.now() + timedelta(days=1),
+            end_at=timezone.now() + timedelta(days=7),
+            status="ONGOING",
+        )
+        self.group2 = StudyGroup.objects.create(
+            uuid=uuid.uuid4(),
+            name="스터디B",
+            max_headcount=10,
+            start_at=timezone.now() + timedelta(days=2),
+            end_at=timezone.now() + timedelta(days=10),
+            status="ENDED",
+        )
+
+        # 강의 생성 및 연결
+        self.lecture = CrawledLecture.objects.create(
+            uuid=uuid.uuid4(),
+            title="관리자 테스트 강의",
+            instructor="어드민강사",
+            average_rating=4.5,
+            duration=100,
+            difficulty="EASY",
+            description="테스트용 강의",
+            platform="INFLEARN",
+            original_price=10000,
+            discount_price=5000,
+            url_link="https://example.com/lecture",
+            thumbnail_img_url="https://example.com/thumb.jpg",
+        )
+        StudyLecture.objects.create(study_group=self.group1, lecture=self.lecture)
+
+        # 그룹 멤버 추가
+        GroupMember.objects.create(study_group=self.group1, user=self.user, is_leader=True)
+
+        # URL 설정
+        self.list_url = reverse("studies:admin-study-group-list")
+        self.detail_url = reverse("studies:admin-study-group-detail", kwargs={"group_uuid": self.group1.uuid})
+
+    # 관리자는 전체 스터디 목록을 조회
+    def test_admin_can_list_groups(self) -> None:
+        self.client.force_authenticate(self.admin)
+        res = self.client.get(self.list_url)
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.json()["count"], 2)
+        self.assertIn("스터디A", [g["name"] for g in res.json()["results"]])
+
+    # 일반 유저는 목록 조회 접근 불가
+    def test_normal_user_cannot_list_groups(self) -> None:
+        self.client.force_authenticate(self.user)
+        res = self.client.get(self.list_url)
+        self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
+
+    # 비로그인 사용자는 목록 접근 불가
+    def test_anonymous_cannot_list_groups(self) -> None:
+        self.client.logout()
+        res = self.client.get(self.list_url)
+        self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    # status=ENDED 필터링이 정상 작동
+    def test_filter_by_status(self) -> None:
+        self.client.force_authenticate(self.admin)
+        res = self.client.get(self.list_url + "?status=ENDED")
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.json()["count"], 1)
+        self.assertEqual(res.json()["results"][0]["name"], "스터디B")
+
+    # search 파라미터로 그룹명을 검색
+    def test_search_by_name(self) -> None:
+        self.client.force_authenticate(self.admin)
+        res = self.client.get(self.list_url + "?search=스터디A")
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.json()["count"], 1)
+        self.assertEqual(res.json()["results"][0]["name"], "스터디A")
+
+    # name_desc 정렬 옵션이 정상 작동
+    def test_ordering_by_name_desc(self) -> None:
+        self.client.force_authenticate(self.admin)
+        res = self.client.get(self.list_url + "?ordering=name_desc")
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        names = [g["name"] for g in res.json()["results"]]
+        self.assertEqual(names, sorted(names, reverse=True))
+
+    # 관리자는 스터디 상세 정보를 조회
+    def test_admin_can_view_detail(self) -> None:
+        self.client.force_authenticate(self.admin)
+        res = self.client.get(self.detail_url)
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        data = res.json()
+        self.assertEqual(data["uuid"], str(self.group1.uuid))
+        self.assertEqual(data["name"], "스터디A")
+        self.assertEqual(data["current_headcount"], 1)
+        self.assertEqual(len(data["members"]), 1)
+        self.assertEqual(len(data["lectures"]), 1)
+        self.assertEqual(data["lectures"][0]["title"], "관리자 테스트 강의")
+
+    # 일반 유저는 스터디 상세 접근이 불가
+    def test_normal_user_cannot_view_detail(self) -> None:
+        self.client.force_authenticate(self.user)
+        res = self.client.get(self.detail_url)
+        self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
+
+    # 비로그인 사용자는 스터디 상세 접근이 불가
+    def test_anonymous_cannot_view_detail(self) -> None:
+        self.client.logout()
+        res = self.client.get(self.detail_url)
+        self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)

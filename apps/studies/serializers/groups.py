@@ -4,6 +4,7 @@ from typing import Any, Dict, cast
 from django.db import transaction
 from django.utils import timezone
 from rest_framework import serializers
+from rest_framework.utils.serializer_helpers import ReturnList
 
 from apps.lecture.models import CrawledLecture
 from apps.studies.models.groups import GroupMember, StudyGroup
@@ -175,3 +176,53 @@ class StudyGroupDetailSerializer(StudyGroupBaseSerializer):
             return False
 
         return GroupMember.objects.filter(study_group=obj, user=request.user, is_leader=True).exists()
+
+
+# 어드민 스터디그룹 목록 조회
+class AdminStudyGroupListSerializer(serializers.ModelSerializer[StudyGroup]):
+    current_headcount = serializers.IntegerField(source="members.count", read_only=True)
+    max_headcount = serializers.IntegerField(read_only=True)
+    status = serializers.CharField(source="get_status_display", read_only=True)
+
+    class Meta:
+        model = StudyGroup
+        fields = [
+            "id",
+            "uuid",
+            "name",
+            "current_headcount",
+            "max_headcount",
+            "profile_img_url",
+            "start_at",
+            "end_at",
+            "status",
+            "created_at",
+            "updated_at",
+        ]
+
+
+# 어드민 스터디그룹 상세 조회
+class AdminStudyGroupDetailSerializer(serializers.ModelSerializer[StudyGroup]):
+    members = StudyGroupDetailMemberSerializer(source="group_members", many=True, read_only=True)
+    lectures = StudyGroupDetailLectureSerializer(many=True, read_only=True)
+    current_headcount = serializers.IntegerField(source="members.count", read_only=True)
+    max_headcount = serializers.IntegerField(read_only=True)
+    status = serializers.CharField(source="get_status_display", read_only=True)
+
+    class Meta:
+        model = StudyGroup
+        fields = [
+            "id",
+            "uuid",
+            "name",
+            "current_headcount",
+            "max_headcount",
+            "members",
+            "profile_img_url",
+            "start_at",
+            "end_at",
+            "status",
+            "lectures",
+            "created_at",
+            "updated_at",
+        ]
