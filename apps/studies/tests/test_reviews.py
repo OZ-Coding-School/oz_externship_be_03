@@ -28,6 +28,8 @@ UserModel: Type[User] = get_user_model()
 class _BaseFixtures(TestCase):
     user: ClassVar[User]
     other_user: ClassVar[User]
+    admin_user: ClassVar[User]
+    staff_user: ClassVar[User]
     study_group: ClassVar[StudyGroup]
     client: APIClient
 
@@ -58,6 +60,36 @@ class _BaseFixtures(TestCase):
         )
         cls.other_user.set_password("pw1234")
         cls.other_user.save()
+
+        # 어드민 사용자 생성
+        cls.admin_user = UserModel.objects.create(
+            email="admin@example.com",
+            nickname="adminuser",
+            name="Admin User",
+            phone_number="010-9999-9999",
+            birthday="1990-01-01",
+            gender="M",
+            is_active=True,
+            is_staff=True,
+            is_superuser=True,
+        )
+        cls.admin_user.set_password("pw1234")
+        cls.admin_user.save()
+
+        # 스태프 사용자 생성
+        cls.staff_user = UserModel.objects.create(
+            email="staff@example.com",
+            nickname="staffuser",
+            name="Staff User",
+            phone_number="010-8888-8888",
+            birthday="1990-01-01",
+            gender="F",
+            is_active=True,
+            is_staff=True,
+            is_superuser=False,
+        )
+        cls.staff_user.set_password("pw1234")
+        cls.staff_user.save()
 
         cls.study_group = StudyGroup.objects.create(
             name="테스트 스터디",
@@ -357,3 +389,242 @@ class ReviewUpdateAPITests(_BaseFixtures):
             format="json",
         )
         self.assertEqual(res.status_code, 404)
+
+
+# 어드민 리뷰 조회/상세조회 테스트
+class AdminReviewListAPITests(_BaseFixtures):
+    review1: ClassVar[Review]
+    review2: ClassVar[Review]
+    review3: ClassVar[Review]
+    other_group: ClassVar[StudyGroup]
+
+    @classmethod
+    def setUpTestData(cls) -> None:
+        super().setUpTestData()
+
+        # 다른 스터디 그룹 생성
+        cls.other_group = StudyGroup.objects.create(
+            name="다른 스터디",
+            introduction="다른 그룹입니다",
+            max_headcount=3,
+            start_at=timezone.now() + timedelta(days=1),
+            end_at=timezone.now() + timedelta(days=30),
+            status=StudyGroupStatus.ONGOING,
+        )
+
+        # 리뷰 생성
+        cls.review1 = Review.objects.create(
+            user=cls.user,
+            study_group=cls.study_group,
+            star_rating=RatingEnum.FIVE,
+            content="첫 번째 리뷰",
+        )
+        cls.review2 = Review.objects.create(
+            user=cls.other_user,
+            study_group=cls.study_group,
+            star_rating=RatingEnum.FOUR,
+            content="두 번째 리뷰",
+        )
+        cls.review3 = Review.objects.create(
+            user=cls.user,
+            study_group=cls.other_group,
+            star_rating=RatingEnum.THREE,
+            content="다른 그룹 리뷰",
+        )
+
+    def setUp(self) -> None:
+        self.client = APIClient()
+
+    def _url(self) -> str:
+        return reverse("studies:admin-review-list")
+
+    def test_admin_list_reviews_200(self) -> None:
+        """어드민 사용자가 리뷰 목록 조회하면 200"""
+        self.client.force_authenticate(user=self.admin_user)
+        res = self.client.get(self._url())
+        self.assertEqual(res.status_code, 200)
+        self.assertIn("results", res.data or [])
+        # 페이지네이션된 응답이거나 리스트 응답
+        if "results" in res.data:
+            self.assertGreaterEqual(len(res.data["results"]), 3)
+        else:
+            self.assertGreaterEqual(len(res.data), 3)
+
+    def test_staff_list_reviews_200(self) -> None:
+        """스태프 사용자가 리뷰 목록 조회하면 200"""
+        self.client.force_authenticate(user=self.staff_user)
+        res = self.client.get(self._url())
+        self.assertEqual(res.status_code, 200)
+
+    def test_list_reviews_unauthenticated_401(self) -> None:
+        """비로그인 사용자가 조회하면 401"""
+        res = self.client.get(self._url())
+        self.assertEqual(res.status_code, 401)
+
+    def test_list_reviews_forbidden_for_regular_user_403(self) -> None:
+        """일반 사용자가 조회하면 403"""
+        self.client.force_authenticate(user=self.user)
+        res = self.client.get(self._url())
+        self.assertEqual(res.status_code, 403)
+
+    def test_list_reviews_filter_by_group_uuid(self) -> None:
+        """group_uuid 쿼리 파라미터로 특정 그룹의 리뷰만 필터링"""
+        self.client.force_authenticate(user=self.admin_user)
+        res = self.client.get(self._url(), {"group_uuid": str(self.study_group.uuid)})
+        self.assertEqual(res.status_code, 200)
+
+        # 페이지네이션된 응답이거나 리스트 응답
+        if "results" in res.data:
+            results = res.data["results"]
+        else:
+            results = res.data
+
+        # study_group의 리뷰만 나와야 함 (review1, review2)
+        self.assertEqual(len(results), 2)
+        group_names = [r["study_group_name"] for r in results]
+        self.assertTrue(all(name == self.study_group.name for name in group_names))
+
+    def test_list_reviews_invalid_group_uuid(self) -> None:
+        """잘못된 group_uuid는 무시되고 전체 리뷰 반환"""
+        self.client.force_authenticate(user=self.admin_user)
+        res = self.client.get(self._url(), {"group_uuid": "invalid-uuid"})
+        self.assertEqual(res.status_code, 200)
+        # 잘못된 UUID는 필터링되지 않고 전체 리뷰 반환
+
+    def test_list_reviews_ordering(self) -> None:
+        """리뷰는 최신순으로 정렬되어야 함"""
+        self.client.force_authenticate(user=self.admin_user)
+        res = self.client.get(self._url())
+        self.assertEqual(res.status_code, 200)
+
+        if "results" in res.data:
+            results = res.data["results"]
+        else:
+            results = res.data
+
+        if len(results) >= 2:
+            # 최신순이므로 첫 번째가 더 최근이어야 함
+            from datetime import datetime
+
+            first_created = datetime.fromisoformat(results[0]["created_at"].replace("Z", "+00:00"))
+            second_created = datetime.fromisoformat(results[1]["created_at"].replace("Z", "+00:00"))
+            self.assertGreaterEqual(first_created, second_created)
+
+    def test_list_reviews_response_structure(self) -> None:
+        """응답 구조가 올바른지 확인"""
+        self.client.force_authenticate(user=self.admin_user)
+        res = self.client.get(self._url())
+        self.assertEqual(res.status_code, 200)
+
+        if "results" in res.data:
+            results = res.data["results"]
+        else:
+            results = res.data
+
+        if results:
+            review = results[0]
+            self.assertIn("id", review)
+            self.assertIn("study_group_name", review)
+            self.assertIn("user_nickname", review)
+            self.assertIn("user_email", review)
+            self.assertIn("star_rating", review)
+            self.assertIn("content", review)
+            self.assertIn("created_at", review)
+            self.assertIn("updated_at", review)
+
+
+class AdminReviewDetailAPITests(_BaseFixtures):
+    review: ClassVar[Review]
+
+    @classmethod
+    def setUpTestData(cls) -> None:
+        super().setUpTestData()
+
+        # 테스트용 리뷰 생성
+        cls.review = Review.objects.create(
+            user=cls.user,
+            study_group=cls.study_group,
+            star_rating=RatingEnum.FIVE,
+            content="테스트 리뷰 내용",
+        )
+
+    def setUp(self) -> None:
+        self.client = APIClient()
+
+    def _url(self, review: Review) -> str:
+        return reverse("studies:admin-review-detail", kwargs={"review_uuid": str(review.uuid)})
+
+    def test_admin_detail_review_200(self) -> None:
+        """어드민 사용자가 리뷰 상세 조회하면 200"""
+        self.client.force_authenticate(user=self.admin_user)
+        res = self.client.get(self._url(self.review))
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data["id"], self.review.pk)
+        self.assertEqual(res.data["content"], "테스트 리뷰 내용")
+        self.assertEqual(res.data["star_rating"], 5)
+
+    def test_staff_detail_review_200(self) -> None:
+        """스태프 사용자가 리뷰 상세 조회하면 200"""
+        self.client.force_authenticate(user=self.staff_user)
+        res = self.client.get(self._url(self.review))
+        self.assertEqual(res.status_code, 200)
+
+    def test_detail_review_unauthenticated_401(self) -> None:
+        """비로그인 사용자가 조회하면 401"""
+        res = self.client.get(self._url(self.review))
+        self.assertEqual(res.status_code, 401)
+
+    def test_detail_review_forbidden_for_regular_user_403(self) -> None:
+        """일반 사용자가 조회하면 403"""
+        self.client.force_authenticate(user=self.user)
+        res = self.client.get(self._url(self.review))
+        self.assertEqual(res.status_code, 403)
+
+    def test_detail_review_not_found_404(self) -> None:
+        """존재하지 않는 review_uuid로 조회하면 404"""
+        self.client.force_authenticate(user=self.admin_user)
+        fake_uuid = "00000000-0000-0000-0000-000000000999"
+        res = self.client.get(reverse("studies:admin-review-detail", kwargs={"review_uuid": fake_uuid}))
+        self.assertEqual(res.status_code, 404)
+
+    def test_detail_review_response_structure(self) -> None:
+        """응답 구조가 올바른지 확인"""
+        self.client.force_authenticate(user=self.admin_user)
+        res = self.client.get(self._url(self.review))
+        self.assertEqual(res.status_code, 200)
+
+        # 필수 필드 확인
+        self.assertIn("id", res.data)
+        self.assertIn("study_group_id", res.data)
+        self.assertIn("study_group_uuid", res.data)
+        self.assertIn("study_group_name", res.data)
+        self.assertIn("study_group_introduction", res.data)
+        self.assertIn("study_group_start_at", res.data)
+        self.assertIn("study_group_end_at", res.data)
+        self.assertIn("user_nickname", res.data)
+        self.assertIn("user_email", res.data)
+        self.assertIn("star_rating", res.data)
+        self.assertIn("content", res.data)
+        self.assertIn("created_at", res.data)
+        self.assertIn("updated_at", res.data)
+
+    def test_detail_review_data_correctness(self) -> None:
+        """응답 데이터가 올바른지 확인"""
+        self.client.force_authenticate(user=self.admin_user)
+        res = self.client.get(self._url(self.review))
+        self.assertEqual(res.status_code, 200)
+
+        # 리뷰 데이터 확인
+        self.assertEqual(res.data["id"], self.review.pk)
+        self.assertEqual(res.data["content"], self.review.content)
+        self.assertEqual(res.data["star_rating"], 5)
+
+        # 스터디 그룹 데이터 확인
+        self.assertEqual(res.data["study_group_id"], self.study_group.id)
+        self.assertEqual(str(res.data["study_group_uuid"]), str(self.study_group.uuid))
+        self.assertEqual(res.data["study_group_name"], self.study_group.name)
+        self.assertEqual(res.data["study_group_introduction"], self.study_group.introduction)
+
+        # 사용자 데이터 확인
+        self.assertEqual(res.data["user_nickname"], self.user.nickname)
+        self.assertEqual(res.data["user_email"], self.user.email)

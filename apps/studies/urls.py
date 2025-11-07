@@ -16,7 +16,12 @@ from apps.studies.views.notes import (
     StudyNoteDetailAPIView,
     StudyNoteListAPIView,
 )
-from apps.studies.views.reviews import GroupReviewListCreateView, GroupReviewUpdateView
+from apps.studies.views.reviews import (
+    AdminReviewDetailView,
+    AdminReviewListView,
+    GroupReviewListCreateView,
+    GroupReviewUpdateView,
+)
 from apps.studies.views.s3_presign import (
     StudyGroupS3PresignedView,
     StudyNoteS3PresignedView,
@@ -33,6 +38,12 @@ urlpatterns = [
     path("groups/<uuid:group_uuid>", StudyGroupDetailUpdateView.as_view(), name="study-group-detail-update"),
     # 특정 스터디 그룹의 리뷰 목록 조회 및 생성
     path("groups/<uuid:group_uuid>/reviews", GroupReviewListCreateView.as_view(), name="group-reviews"),
+    path("admin/reviews", AdminReviewListView.as_view(), name="admin-review-list"),
+    path(
+        "admin/reviews/<uuid:review_uuid>",
+        AdminReviewDetailView.as_view(),
+        name="admin-review-detail",
+    ),
     path(
         "groups/<uuid:group_uuid>/reviews/<uuid:review_uuid>",
         GroupReviewUpdateView.as_view(),

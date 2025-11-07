@@ -78,3 +78,86 @@ class ReviewUpdateSerializer(serializers.ModelSerializer[Review]):
         if not value.strip():
             raise serializers.ValidationError("내용이 비어 있습니다.")
         return value
+
+
+DATETIME_MINUTE_FMT = "%Y-%m-%d %H:%M"
+
+
+class AdminReviewListSerializer(serializers.ModelSerializer[Review]):
+    """
+    어드민 페이지에서 보는 리뷰 목록용
+    - 고유 id (PK)
+    - 스터디 그룹명
+    - 작성자 닉네임/이메일
+    - 별점
+    - 내용
+    - 생성일시, 수정일시 (YYYY-MM-DD HH:MM)
+    """
+
+    id = serializers.IntegerField(read_only=True, source="pk")
+    study_group_name = serializers.CharField(read_only=True, source="study_group.name")
+    user_nickname = serializers.CharField(read_only=True, source="user.nickname")
+    user_email = serializers.CharField(read_only=True, source="user.email")
+    star_rating = StarRatingField(read_only=True, represent="int")
+    created_at = serializers.DateTimeField(format=DATETIME_MINUTE_FMT, read_only=True)
+    updated_at = serializers.DateTimeField(format=DATETIME_MINUTE_FMT, read_only=True)
+
+    class Meta:
+        model = Review
+        fields = (
+            "id",
+            "study_group_name",
+            "user_nickname",
+            "user_email",
+            "star_rating",
+            "content",
+            "created_at",
+            "updated_at",
+        )
+
+
+class AdminReviewDetailSerializer(serializers.ModelSerializer[Review]):
+    """
+    어드민 페이지에서 특정 리뷰 클릭했을 때 나오는 상세용
+    목록보다 스터디 그룹 정보가 조금 더 많음
+    """
+
+    id = serializers.IntegerField(read_only=True, source="pk")
+    study_group_id = serializers.IntegerField(read_only=True, source="study_group.id")
+    study_group_uuid = serializers.UUIDField(read_only=True, source="study_group.uuid")
+    study_group_name = serializers.CharField(read_only=True, source="study_group.name")
+    study_group_introduction = serializers.CharField(read_only=True, source="study_group.introduction")
+    study_group_start_at = serializers.DateTimeField(
+        source="study_group.start_at",
+        format=DATETIME_MINUTE_FMT,
+        read_only=True,
+    )
+    study_group_end_at = serializers.DateTimeField(
+        source="study_group.end_at",
+        format=DATETIME_MINUTE_FMT,
+        read_only=True,
+    )
+
+    user_nickname = serializers.CharField(read_only=True, source="user.nickname")
+    user_email = serializers.CharField(read_only=True, source="user.email")
+    star_rating = StarRatingField(read_only=True, represent="int")
+    created_at = serializers.DateTimeField(format=DATETIME_MINUTE_FMT, read_only=True)
+    updated_at = serializers.DateTimeField(format=DATETIME_MINUTE_FMT, read_only=True)
+
+    class Meta:
+        model = Review
+        fields = (
+            "id",
+            "study_group_id",
+            "study_group_uuid",
+            "study_group_name",
+            "study_group_introduction",
+            "study_group_start_at",
+            "study_group_end_at",
+            "user_nickname",
+            "user_email",
+            "star_rating",
+            "content",
+            "created_at",
+            "updated_at",
+        )

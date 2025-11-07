@@ -23,10 +23,13 @@ from apps.studies.models.groups import StudyGroup
 from apps.studies.models.reviews import Review
 from apps.studies.permissions import IsGroupMember, IsReviewOwner
 from apps.studies.serializers.reviews import (
+    AdminReviewDetailSerializer,
+    AdminReviewListSerializer,
     ReviewCreateSerializer,
     ReviewListItemSerializer,
     ReviewUpdateSerializer,
 )
+from apps.users.permissions import IsStaffRole
 
 
 @extend_schema_view(
@@ -228,3 +231,52 @@ class GroupReviewUpdateView(generics.UpdateAPIView[Review]):
         # 3) 본인 리뷰인지
         self.check_object_permissions(self.request, review)
         return review
+
+
+@extend_schema(
+    operation_id="AdminListReviews",
+    tags=["StudyGroupReview"],
+    summary="어드민 리뷰 목록 조회",
+    description="관리자 전용. 모든 리뷰를 조회합니다. group_uuid 쿼리 파라미터로 특정 그룹의 리뷰만 필터링 가능합니다.",
+    parameters=[
+        OpenApiParameter(
+            name="group_uuid",
+            type=OpenApiTypes.UUID,
+            location=OpenApiParameter.QUERY,
+            description="스터디 그룹 UUID (선택사항, 특정 그룹의 리뷰만 조회)",
+            required=False,
+        ),
+        OpenApiParameter(name="page", type=OpenApiTypes.INT, location=OpenApiParameter.QUERY),
+        OpenApiParameter(name="page_size", type=OpenApiTypes.INT, location=OpenApiParameter.QUERY),
+    ],
+    responses={200: AdminReviewListSerializer(many=True)},
+)
+class AdminReviewListView(generics.ListAPIView[Review]):
+    permission_classes = [IsStaffRole]
+    serializer_class = AdminReviewListSerializer
+
+    def get_queryset(self) -> QuerySet[Review]:
+        qs = Review.objects.select_related("study_group", "user").order_by("-created_at")
+        group_uuid = self.request.query_params.get("group_uuid")
+        if group_uuid:
+            try:
+                uuid_obj = UUID(str(group_uuid))
+                qs = qs.filter(study_group__uuid=uuid_obj)
+            except (TypeError, ValueError):
+                pass
+        return qs
+
+
+@extend_schema(
+    operation_id="AdminReviewDetail",
+    tags=["StudyGroupReview"],
+    summary="어드민 리뷰 상세 조회",
+    description="관리자 전용. 특정 리뷰의 상세 정보를 조회합니다.",
+    responses={200: AdminReviewDetailSerializer},
+)
+class AdminReviewDetailView(generics.RetrieveAPIView[Review]):
+    permission_classes = [IsStaffRole]
+    serializer_class = AdminReviewDetailSerializer
+    lookup_field = "uuid"
+    lookup_url_kwarg = "review_uuid"
+    queryset = Review.objects.select_related("study_group", "user")
