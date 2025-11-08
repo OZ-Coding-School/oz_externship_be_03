@@ -1,5 +1,7 @@
 from uuid import UUID
 
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
 from django.db import transaction
 from django.db.models import Count, IntegerField, OuterRef, QuerySet, Subquery, Value
 from django.db.models.functions import Coalesce
@@ -73,3 +75,36 @@ class ChatRoomService:
         )
         # TODO: 메시지 생성 후 관련 로직 추가 (예: 웹소켓으로 브로드캐스트)
         return chat_message
+
+    @staticmethod
+    def broadcast_member_removal(study_group_id: int, user_id: int, user_nickname: str, is_kick: bool) -> None:
+        """
+        스터디 멤버가 제거되었음을 실시간으로 브로드캐스트합니다.
+        - 제거된 사용자에게는 강제 접속 종료 메시지를 보냅니다.
+        - 다른 멤버들에게는 시스템 메시지를 보냅니다.
+        """
+        channel_layer = get_channel_layer()
+        room_group_name = f"chat_{study_group_id}"
+
+        # 1. 제거된 사용자에게 강제 접속 종료 메시지 전송
+        async_to_sync(channel_layer.group_send)(
+            f"user_{user_id}",
+            {
+                "type": "force_disconnect",
+                "study_group_id": study_group_id,
+            },
+        )
+
+        # 2. 채팅방의 다른 멤버들에게 시스템 메시지 전송
+        if is_kick:
+            message = f"{user_nickname}님이 리더에 의해 스터디에서 제외되었습니다."
+        else:
+            message = f"{user_nickname}님이 스터디를 떠났습니다."
+
+        async_to_sync(channel_layer.group_send)(
+            room_group_name,
+            {
+                "type": "system_message",
+                "message": message,
+            },
+        )
