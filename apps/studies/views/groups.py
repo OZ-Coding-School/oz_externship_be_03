@@ -36,7 +36,7 @@ class StudyGroupListCreateView(APIView):
         request=StudyGroupCreateSerializer,
     )
     def post(self, request: Request) -> Response:
-        serializer = StudyGroupCreateSerializer(data=request.data)
+        serializer = StudyGroupCreateSerializer(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
         serializer.save()
 
