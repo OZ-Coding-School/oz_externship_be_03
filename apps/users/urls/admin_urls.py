@@ -9,6 +9,7 @@ from apps.users.views.admin_withdrawal_views import (
     AdminUserRestoreView,
     AdminWithdrawalListView,
 )
+from apps.users.views.signup_trends_views import SignupTrendsAPIView
 
 app_name = "admin"
 
@@ -31,5 +32,10 @@ urlpatterns = [
         "admin/users/<int:user_id>/restore",
         AdminUserRestoreView.as_view(),
         name="admin_user_restore",
+    ),
+    path(
+        "admin/dashboard/signup-trends",
+        SignupTrendsAPIView.as_view(),
+        name="signup_trends",
     ),
 ]
