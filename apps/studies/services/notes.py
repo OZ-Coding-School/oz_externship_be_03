@@ -15,18 +15,18 @@ from apps.studies.models.notes import StudyNote
 logger = logging.getLogger(__name__)
 
 
-class StudyNoteService:
+class StudyNoteAIService:
     """
     스터디 노트 관련 비즈니스 로직
-    - Gemini API 호출로 AI 요약 생성
+    - Google 공식 SDK (`google-genai`)를 이용하여 Gemini 모델을 직접 호출
+    - RESTful HTTP 요청 대신 SDK 클라이언트를 생성 및 재사용하여 효율적 요청 처리
+    - 학습 노트의 내용을 프롬프트에 맞춰 AI 요약문으로 정제하고, 결과를 DB에 저장
     """
 
     MODEL_NAME = ClassVar[str] = "gemini-2.5-flash"
 
     _CLIENT: ClassVar[genai.Client] = genai.Client(api_key=settings.GEMINI_API_KEY)
 
-    # 템플릿 문자열을 클래스 변수로 정의하여 summarize 메서드를 간결화
-    # note.content는 f-string 내에서 직접 삽입하지 않고, 나중에 .format()이나 치환 함수로 사용예정
     # textwrap.dedent() : 문자열 좌측 들여쓰기 제거
     SUMMARY_PROMPT_TEMPLATE: ClassVar[str] = textwrap.dedent(
         """
@@ -61,20 +61,62 @@ class StudyNoteService:
         """
     ).strip()
 
+    @classmethod
+    def _validate_summary(cls, text: str) -> bool:
+        """요약 결과의 품질을 간단히 점검"""
+        if not text or len(text.split()) < 10:
+            return False
+        if any(err in text for err in ["요약 오류", "생략", "불충분", "오류 발생", "실패"]):
+            return False
+        return True
+
+    @classmethod
+    def _self_check_summary(cls, draft: str, content: str) -> str:
+        """1차 요약 결과가 불완전할 경우 2차 self-prompt로 수정"""
+        refine_prompt = textwrap.dedent(f"""
+        아래는 AI가 생성한 1차 요약 결과입니다.  
+        만약 요약이 불완전하거나 요약문 형식이 어긋난 경우,  
+        학습 내용을 기반으로 동일한 형식으로 다시 작성하십시오.
+        ---
+
+        [원문]
+        {content}
+
+        [1차 요약 결과]
+        {draft}
+
+        ---
+        **출력 형식은 기존 요약 템플릿과 동일하게 유지하십시오.**
+        """)
+
+        try:
+            res = cls._CLIENT.models.generate_content(
+                model=cls.MODEL_NAME,
+                contents=refine_prompt,
+                config=GenerateContentConfig(
+                    temperature=0.5,
+                    top_p=0.9,
+                    max_output_tokens=768,
+                ),
+            )
+            return (res.text or "").strip()
+        except Exception as e:
+            logger.error("2차 self-refine 실패: %s", e, exc_info=True)
+            return draft
+
+    @staticmethod
+    def _save_summary(note: StudyNote, text: str) -> str:
+        note.ai_summary = text
+        note.save(update_fields=["ai_summary"])
+        return text
 
     @classmethod
     def summarize(cls, note: StudyNote) -> str:
         """Gemini API를 호출해 학습 내용 요약을 생성"""
         content =  (note.content or "").strip()
 
-        if len(content) < 10 or len(re.findall(r"\w+",content)) < 5: # 10자 미만 내용 or 5개 단어 이하
-            summary = (
-                "### 자동요약이 생략되었습니다.\n\n"
-                "입력된 내용이 너무 짧거나 불충분하여 생성할 요약이 없습니다"
-            )
-            note.ai_summary = summary
-            note.save(update_fields = [ "ai_summary"])
-            return summary
+        if len(content) < 10 or len(re.findall(r"\w+", content)) < 5:
+            return cls._save_summary(note, "### 자동요약이 생략되었습니다.\n\n입력된 내용이 너무 짧거나 불충분하여 생성할 요약이 없습니다")
 
         # author의 데이터 수집, 선언
         date_str = timezone.localtime(note.created_at).strftime("%Y년 %m월 %d일 %A")
@@ -87,7 +129,7 @@ class StudyNoteService:
         )
 
         # 토큰절약로직
-        max_output_tokens = min(768, max(128, len(content) // 2))
+        max_output_tokens = max(128, min(768, len(content) // 2))
 
         try:
             response = cls._CLIENT.models.generate_content(
@@ -97,18 +139,19 @@ class StudyNoteService:
                     temperature=0.7,
                     top_p=0.9,
                     max_output_tokens=max_output_tokens,
-                )
+                ),
             )
+            ai_summary = (response.text or "").strip()
 
-            ai_summary = response.text.strip()
+            # 1차 요약 결과가 불완전하면 self-refine 발동
+            if not cls._validate_summary(ai_summary):
+                ai_summary = cls._self_check_summary(ai_summary, content)
+
+            return cls._save_summary(note, ai_summary)
 
         except Exception as e:
-            logger.error("요약 생성 실패: %s", e, exc_info=True)
-            ai_summary = (
-                "### 요약 오류 \n\n"
-                "AI 요약 생성 중 오류 발생. 잠시 후 다시 시도하세요"
+            # %s 자리에 오는 값을(e) str()로 변환시켜주고 필요할 때에만 작동되는 지연 평가방식 가볍고 기능적이라고함
+            logger.error("AI요약 생성 실패: %s", e, exc_info=True)
+            return cls._save_summary(
+                note, "### AI요약 오류:\n\nAI 요약 생성 중 오류 발생. 잠시 후 다시 시도하세요"
             )
-
-        note.ai_summary = ai_summary
-        note.save(update_fields = ["ai_summary"])
-        return ai_summary

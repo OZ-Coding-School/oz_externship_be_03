@@ -7,6 +7,7 @@ from rest_framework import serializers
 
 from apps.studies.models import StudyGroup
 from apps.studies.models.notes import StudyNote
+from apps.studies.models.notes import StudyNote, StudyNoteAttachment
 
 User = get_user_model()
 
@@ -16,7 +17,7 @@ class StudyNoteAuthorSerializer(serializers.ModelSerializer[Any]):
 
     class Meta:
         model = User
-        fields = ("id", "nickname")
+        fields = ("id", "nickname", "profile_img_url")
 
 
 class StudyNoteCreateSerializer(serializers.ModelSerializer[StudyNote]):
@@ -61,10 +62,8 @@ class StudyNoteListItemSerializer(serializers.ModelSerializer[StudyNote]):
         fields = (
             "id",
             "title",
-            "ai_summary",
             "author",
             "created_at",
-            "study_group",
             "files_count",
         )
         read_only_fields = fields
@@ -85,14 +84,23 @@ class StudyNoteDetailSerializer(serializers.ModelSerializer[StudyNote]):
             "id",
             "title",
             "content",
-            "ai_summary",
             "author",
+            "study_group",
+            "attachments",
             "created_at",
             "updated_at",
-            "study_group",
+            "ai_summary",
         )
         read_only_fields = fields
 
+
+class StudyNoteAttachmentSerializer(serializers.ModelSerializer[Any]):
+    """스터디 노트 첨부파일 Serializer"""
+
+    class Meta:
+        model = StudyNoteAttachment
+        fields = ("id", "file_name", "file_url", "created_at")
+        read_only_fields = fields
 
 class StudyNoteSummarySerializer(serializers.ModelSerializer[StudyNote]):
     """
@@ -107,7 +115,7 @@ class StudyNoteSummarySerializer(serializers.ModelSerializer[StudyNote]):
             "id",
             "title",
             "content",
-            "ai_summary",
             "created_at",
+            "ai_summary",
         )
         read_only_fields = fields
