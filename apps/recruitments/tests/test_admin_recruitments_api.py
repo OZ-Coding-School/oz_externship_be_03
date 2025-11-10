@@ -40,7 +40,9 @@ class AdminRecruitmentAPITestCase(TestCase):
         url = reverse("admin_recruitment_list")
         res = self.client.get(url)
         self.assertEqual(res.status_code, status.HTTP_200_OK, "목록 조회 응답 코드가 올바르지 않음")
-        self.assertEqual(res.json()[0]["title"], "테스트 공고")
+        data = res.json()
+        results = data["results"] if "results" in data else data
+        self.assertEqual(results[0]["title"], "테스트 공고")
 
     def test_admin_can_filter_closed_recruitments(self) -> None:
         # 마감된 공고만 반환되는지 확인
@@ -49,7 +51,9 @@ class AdminRecruitmentAPITestCase(TestCase):
         url = f"{reverse('admin_recruitment_list')}?is_closed=true"
         res = self.client.get(url)
         self.assertEqual(res.status_code, status.HTTP_200_OK)
-        for item in res.json():
+        data = res.json()
+        results = data["results"] if "results" in data else data
+        for item in results:
             self.assertTrue(item["is_closed"], "마감된 공고만 반환되지 않음")
 
     def test_admin_can_filter_open_recruitments(self) -> None:
@@ -57,7 +61,9 @@ class AdminRecruitmentAPITestCase(TestCase):
         url = f"{reverse('admin_recruitment_list')}?is_closed=false"
         res = self.client.get(url)
         self.assertEqual(res.status_code, status.HTTP_200_OK)
-        for item in res.json():
+        data = res.json()
+        results = data["results"] if "results" in data else data
+        for item in results:
             self.assertFalse(item["is_closed"], "진행 중 공고만 반환되지 않음")
 
     def test_admin_can_filter_by_tag_name(self) -> None:
@@ -79,6 +85,7 @@ class AdminRecruitmentAPITestCase(TestCase):
         url = reverse("admin_recruitment_detail", args=[9999])
         res = self.client.get(url)
         self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertIn("message", res.json())
 
     # 삭제
     def test_admin_can_delete_recruitment(self) -> None:
@@ -96,6 +103,7 @@ class AdminRecruitmentAPITestCase(TestCase):
         url = reverse("admin_recruitment_detail", args=[9999])
         res = self.client.delete(url)
         self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertIn("message", res.json())
 
     # 권한
     def test_non_admin_cannot_access_admin_endpoints(self) -> None:
