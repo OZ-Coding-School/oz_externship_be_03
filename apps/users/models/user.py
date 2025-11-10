@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from django.contrib.auth.base_user import AbstractBaseUser
+from django.core.validators import URLValidator
 from django.db import models
 
 from apps.core.models import UUIDBaseModel
@@ -32,7 +33,7 @@ class User(AbstractBaseUser, UUIDBaseModel):
 
     birthday = models.DateField(null=False)
 
-    profile_img_url = models.URLField(max_length=255, blank=True, null=True)
+    profile_img_url = models.TextField(blank=True, null=True, validators=[URLValidator()])
 
     is_active = models.BooleanField(default=False, null=False)
 
