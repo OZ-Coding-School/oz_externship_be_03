@@ -564,7 +564,7 @@ class AdminReviewDetailAPITests(_BaseFixtures):
         self.client = APIClient()
 
     def _url(self, review: Review) -> str:
-        return reverse("studies:admin-review-detail", kwargs={"pk": str(self.review.pk)})
+        return reverse("studies:admin-review-detail", kwargs={"review_id": str(self.review.pk)})
 
     def test_admin_detail_review_200(self) -> None:
         """어드민 사용자가 리뷰 상세 조회하면 200"""
@@ -598,7 +598,7 @@ class AdminReviewDetailAPITests(_BaseFixtures):
         """존재하지 않는 review_uuid로 조회하면 404"""
         self.client.force_authenticate(user=self.admin_user)
         fake_uuid = "00000000-0000-0000-0000-000000000999"
-        res = self.client.get(reverse("studies:admin-review-detail", kwargs={"pk": 99999}))
+        res = self.client.get(reverse("studies:admin-review-detail", kwargs={"review_id": 99999}))
         self.assertEqual(res.status_code, 404)
 
     def test_detail_review_response_structure(self) -> None:
