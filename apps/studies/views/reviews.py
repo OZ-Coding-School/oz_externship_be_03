@@ -256,7 +256,7 @@ class AdminReviewListView(generics.ListAPIView[Review]):
     permission_classes = [IsStaffRole]
     serializer_class = AdminReviewListSerializer
 
-    def get_queryset(self)-> QuerySet[Review]:
+    def get_queryset(self) -> QuerySet[Review]:
         qs = Review.objects.select_related("study_group", "user").order_by("-created_at")
         group_uuid = self.request.query_params.get("group_uuid")
         if group_uuid:
