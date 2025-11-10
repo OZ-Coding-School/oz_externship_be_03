@@ -237,7 +237,7 @@ class NaverAuthService:
         return {"detail": "네이버 로그인에 성공했습니다.", "data": tokens}
 
 
-#진입점
+# 진입점
 class SocialAuthService:
 
     @staticmethod
