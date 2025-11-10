@@ -94,6 +94,7 @@ class AdminUserUpdateSerializer(serializers.ModelSerializer[UserModel]):
             "phone_number",
             "status",
             "profile_img_url",
+            "birthday",
         ]
         extra_kwargs = {field: {"required": False} for field in fields}
 
