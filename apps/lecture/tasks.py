@@ -107,6 +107,7 @@ def crawl_inflearn_lectures() -> Dict[str, Any]:
 
             lecture_to_save = [
                 CrawledLecture(
+                    external_id=info["external_id"],
                     platform=info["platform"],
                     title=info["title"],
                     instructor=info["instructor"],
@@ -125,8 +126,11 @@ def crawl_inflearn_lectures() -> Dict[str, Any]:
             CrawledLecture.objects.bulk_create(
                 lecture_to_save,
                 update_conflicts=True,
-                unique_fields=["platform", "title", "instructor"],
+                unique_fields=["platform", "external_id"],
                 update_fields=[
+                    "platform",
+                    "title",
+                    "instructor",
                     "average_rating",
                     "duration",
                     "difficulty",

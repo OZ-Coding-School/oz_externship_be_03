@@ -14,6 +14,7 @@ class CrawlLecturesTaskTest(TestCase):
     def setUp(self) -> None:
         self.mock_lecture_data: List[Dict[str, Any]] = [
             {
+                "external_id": 341234,
                 "title": "Python 기초",
                 "instructor": "홍길동",
                 "average_rating": 4.5,
@@ -45,6 +46,7 @@ class CrawlLecturesTaskTest(TestCase):
     def test_update_crawl_lectures(self, mock_crawler_class: Any) -> None:
         """기존 강의 업데이트"""
         CrawledLecture.objects.create(
+            external_id=341234,
             title="Python 기초",
             instructor="홍길동",
             average_rating=2.5,

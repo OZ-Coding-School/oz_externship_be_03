@@ -54,6 +54,7 @@ class InvalidateLectureCacheSignalTests(BaseSignalSetup):
         """각 테스트 전에 공통 강의 객체 생성"""
         super().setUp()
         self.lecture = CrawledLecture.objects.create(
+            external_id=999993,
             title="테스트 강의",
             instructor="테스트 강사",
             platform=CrawledLecture.PlatformEnum.UDEMY,
@@ -93,6 +94,7 @@ class InvalidateLectureCacheSignalTests(BaseSignalSetup):
         cache.set(self.POPULAR_LECTURE_CACHE_KEY_VALUE, ["lecture1", "lecture2"])
 
         CrawledLecture.objects.create(
+            external_id=999992,
             title="새 강의",
             instructor="새 강사",
             platform=CrawledLecture.PlatformEnum.INFLEARN,
@@ -143,6 +145,7 @@ class InvalidateLectureCacheSignalTests(BaseSignalSetup):
     def test_multiple_lectures_cache_isolation(self) -> None:
         """여러 강의의 캐시가 독립적으로 무효화됨"""
         lecture2 = CrawledLecture.objects.create(
+            external_id=999991,
             title="두 번째 강의",
             instructor="두 번째 강사",
             platform=CrawledLecture.PlatformEnum.INFLEARN,

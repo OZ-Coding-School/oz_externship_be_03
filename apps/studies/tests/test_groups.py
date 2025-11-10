@@ -30,6 +30,7 @@ class StudyGroupListCreateViewTest(TestCase):
 
         self.lecture1 = CrawledLecture.objects.create(
             uuid=uuid.uuid4(),
+            external_id=999995,
             title="강의1",
             instructor="강사1",
             average_rating=4.5,
@@ -44,6 +45,7 @@ class StudyGroupListCreateViewTest(TestCase):
         )
         self.lecture2 = CrawledLecture.objects.create(
             uuid=uuid.uuid4(),
+            external_id=999996,
             title="강의2",
             instructor="강사2",
             average_rating=4.0,
@@ -256,6 +258,7 @@ class StudyGroupDetailUpdateViewTest(TestCase):
         self.client.force_authenticate(user=self.user)
 
         self.lecture1 = CrawledLecture.objects.create(
+            external_id=999997,
             title="강의1",
             instructor="강사1",
             average_rating=4.5,
@@ -268,6 +271,7 @@ class StudyGroupDetailUpdateViewTest(TestCase):
             url_link="https://example.com/1",
         )
         self.lecture2 = CrawledLecture.objects.create(
+            external_id=999999,
             title="강의2",
             instructor="강사2",
             average_rating=4.0,
@@ -350,6 +354,7 @@ class StudyGroupDetailUpdateViewTest(TestCase):
     def test_update_too_many_lectures(self) -> None:
         extra_lectures = [
             CrawledLecture.objects.create(
+                external_id=600100 + i,
                 title=f"추가강의{i}",
                 instructor="강사",
                 average_rating=3.0,
@@ -433,6 +438,7 @@ class AdminStudyGroupViewTest(TestCase):
         # 강의 생성 및 연결
         self.lecture = CrawledLecture.objects.create(
             uuid=uuid.uuid4(),
+            external_id=600001,
             title="관리자 테스트 강의",
             instructor="어드민강사",
             average_rating=4.5,

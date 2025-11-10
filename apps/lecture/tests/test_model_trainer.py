@@ -19,7 +19,7 @@ import joblib  # type: ignore
 import numpy as np
 from django.core.cache import cache
 from django.utils import timezone
-from scipy.sparse import csr_matrix
+from scipy.sparse import csr_matrix # type: ignore
 
 from apps.core.utils.isolated_cache_testcase import IsolatedRedisTestClient
 from apps.lecture.services.recommendation_service.constants import (
