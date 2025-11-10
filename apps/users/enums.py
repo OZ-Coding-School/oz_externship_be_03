@@ -2,7 +2,6 @@ from django.db.models import TextChoices
 
 
 class Provider(TextChoices):
-    GOOGLE = "google", "Google"
     KAKAO = "kakao", "Kakao"
     NAVER = "naver", "Naver"
 

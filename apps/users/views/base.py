@@ -7,6 +7,7 @@ from rest_framework.exceptions import APIException, ValidationError
 from rest_framework.response import Response
 
 from apps.core.utils.exception_handler import (
+    _first_text,
     build_error_from_dict,
     build_error_from_scalar,
     match_common_exception,
@@ -49,4 +50,34 @@ class SignupExceptionHandledAPIView(ExceptionHandledAPIView):
 
             return build_error_from_scalar(detail, status_code)
 
+        return super().handle_exception(exc)
+
+
+class LoginExceptionHandledAPIView(ExceptionHandledAPIView):
+    """
+    로그인 전용 예외 핸들러
+    - 403인 경우 detail+data 패턴이면 {"error", "data", "code"}로 리턴
+    - 그 외는 공통 규칙 사용
+    """
+
+    def handle_exception(self, exc: Exception) -> Response:
+        # 1) 403을 먼저 처리
+        status_code = getattr(exc, "status_code", None)
+        if status_code == status.HTTP_403_FORBIDDEN:
+            detail = getattr(exc, "detail", None)
+
+            if isinstance(detail, dict):
+                # {"detail": ..., "data": ...}
+                if "detail" in detail and "data" in detail:
+                    body = {
+                        "error": _first_text(detail["detail"]),
+                        "data": detail.get("data"),
+                    }
+                    return Response(body, status=status.HTTP_403_FORBIDDEN)
+
+                return build_error_from_dict(detail, status.HTTP_403_FORBIDDEN)
+
+            return build_error_from_scalar(detail, status.HTTP_403_FORBIDDEN)
+
+        # 2) 403 외 상태는 기존 글로벌 핸들러(super)로 처리
         return super().handle_exception(exc)

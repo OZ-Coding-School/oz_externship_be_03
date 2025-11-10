@@ -36,9 +36,6 @@ def authenticate_and_issue_tokens(*, email: str, password: str) -> Dict[str, str
     if user is None:
         raise PermissionError("존재하지 않는 계정이거나 비밀번호가 올바르지 않습니다.")
 
-    if not getattr(user, "is_active", True):
-        raise PermissionError("비활성화된 계정입니다.")
-
     return _issue_tokens(user)
 
 
