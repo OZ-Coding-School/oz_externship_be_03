@@ -9,9 +9,9 @@ from django.utils import timezone
 # ═══════════════════════════════════════════════════════════════
 # 모델 버전 관리
 # ═══════════════════════════════════════════════════════════════
-# 환경변수 기반 버전 관리 (프로덕션: ALS_MODEL_VERSION=v20251027, 개발: 자동 날짜 생성)
-# 버전 변경 시 모든 캐시 자동 무효화 → 모델 배포 시 캐시 충돌 방지
-MODEL_VERSION: Final[str] = os.environ.get("ALS_MODEL_VERSION", timezone.now().strftime("v%Y%m%d"))
+# 환경변수 기반 버전 관리 (프로덕션: ALS_MODEL_VERSION=v20251027)
+# 기본값: "v1" (고정값으로 서버 재시작 시에도 일관성 유지
+MODEL_VERSION: Final[str] = os.environ.get("ALS_MODEL_VERSION", "v1")
 
 # ═══════════════════════════════════════════════════════════════
 # 시간 감쇠 설정
@@ -117,4 +117,5 @@ ALS_CACHE_KEYS: Final[List[str]] = [
     L_TO_IDX_CACHE_KEY,
     L_IDX_TO_ID_CACHE_KEY,
     USER_ITEMS_MATRIX_CACHE_KEY,
+    LECTURE_CATEGORY_MAP_CACHE_KEY,
 ]

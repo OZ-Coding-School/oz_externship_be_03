@@ -824,7 +824,7 @@ class RecommendationService:
             # 6. ALS 추천 실행 (implicit 라이브러리)
             result = self._model.recommend(
                 userid=user_index,
-                user_items=self._user_items_matrix,
+                user_items=self._user_items_matrix[user_index], # 단일 사용자 행만 전달
                 N=top_n * 5,  # 후처리 여유분 확보
                 filter_already_liked_items=True,  # 이미 상호작용한 강의 제외
                 recalculate_user=True,  # 사용자 벡터 재계산
