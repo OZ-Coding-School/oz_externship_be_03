@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any, Dict
+from uuid import UUID
 
 from django.db import IntegrityError
 from django.db.models import Avg, Case, IntegerField, QuerySet, Sum, Value, When
@@ -30,7 +31,6 @@ from apps.studies.serializers.reviews import (
     ReviewUpdateSerializer,
 )
 from apps.users.permissions import IsStaffRole
-from uuid import UUID
 
 
 @extend_schema_view(
@@ -256,7 +256,7 @@ class AdminReviewListView(generics.ListAPIView[Review]):
     permission_classes = [IsStaffRole]
     serializer_class = AdminReviewListSerializer
 
-    def get_queryset(self):
+    def get_queryset(self)-> QuerySet[Review]:
         qs = Review.objects.select_related("study_group", "user").order_by("-created_at")
         group_uuid = self.request.query_params.get("group_uuid")
         if group_uuid:
