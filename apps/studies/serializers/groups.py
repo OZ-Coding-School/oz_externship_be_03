@@ -83,7 +83,7 @@ class StudyGroupCreateSerializer(StudyGroupBaseSerializer):
     def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         start = attrs.get("start_at")
         end = attrs.get("end_at")
-        today = timezone.now().date()
+        today = timezone.localtime(timezone.now()).date()
 
         if start and end and end < start + timedelta(days=5):
             raise serializers.ValidationError({"end_at": "종료일은 시작일보다 5일 이상 이후여야 합니다."})
