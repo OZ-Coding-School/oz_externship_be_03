@@ -1,15 +1,69 @@
 from __future__ import annotations
 
-from typing import ClassVar
+import uuid
+from typing import Any, ClassVar
 
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
+from rest_framework.exceptions import NotFound
 from rest_framework.test import APIClient, APITestCase
 
-from apps.users.enums import Reason
+from apps.users.enums import Gender, Reason, Role
 from apps.users.models import User, Withdrawal
+from apps.users.services.admin_withdrawal_services import AdminWithdrawalService
+
+# ============================================================
+# 유틸
+# ============================================================
+
+
+def _uniq(prefix: str = "") -> str:
+    return f"{prefix}{uuid.uuid4().hex[:4]}"
+
+
+def _phone(seed: str) -> str:
+    base = seed[:8].ljust(8, "0")
+    return f"010{base}"
+
+
+def create_user(**kwargs: Any) -> User:
+    """
+    테스트용 유저 생성
+    """
+    seed = uuid.uuid4().hex[:8]
+
+    defaults: dict[str, Any] = dict(
+        password="!",
+        gender=Gender.MALE,
+        birthday="1990-01-01",
+        is_active=True,
+        is_staff=False,
+        is_superuser=False,
+        nickname=_uniq("u"),
+        name="테스트유저",
+        phone_number=_phone(seed),
+    )
+    defaults.update(kwargs)
+    return User.objects.create_user(**defaults)
+
+
+def create_admin(**kwargs: Any) -> User:
+    seed = uuid.uuid4().hex[:8]
+    return create_user(
+        is_staff=True, is_superuser=True, name="관리자", phone_number=_phone(seed), nickname=_uniq("a"), **kwargs
+    )
+
+
+def create_withdrawal(user: User, **kwargs: Any) -> Withdrawal:
+    defaults: dict[str, Any] = dict(
+        reason=Reason.POOR_SERVICE_QUALITY.value,
+        due_date=timezone.localdate(),
+        reason_detail="기본 사유",
+    )
+    defaults.update(kwargs)
+    return Withdrawal.objects.create(user=user, **defaults)
 
 
 # ---------------------------------------------------------------------
@@ -19,34 +73,12 @@ class AdminWithdrawalListViewTestCase(TestCase):
     def setUp(self) -> None:
         self.client: APIClient = APIClient()
 
-        self.admin_user: User = User.objects.create_superuser(
-            email="admin@example.com",
-            password="admin123",
-            name="관리자",
-            birthday="1990-01-01",
-            gender="f",
-            phone_number="01012345678",
-            nickname="admin",
-            is_active=True,
-            is_staff=True,
-            is_superuser=True,
-        )
+        self.admin_user: User = create_admin(email="admin@example_list.com")
 
-        self.normal_user: User = User.objects.create_user(
-            email="user@example.com",
-            password="user123",
-            name="유저",
-            birthday="1995-05-05",
-            gender="m",
-            phone_number="01087654321",
-            nickname="user",
-            is_active=True,
-            is_staff=False,
-            is_superuser=False,
-        )
+        self.normal_user: User = create_user(email="user_list@test.com")
 
-        Withdrawal.objects.create(
-            user=self.normal_user,
+        create_withdrawal(
+            self.normal_user,
             reason=Reason.PRIVACY_CONCERNS.value,
             reason_detail="테스트 탈퇴 사유",
             due_date="2025-12-31",
@@ -92,61 +124,22 @@ class AdminUserRestoreViewTests(APITestCase):
 
     @classmethod
     def setUpTestData(cls) -> None:
-        admin = User(
-            email="admin@example.com",
-            password="!",
-            name="관리자",
-            nickname="admin",
-            birthday="1990-01-01",
-            gender="f",
-            phone_number="01000000000",
-            is_active=True,
-            is_staff=True,
-            is_superuser=True,
-        )
-        u1 = User(  # 탈퇴내역 있음 + 비활성
-            email="user1@example.com",
-            password="!",
-            name="유저1",
-            nickname="user1",
-            birthday="1990-01-01",
-            gender="f",
-            phone_number="01011111111",
-            is_active=False,
-        )
-        u2 = User(  # 탈퇴내역 없음 + 비활성
-            email="user2@example.com",
-            password="!",
-            name="유저2",
-            nickname="user2",
-            birthday="1992-02-02",
-            gender="m",
-            phone_number="01022222222",
-            is_active=False,
-        )
-        u3 = User(  # 탈퇴내역 있음 + 활성
-            email="user3@example.com",
-            password="!",
-            name="유저3",
-            nickname="user3",
-            birthday="1993-03-03",
-            gender="m",
-            phone_number="01033333333",
-            is_active=True,
-        )
+        admin = create_admin(email="admin_restore@test.com")
 
-        User.objects.bulk_create([admin, u1, u2, u3])
+        u1 = create_user(email="user1_restore@test.com", is_active=False)
+        u2 = create_user(email="user2_restore@test.com", is_active=False)
+        u3 = create_user(email="user3_restore@test.com", is_active=True)
 
-        cls.admin_id = User.objects.only("id").get(email="admin@example.com").id
-        cls.user_with_withdrawal_inactive_id = User.objects.only("id").get(email="user1@example.com").id
-        cls.user_without_withdrawal_inactive_id = User.objects.only("id").get(email="user2@example.com").id
-        cls.user_with_withdrawal_active_id = User.objects.only("id").get(email="user3@example.com").id
+        cls.admin_id = admin.id
+        cls.user_with_withdrawal_inactive_id = u1.id
+        cls.user_without_withdrawal_inactive_id = u2.id
+        cls.user_with_withdrawal_active_id = u3.id
 
         today = timezone.localdate()
         Withdrawal.objects.bulk_create(
             [
-                Withdrawal(user_id=cls.user_with_withdrawal_inactive_id, due_date=today),
-                Withdrawal(user_id=cls.user_with_withdrawal_active_id, due_date=today),
+                Withdrawal(user_id=u1.id, due_date=today),
+                Withdrawal(user_id=u3.id, due_date=today),
             ]
         )
 
@@ -183,3 +176,104 @@ class AdminUserRestoreViewTests(APITestCase):
         res = self.client.post(url)
         self.assertEqual(res.status_code, status.HTTP_409_CONFLICT)
         self.assertIn("error", res.data)
+
+
+# ---------------------------------------------------------------------
+# 어드민- 탈퇴 회원 상세 조회 뷰 테스트
+# ---------------------------------------------------------------------
+class TestAdminWithdrawalDetailAPI(APITestCase):
+
+    admin_user: ClassVar[User]
+    withdrawn_user: ClassVar[User]
+    normal_active_user: ClassVar[User]
+    withdrawal: ClassVar[Withdrawal]
+
+    @classmethod
+    def setUpTestData(cls) -> None:
+        # --- 관리자 생성 ---
+        s_admin = _uniq("a")
+        cls.admin_user = create_admin(
+            email=f"{s_admin}@example.com",
+        )
+
+        # --- 탈퇴(비활성) 유저 생성 ---
+        s_with = _uniq("w")
+        cls.withdrawn_user = create_user(
+            email=f"{s_with}@example.com",
+            password="user1234!",
+            nickname=f"{s_with}",
+            name="홍길동",
+            phone_number=_phone(uuid.uuid4().hex[:8]),
+            gender=Gender.MALE,
+            birthday="1995-05-05",
+            is_active=False,
+        )
+
+        # --- 탈퇴 내역 생성 ---
+        cls.withdrawal = create_withdrawal(
+            cls.withdrawn_user,
+            reason_detail="응답 속도가 느림",
+        )
+
+        # --- 탈퇴 내역 없는 일반 유저 ---
+        s_norm = _uniq("n")
+        cls.normal_active_user = create_user(
+            email=f"{s_norm}@example.com",
+            nickname=f"{s_norm}",
+            name="김아무개",
+            phone_number=_phone(uuid.uuid4().hex[:8]),
+            gender=Gender.MALE,
+            birthday="1996-06-06",
+            is_active=True,
+        )
+
+    # ---------------------------
+    # 성공: 200
+    # ---------------------------
+    def test_withdrawal_detail_success(self) -> None:
+        self.client.force_authenticate(user=self.admin_user)
+        url = reverse("users:admin_withdrawal_detail", kwargs={"user_id": self.withdrawn_user.id})
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data["detail"], "탈퇴 내역 상세 조회에 성공하였습니다.")
+
+        user_data = res.data["data"]["user"]
+        withdrawal_data = res.data["data"]["withdrawal"]
+
+        self.assertEqual(user_data["id"], self.withdrawn_user.id)
+        self.assertEqual(user_data["email"], self.withdrawn_user.email)
+        self.assertEqual(user_data["name"], self.withdrawn_user.name)
+        self.assertIn(str(Role.USER), {user_data.get("role"), str(user_data.get("role"))})
+
+        self.assertIn("reason", withdrawal_data)
+        self.assertEqual(withdrawal_data.get("reason"), Reason.POOR_SERVICE_QUALITY.value)
+
+    # ---------------------------
+    # 대상 없음: 404
+    # ---------------------------
+    def test_withdrawal_detail_not_found(self) -> None:
+        self.client.force_authenticate(user=self.admin_user)
+        url = reverse("users:admin_withdrawal_detail", kwargs={"user_id": self.normal_active_user.id})
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("error", res.data)
+        self.assertIn("탈퇴 이력이 없습니다.", res.data["error"])
+
+    # ---------------------------
+    # 권한 없음: 403
+    # ---------------------------
+    def test_withdrawal_detail_permission_denied(self) -> None:
+        self.client.force_authenticate(user=self.withdrawn_user)
+        url = reverse("users:admin_withdrawal_detail", kwargs={"user_id": self.withdrawn_user.id})
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
+
+
+# ---------------------------------------------------------------------
+# 어드민- 탈퇴 회원 상세 조회 서비스 테스트
+# ---------------------------------------------------------------------
+class AdminWithdrawalServiceTests(TestCase):
+    def test_user_not_found_raises_not_found(self) -> None:
+        # 존재하지 않는 유저 ID
+        with self.assertRaises(NotFound):
+            AdminWithdrawalService.get_withdrawal_detail(user_id=999999)
