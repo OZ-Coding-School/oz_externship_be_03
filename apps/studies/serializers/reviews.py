@@ -125,7 +125,7 @@ class AdminReviewDetailSerializer(serializers.ModelSerializer[Review]):
     """
 
     id = serializers.IntegerField()
-    study_group = serializers.SerializerMethodField()
+    study_group = _AdminReviewStudyGroupSerializer(source="study_group", read_only=True)
     author = _AdminReviewAuthorSerializer(source="user", read_only=True)
     star_rating = StarRatingField(read_only=True, represent="int")
     created_at = serializers.DateTimeField(format=DATETIME_MINUTE_FMT, read_only=True)
@@ -142,22 +142,3 @@ class AdminReviewDetailSerializer(serializers.ModelSerializer[Review]):
             "created_at",
             "updated_at",
         )
-
-    def get_study_group(self, obj: Review) -> dict[str, Any]:
-        sg: StudyGroup = obj.study_group
-        return {
-            "id": sg.id,
-            "uuid": sg.uuid,
-            "name": sg.name,
-            "introduction": sg.introduction,
-            "start_at": sg.start_at.strftime(DATETIME_MINUTE_FMT) if sg.start_at else None,
-            "end_at": sg.end_at.strftime(DATETIME_MINUTE_FMT) if sg.end_at else None,
-        }
-
-    def get_author(self, obj: Review) -> dict[str, Any]:
-        user: User = obj.user
-        return {
-            "id": user.id,
-            "nickname": user.nickname,
-            "email": user.email,
-        }

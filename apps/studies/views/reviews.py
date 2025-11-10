@@ -282,5 +282,8 @@ class AdminReviewDetailView(generics.RetrieveAPIView[Review]):
     serializer_class = AdminReviewDetailSerializer
     queryset = Review.objects.select_related("study_group", "user")
 
+    lookup_url_kwarg = "review_id"
+    lookup_field = "id"
+
     def retrieve(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         return super().retrieve(request, *args, **kwargs)
