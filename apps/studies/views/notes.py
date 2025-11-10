@@ -136,7 +136,7 @@ class StudyNoteDetailAPIView(APIView):
     @extend_schema(summary="스터디 노트 수정 API")
     def patch(self, request: Request, note_id: int) -> Response:
         note = self._get_note(note_id)
-        self.check_object_permissions(request, obj=note)
+        self.check_object_permissions(request, obj=note.study_group)
 
         serializer = StudyNoteUpdateSerializer(note, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
@@ -167,6 +167,6 @@ class StudyNoteDetailAPIView(APIView):
     @extend_schema(summary="스터디 노트 삭제 API")
     def delete(self, request: Request, note_id: int) -> Response:
         note = self._get_note(note_id)
-        self.check_object_permissions(request, obj=note)
+        self.check_object_permissions(request, obj=note.study_group)
         note.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)

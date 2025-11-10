@@ -24,9 +24,17 @@ class StudyNoteAIService:
     - 학습 노트의 내용을 프롬프트에 맞춰 AI 요약문으로 정제하고, 결과를 DB에 저장
     """
 
-    MODEL_NAME: ClassVar[str] = "gemini-2.5-flash"
+    MODEL_NAME: ClassVar[str] = settings.GEMINI_MODEL_NAME
 
     _CLIENT: ClassVar[genai.Client] = genai.Client(api_key=settings.GEMINI_API_KEY)
+
+    if getattr(settings, "GEMINI_API_KEY", None):
+        _CLIENT = genai.Client(api_key=settings.GEMINI_API_KEY)
+    else:
+        # CI나 테스트 환경에서는 MockClient 사용
+        import unittest.mock as mock
+
+        _CLIENT = mock.MagicMock(name="MockGeminiClient")
 
     # textwrap.dedent() : 문자열 좌측 들여쓰기 제거
     SUMMARY_PROMPT_TEMPLATE: ClassVar[str] = textwrap.dedent(
