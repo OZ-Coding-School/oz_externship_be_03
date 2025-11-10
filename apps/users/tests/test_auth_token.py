@@ -11,7 +11,9 @@ from django.conf import settings
 from django.http import HttpRequest
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework import serializers
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.request import Request
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.exceptions import (
@@ -21,7 +23,9 @@ from rest_framework_simplejwt.exceptions import (
 )
 from rest_framework_simplejwt.tokens import AccessToken, RefreshToken
 
+from apps.core.exceptions import WithdrawalBlocked
 from apps.users.models.user import User as UserModel
+from apps.users.models.withdrawal import Withdrawal
 from apps.users.services.auth_services import (
     authenticate_and_issue_tokens,
     refresh_access_token,
@@ -29,6 +33,7 @@ from apps.users.services.auth_services import (
 from apps.users.utils.jwt import coerce_samesite, extract_bearer_token, is_jwt_like
 from apps.users.views.auth_views import (
     _validate_login_payload,
+    precheck_login,
 )
 
 # ---------------------------------------------------------------------
@@ -197,7 +202,8 @@ class AuthViewsTest(TestCase):
         )
         self.assertEqual(resp.status_code, 400)
         body = json.loads(resp.content.decode())
-        self.assertIn("email", body)
+        self.assertIn("error", body)
+        self.assertEqual(body["error"], "email: 이 필드는 필수 항목입니다.")
 
     def test_refresh_uses_cookie_when_present(self) -> None:
         cookie_name = settings.AUTH_REFRESH_COOKIE_NAME
@@ -369,8 +375,23 @@ class AuthServiceTests(TestCase):
         self.user.save(update_fields=["is_active"])
         mock_auth.return_value = self.user
 
-        with self.assertRaises(PermissionError):
-            authenticate_and_issue_tokens(email="user@example.com", password=DEFAULT_PWD)
+        with self.assertRaises(PermissionDenied):
+            precheck_login(email=self.user.email)
+
+    def test_precheck_login_withdrawal_blocked(self) -> None:
+        Withdrawal.objects.filter(user__email__iexact=self.user.email).delete()
+
+        self.user.is_active = False
+        self.user.save(update_fields=["is_active"])
+
+        due = timezone.now() + timedelta(days=7)
+        Withdrawal.objects.create(
+            user=self.user,
+            due_date=due,
+        )
+
+        with self.assertRaises(WithdrawalBlocked):
+            precheck_login(email=self.user.email)
 
     # ==============================
     # refresh_access_token 성공 및 실패 테스트

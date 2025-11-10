@@ -8,6 +8,7 @@ from django.core.validators import validate_email as django_validate_email
 from drf_spectacular.utils import extend_schema
 from rest_framework import serializers, status
 from rest_framework.authentication import BaseAuthentication
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -19,6 +20,7 @@ from rest_framework_simplejwt.exceptions import (
 )
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from apps.core.exceptions import WithdrawalBlocked
 from apps.core.views import ExceptionHandledAPIView
 from apps.users.models.user import User
 from apps.users.serializers.auth_serializers import (
@@ -33,6 +35,7 @@ from apps.users.services.auth_services import (
 from apps.users.utils.cookies import set_refresh_cookie
 from apps.users.utils.jwt import extract_bearer_token, is_jwt_like
 from apps.users.utils.response_helpers import ok
+from apps.users.views.base import LoginExceptionHandledAPIView
 
 
 # ==============================
@@ -61,10 +64,22 @@ def _validate_login_payload(payload: Dict[str, Any]) -> None:
     payload["email"] = f"{local}@{domain.lower()}"
 
 
+def precheck_login(email: str) -> None:
+    # 최근 탈퇴 유예 차단
+    blocked, block_until = User.objects.is_email_blocked_by_recent_withdrawal(email)
+    if blocked and block_until:
+        raise WithdrawalBlocked(blocked_until=block_until)
+
+    # 비활성 계정 사전 차단
+    user = User.objects.filter(email__iexact=email).only("id", "is_active").first()
+    if user is not None and not user.is_active:
+        raise PermissionDenied("비활성화된 계정입니다.")
+
+
 # ---------------------------------------------------------------------
 # 뷰: 로그인
 # ---------------------------------------------------------------------
-class LoginView(APIView):
+class LoginView(LoginExceptionHandledAPIView):
     """
     로그인 뷰
     POST /auth/login
@@ -92,12 +107,14 @@ class LoginView(APIView):
         # 2) validator
         _validate_login_payload(payload)
 
+        email: str = payload["email"]
+        password: str = payload["password"]
+
+        precheck_login(email)
+
         # 3) 서비스 호출
         try:
-            tokens = authenticate_and_issue_tokens(
-                email=payload["email"],
-                password=payload["password"],
-            )
+            tokens = authenticate_and_issue_tokens(email=email, password=password)
         except PermissionError:
             return Response(
                 {"error": "이메일 또는 비밀번호가 올바르지 않습니다."},
