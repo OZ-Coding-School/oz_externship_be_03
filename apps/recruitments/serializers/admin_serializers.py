@@ -6,6 +6,7 @@ from apps.recruitments.models.application import Application
 
 class AdminRecruitmentTagSerializer(serializers.ModelSerializer[Tag]):
     """관리자용 태그"""
+
     id = serializers.IntegerField(read_only=True)
 
     class Meta:
@@ -15,6 +16,7 @@ class AdminRecruitmentTagSerializer(serializers.ModelSerializer[Tag]):
 
 class AdminRecruitmentAttachmentSerializer(serializers.ModelSerializer[RecruitmentAttachment]):
     """관리자용 첨부파일"""
+
     id = serializers.IntegerField(read_only=True)
 
     class Meta:
@@ -24,6 +26,7 @@ class AdminRecruitmentAttachmentSerializer(serializers.ModelSerializer[Recruitme
 
 class AdminApplicationSerializer(serializers.ModelSerializer[Application]):
     """관리자용 지원내역"""
+
     id = serializers.IntegerField(read_only=True)  #
     nickname = serializers.CharField(source="user.nickname", read_only=True)
     email = serializers.EmailField(source="user.email", read_only=True)
@@ -37,9 +40,8 @@ class AdminApplicationSerializer(serializers.ModelSerializer[Application]):
 
 class AdminRecruitmentListSerializer(serializers.ModelSerializer[Recruitment]):
     """관리자용 공고 목록"""
-    tags: serializers.SlugRelatedField[Tag] = serializers.SlugRelatedField(
-        slug_field="name", read_only=True, many=True
-    )
+
+    tags: serializers.SlugRelatedField[Tag] = serializers.SlugRelatedField(slug_field="name", read_only=True, many=True)
     status = serializers.SerializerMethodField()
     bookmark_count = serializers.SerializerMethodField()
     applications = AdminApplicationSerializer(many=True, read_only=True)
@@ -71,6 +73,7 @@ class AdminRecruitmentListSerializer(serializers.ModelSerializer[Recruitment]):
 
 class AdminRecruitmentDetailSerializer(serializers.ModelSerializer[Recruitment]):
     """관리자용 공고 상세"""
+
     attachments = AdminRecruitmentAttachmentSerializer(many=True, read_only=True)
     tags = AdminRecruitmentTagSerializer(many=True, read_only=True)
     applications = AdminApplicationSerializer(many=True, read_only=True)

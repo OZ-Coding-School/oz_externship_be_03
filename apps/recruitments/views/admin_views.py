@@ -18,12 +18,14 @@ from apps.recruitments.serializers.admin_serializers import (
 
 class AdminRecruitmentPagination(PageNumberPagination):
     """관리자 공고 목록 페이지네이션"""
+
     page_size = 10
     page_size_query_param = "page_size"
 
 
 class AdminRecruitmentListAPIView(generics.ListAPIView[Recruitment]):
     """관리자 공고 목록 조회"""
+
     serializer_class = AdminRecruitmentListSerializer
     permission_classes = [IsAdminUser]
     pagination_class = AdminRecruitmentPagination
@@ -59,6 +61,7 @@ class AdminRecruitmentListAPIView(generics.ListAPIView[Recruitment]):
 
 class AdminRecruitmentDetailAPIView(APIView):
     """관리자 공고 상세 조회 및 삭제"""
+
     permission_classes = [IsAdminUser]
     parser_classes = [parsers.JSONParser]
 
