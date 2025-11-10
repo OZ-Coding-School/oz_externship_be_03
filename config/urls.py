@@ -16,7 +16,7 @@ urlpatterns: list[URLPattern | URLResolver] = [
     path("api/v1/notifications/", include("apps.notifications.urls")),
     path("api/v1/chat/", include("apps.chat.urls")),
     path("api/v1/recruitments", include("apps.recruitments.urls")),
-    path("api/v1/admin/recruitments", include("apps.recruitments.urls.admin_urls")),
+    path("api/v1/admin/", include("apps.recruitments.urls.admin_urls")),
 ]
 
 if settings.DEBUG:
