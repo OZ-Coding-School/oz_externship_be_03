@@ -1,5 +1,6 @@
 from datetime import timedelta
 from typing import Any, Dict, cast
+from urllib.request import Request
 
 from django.db import transaction
 from django.utils import timezone
@@ -54,6 +55,10 @@ class StudyGroupCreateSerializer(StudyGroupBaseSerializer):
         with transaction.atomic():
             study_group = StudyGroup.objects.create(**validated_data)
             study_group.lectures.set(lectures)
+
+            request = cast(Request, self.context.get("request"))
+            GroupMember.objects.create(study_group=study_group, user=request.user, is_leader=True)  # type: ignore
+
         return study_group
 
     def to_representation(self, instance: StudyGroup) -> Dict[str, str]:
