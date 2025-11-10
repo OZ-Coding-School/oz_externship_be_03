@@ -349,9 +349,10 @@ class RecommendLecturesTestCase(RecommendationServiceTestBase):
                 self.assertIsNotNone(result, f"{description}: 결과가 None이 아니어야 합니다")
 
     def test_recommend_lectures_user_not_exists(self) -> None:
-        """존재하지 않는 사용자 검증"""
-        with self.assertRaisesMessage(ValueError, "User 99999 does not exist"):
-            self.service.recommend_lectures(user_id=99999, top_n=10)
+        """존재하지 않는 사용자는 카테고리 폴백 반환"""
+        with self._mock_als_environment(user_id=99999):
+            result = self.service.recommend_lectures(user_id=99999, top_n=5)
+            self.assertIsNotNone(result, "폴백 결과가 반환되어야 합니다")
 
     def test_recommend_lectures_invalid_user_id_type(self) -> None:
         """잘못된 user_id 타입 검증"""

@@ -65,14 +65,17 @@ class RecommendationService:
 
     캐싱 계층:
     1. 메모리: 인스턴스 변수 (_model, _user_to_idx 등)
-    2. Redis: 빠른 분산 캐시 (우선 사용)
-    3. Django 캐시: Redis 실패 시 폴백
-    4. 디스크: 영구 저장소 (pickle 파일)
+    2. Django 캐시 (Redis 백엔드): 빠른 분산 캐시
+    3. 디스크: 영구 저장소
 
     추천 전략:
     1. ALS 모델 기반 추천 (협업 필터링)
     2. 사용자 선호 카테고리 기반 추천
-    3. 전체 인기 강의 추천
+    3. 전체 인기 강의
+
+    Note:
+        Django 캐시는 django_redis.cache.RedisCache로 설정되어 있어
+        자동으로 Redis 사용
     """
 
     # Redis 헬스체크 주기 (1시간)
@@ -198,13 +201,12 @@ class RecommendationService:
             self._check_redis_health()
         return self.redis_healthy
 
-    def _cache_get_safe(self, key: str, backend: str = "django") -> Any:
+    def _cache_get_safe(self, key: str) -> Any:
         """
         캐시에서 데이터를 안전하게 읽기 (Django 캐시의 자동 pickle 처리 활용)
 
         Args:
             key: 캐시 키
-            backend: 캐시 백엔드 ('redis' 또는 'django')
 
         Returns:
             역직렬화된 데이터 또는 None (실패 시)
@@ -220,23 +222,17 @@ class RecommendationService:
             - 예외 발생 시 None 반환 (프로세스 계속)
         """
         try:
-            # 백엔드별 데이터 조회 (Django 캐시가 자동으로 pickle 처리)
-            if backend == "redis" and self._is_redis_ready() and self.redis_conn:
-                cached_data = cache.get(key)
-            elif backend == "django":
-                cached_data = cache.get(key)
-            else:
-                cached_data = None
-
+            # Django 캐시가 자동으로 pickle 처리
+            cached_data = cache.get(key)
             return cached_data
 
         except Exception as e:
             # 조회 실패 시 캐시 무효화
-            logger.error(f"[CACHE_FAIL] {key} ({backend}) get error: {e}. Invalidating cache.")
+            logger.error(f"[CACHE_FAIL] {key} get error: {e}. Invalidating cache.")
             cache.delete(key)
             return None
 
-    def _cache_set_safe(self, key: str, value: Any, timeout: int, backend: str = "django") -> None:
+    def _cache_set_safe(self, key: str, value: Any, timeout: int) -> None:
         """
         데이터를 캐시에 안전하게 저장 (Django 캐시의 자동 pickle 처리 활용)
 
@@ -244,7 +240,6 @@ class RecommendationService:
             key: 캐시 키
             value: 저장할 데이터
             timeout: TTL (초 단위)
-            backend: 캐시 백엔드 ('redis' 또는 'django')
 
         처리 흐름:
         1. value가 None이면 즉시 반환 (저장 안 함)
@@ -264,7 +259,7 @@ class RecommendationService:
             cache.set(key, value, timeout)
         except Exception as e:
             # 저장 실패 시 에러 로그만 출력
-            logger.error(f"[CACHE_FAIL] {key} ({backend}) set error: {e}")
+            logger.error(f"[CACHE_FAIL] {key} set error: {e}")
 
     def _metadata_get_safe(self, cache_key: str) -> Optional[LectureMetadata]:
         """
@@ -277,12 +272,9 @@ class RecommendationService:
             (평점, 카테고리_ID_집합) 튜플 또는 None
 
         Note:
-            - Redis 우선, Django 캐시 폴백
-            - _cache_get_safe() 래퍼 메서드
             - Django 캐시가 자동으로 pickle 처리
         """
-        backend = "redis" if self._is_redis_ready() else "django"
-        result = self._cache_get_safe(cache_key, backend=backend)
+        result = self._cache_get_safe(cache_key)
         return cast(Optional[LectureMetadata], result)
 
     def _metadata_set_safe(self, cache_key: str, avg_rating: float, category_ids: Set[int]) -> None:
@@ -295,17 +287,10 @@ class RecommendationService:
             category_ids: 카테고리 ID 집합
 
         Note:
-            - Redis 우선, Django 캐시 폴백
-            - _cache_set_safe() 래퍼 메서드
             - Django 캐시가 자동으로 pickle 처리
         """
         metadata: LectureMetadata = (avg_rating, category_ids)
-        self._cache_set_safe(
-            cache_key,
-            metadata,
-            LECTURE_METADATA_TTL,
-            backend="redis" if self._is_redis_ready() else "django",
-        )
+        self._cache_set_safe(cache_key, metadata, LECTURE_METADATA_TTL)
 
     def _load_from_redis(self) -> bool:
         """
@@ -315,23 +300,21 @@ class RecommendationService:
             로드 성공 여부 (True/False)
 
         처리 흐름:
-        1. Redis 연결 가능 시 Redis에서 로드 시도
-        2. Redis 실패 시 Django 캐시에서 로드 시도
-        3. 모든 캐시 키가 존재해야 성공
-        4. 로드된 데이터를 인스턴스 변수에 적용
+        1. Django 캐시에서 로드 시도
+        2. 모든 캐시 키가 존재해야 성공
+        3. 로드된 데이터를 인스턴스 변수에 적용
 
         Note:
             - 부분 로드는 실패로 간주 (일관성 보장)
         """
-        backend = "redis" if self._is_redis_ready() else "django"
-        cached_data = {k: self._cache_get_safe(k, backend=backend) for k in self.MODEL_CACHE_KEYS}
+        cached_data = {k: self._cache_get_safe(k) for k in self.MODEL_CACHE_KEYS}
 
         if all(v is not None for v in cached_data.values()):
             self._apply_loaded_data(cached_data)
-            logger.debug(f"[CACHE] Loaded model from {backend} cache.")
+            logger.debug("[CACHE] Loaded model from cache.")
             return True
 
-        logger.warning(f"[CACHE] No cache data found in {backend} cache.")
+        logger.warning("[CACHE] No cache data found in cache.")
         return False
 
     def _apply_loaded_data(self, cached_data: Dict[str, Any]) -> None:
@@ -357,7 +340,7 @@ class RecommendationService:
         인스턴스 모델 데이터를 캐시에 저장
 
         Note:
-            - Redis 우선 저장. Redis 연결 실패 시 Django 캐시로 자동 폴백.
+            - Django 캐시를 통해 Redis에 저장
             - 모든 필수 데이터가 준비되어야 저장 시도
             - 저장 실패 시 에러 로그만 출력 (프로세스 계속)
         """
@@ -380,9 +363,8 @@ class RecommendationService:
             USER_ITEMS_MATRIX_CACHE_KEY: self._user_items_matrix,
         }
 
-        backend = "redis" if self._is_redis_ready() else "django"
         for key, value in data_to_cache.items():
-            self._cache_set_safe(key, value, MODEL_CACHE_TIMEOUT, backend=backend)
+            self._cache_set_safe(key, value, MODEL_CACHE_TIMEOUT)
 
     def _ensure_model_loaded(self) -> bool:
         """
@@ -774,13 +756,13 @@ class RecommendationService:
             ValueError: 입력 검증 실패 시
 
         처리 흐름:
-        1-3. 입력 검증 (user_id, top_n, 사용자 존재 여부)
-        4. 모델 로드 확인 (실패 시 카테고리 폴백)
-        5. 사용자 인덱스 확인 (없으면 카테고리 폴백)
-        6. ALS 추천 실행 (top_n * 5 조회)
-        7. 후처리 점수 계산 및 재정렬
-        8. 결과 부족 시 카테고리 폴백으로 보충
-        9. 최종 QuerySet 반환
+        1, 2. 입력 검증 (user_id, top_n)
+        3. 모델 로드 확인 (실패 시 카테고리 폴백)
+        4. 사용자 인덱스 확인 (없으면 카테고리 폴백)
+        5. ALS 추천 실행 (top_n * 5 조회)
+        6. 후처리 점수 계산 및 재정렬
+        7. 결과 부족 시 카테고리 폴백으로 보충
+        8. 최종 QuerySet 반환
 
         Note:
             - ALS 실패 시 자동으로 카테고리 폴백
@@ -804,16 +786,12 @@ class RecommendationService:
             logger.warning(f"[REC] top_n too large: {top_n}. Capping at 100.")
             top_n = 100
 
-        # 3. 사용자 존재 여부 확인
-        if not User.objects.filter(id=user_id).exists():
-            raise ValueError(f"User {user_id} does not exist in the database.")
-
-        # 4. 모델 로드 확인
+        # 3. 모델 로드 확인
         if not self._ensure_model_loaded() or self._model is None or self._user_items_matrix is None:
             logger.warning(f"[REC] Model not available for user {user_id}. Using Category Fallback.")
             return self._get_category_fallback(user_id, top_n)
 
-        # 5. 사용자 인덱스 확인
+        # 4. 사용자 인덱스 확인
         user_index = cast(Dict[int, int], self._user_to_idx).get(user_id)
         if user_index is None:
             logger.warning(f"[REC] User {user_id} not in model mapping. Using Category Fallback.")
@@ -821,10 +799,10 @@ class RecommendationService:
 
         rec_ids = []
         try:
-            # 6. ALS 추천 실행 (implicit 라이브러리)
+            # 5. ALS 추천 실행 (implicit 라이브러리)
             result = self._model.recommend(
                 userid=user_index,
-                user_items=self._user_items_matrix,
+                user_items=self._user_items_matrix[user_index],  # 단일 사용자 행만 전달
                 N=top_n * 5,  # 후처리 여유분 확보
                 filter_already_liked_items=True,  # 이미 상호작용한 강의 제외
                 recalculate_user=True,  # 사용자 벡터 재계산
@@ -854,7 +832,7 @@ class RecommendationService:
                 logger.warning(f"[REC] No recommendations returned for user {user_id}")
                 return self._get_category_fallback(user_id, top_n)
 
-            # 7. 후처리 점수 계산 및 재정렬
+            # 6. 후처리 점수 계산 및 재정렬
             final_ranked_ids = self._get_post_processed_ranking(user_id, recommended_idx_scores)
             rec_ids = final_ranked_ids[:top_n]
         except Exception as e:
@@ -862,7 +840,7 @@ class RecommendationService:
             logger.error(f"[REC] ALS recommendation failed for user {user_id}: {e}", exc_info=True)
             return self._get_category_fallback(user_id, top_n)
 
-        # 8. 결과 부족 시 카테고리 폴백으로 보충
+        # 7. 결과 부족 시 카테고리 폴백으로 보충
         if len(rec_ids) < top_n:
             needed_count = top_n - len(rec_ids)
             logger.info(
@@ -884,7 +862,7 @@ class RecommendationService:
         if not rec_ids:
             return CrawledLecture.objects.none()
 
-        # 9. 최종 QuerySet 반환 (Manager 메서드가 북마크 제외 처리)
+        # 8. 최종 QuerySet 반환 (Manager 메서드가 북마크 제외 처리)
         qs = CrawledLecture.objects.ordered_by_ids(rec_ids).exclude_bookmarked(user_id).with_categories()
 
         # 추천 결과 로그 출력 (디버깅용)
