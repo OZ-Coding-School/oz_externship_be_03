@@ -39,8 +39,8 @@ class TestSocialAuthFlow(TestCase):
 
     def test_kakao_social_login(self) -> None:
         """카카오 로그인 (Mock/Real 자동 지원)"""
-        kakao_url = reverse("users:social-login", kwargs={"provider": "kakao"})
-        code = "FAKE_KAKAO_CODE"  # ✅ 무조건 Mock 모드
+        kakao_url = reverse("users:social-login-kakao")  # ✅ 수정됨
+        code = "FAKE_KAKAO_CODE"
 
         response = self.client.post(kakao_url, {"code": code}, format="json")
 
@@ -51,8 +51,8 @@ class TestSocialAuthFlow(TestCase):
 
     def test_naver_social_login(self) -> None:
         """네이버 로그인 (Mock/Real 자동 지원)"""
-        naver_url = reverse("users:social-login", kwargs={"provider": "naver"})
-        code, state = "FAKE_NAVER_CODE", "FAKE_STATE"  # ✅ 무조건 Mock 모드
+        naver_url = reverse("users:social-login-naver")  # ✅ 수정됨
+        code, state = "FAKE_NAVER_CODE", "FAKE_STATE"
 
         response = self.client.post(naver_url, {"code": code, "state": state}, format="json")
 
@@ -63,7 +63,7 @@ class TestSocialAuthFlow(TestCase):
 
     def test_kakao_login_validation_error(self) -> None:
         """카카오 ValidationError 처리"""
-        kakao_url = reverse("users:social-login", kwargs={"provider": "kakao"})
+        kakao_url = reverse("users:social-login-kakao")  # ✅ 수정됨
         with patch(
             "apps.users.services.social_auth_services.KakaoAuthService.handle_login",
             side_effect=ValidationError("토큰 오류 발생"),
@@ -76,7 +76,7 @@ class TestSocialAuthFlow(TestCase):
 
     def test_naver_login_generic_exception(self) -> None:
         """네이버 Exception 처리"""
-        naver_url = reverse("users:social-login", kwargs={"provider": "naver"})
+        naver_url = reverse("users:social-login-naver")  # ✅ 수정됨
         with patch(
             "apps.users.services.social_auth_services.NaverAuthService.handle_login",
             side_effect=Exception("예기치 못한 서버 오류"),
@@ -92,7 +92,6 @@ class TestSocialAuthFlow(TestCase):
     # ----------------------------------------------------------------------
 
     def test_kakao_mock_mode_flow(self) -> None:
-        """카카오 Mock 모드 토큰 및 유저정보 테스트"""
         token = KakaoAuthService.exchange_code_for_token("FAKE_KAKAO_CODE")
         self.assertEqual(token, "mock_access_token_for_kakao")
 
@@ -101,7 +100,6 @@ class TestSocialAuthFlow(TestCase):
         self.assertEqual(user_info["nickname"], "kakao_mock")
 
     def test_naver_mock_mode_flow(self) -> None:
-        """네이버 Mock 모드 토큰 및 유저정보 테스트"""
         token = NaverAuthService.exchange_code_for_token("FAKE_NAVER_CODE", "STATE")
         self.assertEqual(token, "mock_access_token_for_naver")
 
@@ -109,7 +107,6 @@ class TestSocialAuthFlow(TestCase):
         self.assertEqual(user_info["nickname"], "naver_mock")
 
     def test_kakao_exchange_code_for_token_network_error(self) -> None:
-        """카카오 네트워크 예외 커버"""
         with patch(
             "apps.users.services.social_auth_services.requests.post",
             side_effect=Exception("Network fail"),
@@ -118,19 +115,16 @@ class TestSocialAuthFlow(TestCase):
                 KakaoAuthService.exchange_code_for_token("REAL_CODE")
 
     def test_naver_exchange_code_for_token_http_400(self) -> None:
-        """네이버 응답 코드 400 예외 커버"""
         mock_resp = type("MockResp", (), {"status_code": 400, "text": "Bad Request", "json": lambda s: {}})()
         with patch("apps.users.services.social_auth_services.requests.post", return_value=mock_resp):
             with self.assertRaises(ValidationError):
                 NaverAuthService.exchange_code_for_token("REAL_CODE", "STATE")
 
     def test_social_auth_service_invalid_provider(self) -> None:
-        """지원하지 않는 provider 예외"""
         with self.assertRaises(ValidationError):
             SocialAuthService.handle_social_login("google", "CODE", None)
 
     def test_social_auth_service_calls_kakao(self) -> None:
-        """카카오 서비스 핸들러 호출 확인"""
         with patch(
             "apps.users.services.social_auth_services.KakaoAuthService.handle_login",
             return_value={"detail": "ok"},
@@ -140,7 +134,6 @@ class TestSocialAuthFlow(TestCase):
             mock_kakao.assert_called_once()
 
     def test_social_auth_service_calls_naver(self) -> None:
-        """네이버 서비스 핸들러 호출 확인"""
         with patch(
             "apps.users.services.social_auth_services.NaverAuthService.handle_login",
             return_value={"detail": "ok"},
@@ -154,14 +147,12 @@ class TestSocialAuthFlow(TestCase):
     # ----------------------------------------------------------------------
 
     def test_kakao_token_response_not_200(self) -> None:
-        """카카오 토큰 응답이 200이 아닐 때 ValidationError"""
         mock_resp = type("MockResp", (), {"status_code": 400, "text": "Bad Request", "json": lambda s: {}})()
         with patch("apps.users.services.social_auth_services.requests.post", return_value=mock_resp):
             with self.assertRaises(ValidationError):
                 KakaoAuthService.exchange_code_for_token("REAL_CODE")
 
     def test_kakao_token_missing_access_token(self) -> None:
-        """카카오 토큰 응답에 access_token 누락"""
         mock_resp = type(
             "MockResp",
             (),
@@ -172,28 +163,24 @@ class TestSocialAuthFlow(TestCase):
                 KakaoAuthService.exchange_code_for_token("REAL_CODE")
 
     def test_kakao_userinfo_invalid_status_code(self) -> None:
-        """카카오 유저정보 응답이 200이 아닐 때 ValidationError"""
         mock_resp = type("MockResp", (), {"status_code": 400, "text": "Bad Request"})()
         with patch("apps.users.services.social_auth_services.requests.get", return_value=mock_resp):
             with self.assertRaises(ValidationError):
                 KakaoAuthService.get_user_info("REAL_ACCESS_TOKEN")
 
     def test_naver_token_response_not_200(self) -> None:
-        """네이버 토큰 응답이 200이 아닐 때 ValidationError"""
         mock_resp = type("MockResp", (), {"status_code": 400, "text": "Bad Request", "json": lambda s: {}})()
         with patch("apps.users.services.social_auth_services.requests.post", return_value=mock_resp):
             with self.assertRaises(ValidationError):
                 NaverAuthService.exchange_code_for_token("REAL_CODE", "STATE")
 
     def test_naver_userinfo_invalid_status_code(self) -> None:
-        """네이버 유저정보 응답이 200이 아닐 때 ValidationError"""
         mock_resp = type("MockResp", (), {"status_code": 500, "text": "Server Error"})()
         with patch("apps.users.services.social_auth_services.requests.get", return_value=mock_resp):
             with self.assertRaises(ValidationError):
                 NaverAuthService.get_user_info("REAL_ACCESS_TOKEN")
 
     def test_debug_log_response_handles_invalid_json(self) -> None:
-        """_debug_log_response JSONDecodeError 분기 커버"""
         mock_resp = type(
             "MockResp",
             (),
@@ -201,4 +188,4 @@ class TestSocialAuthFlow(TestCase):
         )()
         from apps.users.services.social_auth_services import _debug_log_response
 
-        _debug_log_response("TEST", mock_resp)  # 예외 없이 실행되면 성공
+        _debug_log_response("TEST", mock_resp)
