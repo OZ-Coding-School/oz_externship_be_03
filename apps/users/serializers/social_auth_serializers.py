@@ -15,6 +15,7 @@ class NaverSocialRequestSerializer(serializers.Serializer[Dict[str, Any]]):
     )
     state = serializers.CharField(help_text="네이버 로그인 시 필요한 state 값 (Mock 모드에서는 FAKE_STATE 입력)")
 
+
 class SocialAuthResponseSerializer(serializers.Serializer[Dict[str, Any]]):
     detail = serializers.CharField(help_text="응답 메시지", required=True)
     access = serializers.CharField(help_text="JWT access 토큰", required=True)
