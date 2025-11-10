@@ -93,6 +93,7 @@ class _AdminReviewStudyGroupSerializer(serializers.Serializer[Any]):
     start_at = serializers.DateTimeField(format=DATETIME_MINUTE_FMT, allow_null=True)
     end_at = serializers.DateTimeField(format=DATETIME_MINUTE_FMT, allow_null=True)
 
+
 class _AdminReviewAuthorSerializer(serializers.Serializer[Any]):
     id = serializers.IntegerField()
     nickname = serializers.CharField()
