@@ -1,8 +1,9 @@
 from __future__ import annotations
+
 from typing import Any
 
 from django.core.exceptions import ValidationError
-from drf_spectacular.utils import OpenApiResponse, extend_schema, OpenApiExample
+from drf_spectacular.utils import OpenApiExample, OpenApiResponse, extend_schema
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework.request import Request
@@ -17,9 +18,7 @@ from apps.users.serializers.social_auth_serializers import (
 from apps.users.services.social_auth_services import KakaoAuthService, NaverAuthService
 
 
-# ------------------------------------------------------------
-# ✅ Kakao 로그인
-# ------------------------------------------------------------
+# 카카오
 @extend_schema(
     tags=["Auth"],
     summary="카카오 로그인",
@@ -102,9 +101,7 @@ class KakaoAuthView(APIView):
             )
 
 
-# ------------------------------------------------------------
-# ✅ Naver 로그인
-# ------------------------------------------------------------
+# 네이버
 @extend_schema(
     tags=["Auth"],
     summary="네이버 로그인",

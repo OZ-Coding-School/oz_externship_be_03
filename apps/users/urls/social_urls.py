@@ -1,6 +1,6 @@
 from django.urls import path
 
-from apps.users.views.social_auth_views import KakaoAuthView,NaverAuthView
+from apps.users.views.social_auth_views import KakaoAuthView, NaverAuthView
 
 app_name = "users"
 

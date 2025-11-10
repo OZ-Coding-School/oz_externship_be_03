@@ -39,7 +39,7 @@ class TestSocialAuthFlow(TestCase):
 
     def test_kakao_social_login(self) -> None:
         """카카오 로그인 (Mock/Real 자동 지원)"""
-        kakao_url = reverse("users:social-login-kakao")  # ✅ 수정됨
+        kakao_url = reverse("users:kakao-login")  # ✅ 수정됨
         code = "FAKE_KAKAO_CODE"
 
         response = self.client.post(kakao_url, {"code": code}, format="json")
@@ -51,7 +51,7 @@ class TestSocialAuthFlow(TestCase):
 
     def test_naver_social_login(self) -> None:
         """네이버 로그인 (Mock/Real 자동 지원)"""
-        naver_url = reverse("users:social-login-naver")  # ✅ 수정됨
+        naver_url = reverse("users:naver-login")  # ✅ 수정됨
         code, state = "FAKE_NAVER_CODE", "FAKE_STATE"
 
         response = self.client.post(naver_url, {"code": code, "state": state}, format="json")
@@ -63,7 +63,7 @@ class TestSocialAuthFlow(TestCase):
 
     def test_kakao_login_validation_error(self) -> None:
         """카카오 ValidationError 처리"""
-        kakao_url = reverse("users:social-login-kakao")  # ✅ 수정됨
+        kakao_url = reverse("users:kakao-login")  # ✅ 수정됨
         with patch(
             "apps.users.services.social_auth_services.KakaoAuthService.handle_login",
             side_effect=ValidationError("토큰 오류 발생"),
@@ -76,7 +76,7 @@ class TestSocialAuthFlow(TestCase):
 
     def test_naver_login_generic_exception(self) -> None:
         """네이버 Exception 처리"""
-        naver_url = reverse("users:social-login-naver")  # ✅ 수정됨
+        naver_url = reverse("users:naver-login")  # ✅ 수정됨
         with patch(
             "apps.users.services.social_auth_services.NaverAuthService.handle_login",
             side_effect=Exception("예기치 못한 서버 오류"),
