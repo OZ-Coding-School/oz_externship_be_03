@@ -69,7 +69,7 @@ class WithdrawalTrendsAPITests(IsolatedRedisTestClient):
         self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
 
     @patch("django.utils.timezone.localdate", return_value=date(2025, 11, 10))
-    def test_invalid_interval_returns_400(self, _mock_today: Any) -> None:
+    def test_invalid_interval(self, _mock_today: Any) -> None:
         self.client.force_authenticate(self.admin)
         resp = self.client.get(self.url, {"interval": "weekly"})  # 잘못된 값
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
@@ -77,12 +77,12 @@ class WithdrawalTrendsAPITests(IsolatedRedisTestClient):
         self.assertIn("error", body)
 
     @patch("django.utils.timezone.localdate", return_value=date(2025, 11, 10))
-    def test_month_aggregation_includes_current_month_until_today(self, _mock_today: Any) -> None:
+    def test_monthly_trends(self, _mock_today: Any) -> None:
         """
         today=2025-11-10 기준:
-        - window: from=2024-12-01, to=2025-11-10 (이번 달 포함, 오늘까지)
-        - periods: 2024-12 ... 2025-11 (총 12개)
-        - 빠진 월은 0으로 채움 (trend_map 방식)
+        - from_date=2024-12-01, to_date=2025-11-10 (이번 달 포함, 오늘까지)
+        - 2024-12 ... 2025-11 (총 12개)
+        - 빠진 월은 0으로 채움
         """
         self.client.force_authenticate(self.admin)
 
@@ -132,11 +132,11 @@ class WithdrawalTrendsAPITests(IsolatedRedisTestClient):
         self.assertEqual(data["total_withdrawals"], 6)
 
     @patch("django.utils.timezone.localdate", return_value=date(2025, 11, 10))
-    def test_year_aggregation_last_5_years_includes_today(self, _mock_today: Any) -> None:
+    def test_yearly_trends(self, _mock_today: Any) -> None:
         """
         today=2025-11-10 기준:
-        - window: from=2021-01-01, to=2025-11-10
-        - periods: 2021..2025 (총 5개)
+        - from_date=2021-01-01, to_date=2025-11-10
+        - 2021..2025 (총 5개)
         """
         self.client.force_authenticate(self.admin)
 
