@@ -34,7 +34,7 @@ urlpatterns = [
         name="admin_user_restore",
     ),
     path(
-        "admin/dashboard/withdrawal-trends",
+        "admin/dashboard/withdrawals/trends",
         WithdrawalTrendsAPIView.as_view(),
         name="withdrawal_trends",
     ),
