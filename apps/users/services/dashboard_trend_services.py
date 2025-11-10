@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta
-from typing import Dict, List, Literal, TypedDict
+from typing import Any, Dict, List, Literal, Type, TypedDict, cast
 
-from django.db.models import Count
+from django.contrib.auth import get_user_model
+from django.db import models
+from django.db.models import Count, Q
 from django.db.models.functions import TruncMonth, TruncYear
 from django.utils import timezone
 
 from apps.users.models import Withdrawal
+
+User = cast(type[models.Model], get_user_model())
 
 Interval = Literal["month", "year"]
 
@@ -21,7 +25,7 @@ class TrendResult(TypedDict):
     interval: Interval
     from_date: date
     to_date: date
-    total_withdrawals: int
+    total: int
     items: List[TrendItem]
 
 
@@ -47,16 +51,24 @@ def _to_aware(dt: datetime) -> datetime:
     return dt if timezone.is_aware(dt) else timezone.make_aware(dt, timezone.get_current_timezone())
 
 
-def _aggregate(interval: Interval, window: Dict[str, date]) -> TrendResult:
-    """탈퇴 내역을 월/년 단위로 집계"""
-    start_dt = _to_aware(datetime.combine(window["start"], datetime.min.time()))
-    end_dt = _to_aware(datetime.combine(window["end"] + timedelta(days=1), datetime.min.time()))
+def _aggregate(*, model: Type[models.Model], filters: Q | Dict[str, Any] | None, interval: Interval) -> TrendResult:
+    """
+    공통 추세
+    주어진 모델과 날짜 필드를 기준으로 월/연 단위로 집계.
+    빠진 구간은 count=0으로 채워 반환
+    """
+    today = timezone.localdate()
+    window = _month_window(today) if interval == "month" else _year_window(today)
 
-    queryset = Withdrawal.objects.filter(
-        user_id__isnull=True,
-        created_at__gte=start_dt,
-        created_at__lt=end_dt,
+    start_datetime = _to_aware(datetime.combine(window["start"], datetime.min.time()))
+    end_datetime = _to_aware(datetime.combine(window["end"] + timedelta(days=1), datetime.min.time()))
+
+    queryset = cast(Any, model).objects.filter(
+        created_at__gte=start_datetime,
+        created_at__lt=end_datetime,
     )
+    if filters:
+        queryset = queryset.filter(filters)
 
     trend_items: List[TrendItem] = []
 
@@ -103,19 +115,33 @@ def _aggregate(interval: Interval, window: Dict[str, date]) -> TrendResult:
             trend_items.append({"period": f"{year:04d}", "count": count})
 
     # 총합 계산
-    total_withdrawals = queryset.aggregate(total=Count("id"))["total"] or 0
+    total_count = queryset.aggregate(total=Count("id"))["total"] or 0
 
     return {
         "interval": interval,
         "from_date": window["start"],
         "to_date": window["end"],
-        "total_withdrawals": total_withdrawals,
+        "total": total_count,
         "items": trend_items,
     }
 
 
 def get_withdrawal_trends(*, interval: Interval) -> TrendResult:
     """탈퇴 추세 조회 (월/년 단위)"""
-    today = timezone.localdate()
-    window = _month_window(today) if interval == "month" else _year_window(today)
-    return _aggregate(interval, window)
+    filters = Q(user_id__isnull=True)
+
+    return _aggregate(
+        model=Withdrawal,
+        filters=filters,
+        interval=interval,
+    )
+
+
+def get_signup_trends(*, interval: Interval) -> TrendResult:
+    """가입 추세 조회 (월/년 단위)"""
+
+    return _aggregate(
+        model=User,
+        filters=None,
+        interval=interval,
+    )
