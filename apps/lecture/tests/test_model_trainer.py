@@ -721,7 +721,7 @@ class ModelTrainerBoundaryTestCase(ModelTrainerTestBase):
             ),
             shape=(0, 0),
             dtype=np.float32,
-        )
+        )  # type: ignore [type-var]
         self.mock_data_loader.build_user_item_matrix.return_value = (
             test_matrix,
             self.EMPTY_DICT,
