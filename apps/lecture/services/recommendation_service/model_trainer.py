@@ -13,7 +13,7 @@ from django.conf import settings
 from django.core.cache import cache
 from django.utils import timezone
 from implicit.als import AlternatingLeastSquares  # type: ignore
-from scipy.sparse import csr_matrix # type: ignore
+from scipy.sparse import csr_matrix  # type: ignore
 
 from apps.lecture.services.recommendation_service.constants import (
     ALS_CACHE_KEYS,

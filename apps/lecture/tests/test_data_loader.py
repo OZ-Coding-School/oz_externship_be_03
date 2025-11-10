@@ -14,7 +14,7 @@ from datetime import timedelta
 import numpy as np
 from django.core.cache import cache
 from django.utils import timezone
-from scipy.sparse import coo_matrix, csr_matrix # type: ignore
+from scipy.sparse import coo_matrix, csr_matrix  # type: ignore
 
 from apps.core.utils.isolated_cache_testcase import IsolatedRedisTestClient
 from apps.lecture.models import (

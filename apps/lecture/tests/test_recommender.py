@@ -18,7 +18,7 @@ from unittest import mock
 import numpy as np
 from django.core.cache import cache
 from implicit.als import AlternatingLeastSquares  # type: ignore
-from scipy.sparse import csr_matrix # type: ignore
+from scipy.sparse import csr_matrix  # type: ignore
 
 from apps.core.utils.isolated_cache_testcase import IsolatedRedisTestClient
 from apps.lecture.models import (
