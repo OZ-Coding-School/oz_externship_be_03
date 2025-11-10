@@ -106,6 +106,6 @@ class TestRecruitmentTagView(TestCase):
 
     def test_post_missing_recruitment_id(self) -> None:
         """recruitment_id 누락 시 404"""
-        invalid_url = "/api/v1/recruitments/tags"  # 잘못된 경로 (슬래시 제거)
+        invalid_url = "/api/v1/recruitments/tags"
         response: Any = self.client.post(invalid_url, {"name": "FastAPI"})
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)

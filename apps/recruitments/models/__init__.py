@@ -17,3 +17,7 @@ __all__ = [
     "RecruitmentSearchLog",
     "Tag",
 ]
+
+
+class Application:
+    pass
