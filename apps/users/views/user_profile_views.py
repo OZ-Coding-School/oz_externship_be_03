@@ -110,7 +110,7 @@ class UserProfileUpdateView(APIView):
         description="로그인한 사용자가 일반정보(프로필 이미지, 닉네임, 휴대전화 번호) 중 원하는 정보를 수정합니다. 휴대폰 정보를 수정하기 위해서는 휴대폰 인증을 수행해야 합니다.",
         request=UserProfileUpdateSerializer,
         responses=inline_serializer(
-            name="PhoneVerificationSendCodeResponse",
+            name="UserProfileUpdateResponse",
             fields={
                 "detail": serializers.CharField(),
                 "data": UserProfileUpdateResponseSerializer(),
