@@ -27,7 +27,7 @@ def _header(request: Request, name: str) -> Optional[str]:
     summary="이메일 찾기",
     description="휴대폰 인증을 거친 뒤 이메일을 찾습니다.",
     responses=inline_serializer(
-        name="PhoneVerificationSendCodeResponse",
+        name="FindEmailResponse",
         fields={
             "detail": serializers.CharField(),
             "data": FindEmailSerializer(),
