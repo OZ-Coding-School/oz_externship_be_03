@@ -34,7 +34,7 @@ urlpatterns = [
         name="admin_user_restore",
     ),
     path(
-        "admin/dashboard/signup-trends",
+        "admin/dashboard/signups",
         SignupTrendsAPIView.as_view(),
         name="signup_trends",
     ),
