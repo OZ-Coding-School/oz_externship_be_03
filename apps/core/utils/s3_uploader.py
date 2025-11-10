@@ -4,7 +4,7 @@ import logging
 import uuid
 from typing import Any, ClassVar, Optional, cast
 
-import boto3 # type: ignore
+import boto3  # type: ignore
 from django.conf import settings
 from django.core.files.uploadedfile import UploadedFile
 from rest_framework.exceptions import APIException, ParseError, ValidationError
