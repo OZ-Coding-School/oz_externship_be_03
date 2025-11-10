@@ -10,7 +10,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.recruitments.models import Recruitment
-from apps.recruitments.serializers.admin_serializers import (
+from apps.recruitments.serializers.admin_recruitment_serializers import (
     AdminRecruitmentDetailSerializer,
     AdminRecruitmentListSerializer,
 )
