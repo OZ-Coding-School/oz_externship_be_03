@@ -6,7 +6,9 @@ from rest_framework import serializers
 from rest_framework.request import Request
 
 from apps.lecture.models import RatingEnum
+from apps.studies.models import StudyGroup
 from apps.studies.models.reviews import Review
+from apps.users.models import User
 
 
 class StarRatingField(serializers.ChoiceField):
@@ -78,3 +80,68 @@ class ReviewUpdateSerializer(serializers.ModelSerializer[Review]):
         if not value.strip():
             raise serializers.ValidationError("내용이 비어 있습니다.")
         return value
+
+
+DATETIME_MINUTE_FMT = "%Y-%m-%d %H:%M"
+
+
+class _AdminReviewStudyGroupSerializer(serializers.Serializer[Any]):
+    id = serializers.IntegerField()
+    uuid = serializers.UUIDField()
+    name = serializers.CharField()
+    introduction = serializers.CharField()
+    start_at = serializers.DateTimeField(format=DATETIME_MINUTE_FMT, allow_null=True)
+    end_at = serializers.DateTimeField(format=DATETIME_MINUTE_FMT, allow_null=True)
+
+
+class _AdminReviewAuthorSerializer(serializers.Serializer[Any]):
+    id = serializers.IntegerField()
+    nickname = serializers.CharField()
+    email = serializers.EmailField()
+
+
+class AdminReviewListSerializer(serializers.ModelSerializer[Review]):
+
+    study_group = _AdminReviewStudyGroupSerializer(read_only=True)
+    author = _AdminReviewAuthorSerializer(source="user", read_only=True)
+    star_rating = StarRatingField(read_only=True, represent="int")
+    created_at = serializers.DateTimeField(format=DATETIME_MINUTE_FMT, read_only=True)
+    updated_at = serializers.DateTimeField(format=DATETIME_MINUTE_FMT, read_only=True)
+
+    class Meta:
+        model = Review
+        fields = (
+            "id",
+            "study_group",
+            "author",
+            "star_rating",
+            "content",
+            "created_at",
+            "updated_at",
+        )
+
+
+class AdminReviewDetailSerializer(serializers.ModelSerializer[Review]):
+    """
+    어드민 페이지에서 특정 리뷰 클릭했을 때 나오는 상세용
+    목록보다 스터디 그룹 정보가 조금 더 많음
+    """
+
+    id = serializers.IntegerField()
+    study_group = _AdminReviewStudyGroupSerializer(read_only=True)
+    author = _AdminReviewAuthorSerializer(source="user", read_only=True)
+    star_rating = StarRatingField(read_only=True, represent="int")
+    created_at = serializers.DateTimeField(format=DATETIME_MINUTE_FMT, read_only=True)
+    updated_at = serializers.DateTimeField(format=DATETIME_MINUTE_FMT, read_only=True)
+
+    class Meta:
+        model = Review
+        fields = (
+            "id",
+            "study_group",
+            "author",
+            "star_rating",
+            "content",
+            "created_at",
+            "updated_at",
+        )
