@@ -5,6 +5,7 @@ from typing import Any
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
+from apps.studies.models import StudyGroup
 from apps.studies.models.notes import StudyNote
 
 User = get_user_model()
@@ -25,24 +26,12 @@ class StudyNoteCreateSerializer(serializers.ModelSerializer[StudyNote]):
     - author HiddenField 로 현재 사용자 자동 주입
     """
 
-    group_uuid = serializers.UUIDField(write_only=True)
+    study_group = serializers.SlugRelatedField(queryset=StudyGroup.objects.all(), slug_field="uuid", write_only=True)
     author = serializers.HiddenField(default=serializers.CurrentUserDefault())
 
     class Meta:
         model = StudyNote
-        fields = ("title", "content", "group_uuid", "author")
-
-    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
-        view = self.context.get("view")
-        group = getattr(view, "_group", None) if view else None
-        if group is None:
-            raise serializers.ValidationError({"group_uuid": "그룹 컨텍스트가 없습니다."})
-        attrs["study_group"] = group
-        attrs.pop("group_uuid", None)
-        return attrs
-
-    def create(self, validated_data: dict[str, Any]) -> StudyNote:
-        return StudyNote.objects.create(**validated_data)
+        fields = ("title", "content", "study_group", "author")
 
 
 class StudyNoteUpdateSerializer(serializers.ModelSerializer[StudyNote]):

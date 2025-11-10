@@ -97,7 +97,8 @@ class StudyGroupDetailUpdateView(APIView):
     )
     def get(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         obj_uuid = self.kwargs.get("group_uuid")
-        obj = get_object_or_404(StudyGroup.objects.prefetch_related("members", "lectures"), uuid=obj_uuid)
+        obj = get_object_or_404(StudyGroup.objects.prefetch_related("group_members", "lectures"), uuid=obj_uuid)
+        self.check_object_permissions(request, obj)
 
         serializer = StudyGroupDetailSerializer(obj, context={"request": request})
 
