@@ -1,5 +1,5 @@
 from django.db.models import Prefetch
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import status
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny
@@ -37,6 +37,44 @@ class LectureListView(APIView):
         operation_id="v1_lecture_list",
         tags=["Lectures"],
         summary="강의 목록을 검색, 필터링, 정렬하여 조회하는 API입니다.",
+        parameters=[
+            OpenApiParameter(
+                name="search",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="강의명 또는 강사명으로 검색",
+                required=False,
+            ),
+            OpenApiParameter(
+                name="category",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="카테고리명으로 필터링",
+                required=False,
+            ),
+            OpenApiParameter(
+                name="ordering",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="정렬 옵션 (-created_at: 최신순, price: 가격낮은순, -price: 가격높은순, rating: 평점낮은순, -rating: 평점높은순)",
+                required=False,
+                enum=["-created_at", "price", "-price", "rating", "-rating"],
+            ),
+            OpenApiParameter(
+                name="page",
+                type=int,
+                location=OpenApiParameter.QUERY,
+                description="페이지 번호 (기본값: 1)",
+                required=False,
+            ),
+            OpenApiParameter(
+                name="page_size",
+                type=int,
+                location=OpenApiParameter.QUERY,
+                description="페이지당 항목 수 (기본값: 10, 최대값: 100)",
+                required=False,
+            ),
+        ],
         responses={200: LectureListSerializer(many=True)},
     )
     def get(self, request: Request) -> Response:

@@ -1,4 +1,4 @@
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import status
 from rest_framework.pagination import LimitOffsetPagination
 from rest_framework.permissions import IsAdminUser
@@ -24,6 +24,44 @@ class AdminLectureListView(APIView):
         operation_id="v1_admin_lecture_list",
         tags=["Lectures"],
         summary="어드민용 강의 목록 조회 API",
+        parameters=[
+            OpenApiParameter(
+                name="search",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="강의명 또는 강사명으로 검색",
+                required=False,
+            ),
+            OpenApiParameter(
+                name="category",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="카테고리명으로 필터링",
+                required=False,
+            ),
+            OpenApiParameter(
+                name="ordering",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="정렬 옵션 (-created_at: 최신순, price: 가격낮은순, -price: 가격높은순, rating: 평점낮은순, -rating: 평점높은순)",
+                required=False,
+                enum=["-created_at", "price", "-price", "rating", "-rating"],
+            ),
+            OpenApiParameter(
+                name="limit",
+                type=int,
+                location=OpenApiParameter.QUERY,
+                description="한 번에 가져올 항목 수",
+                required=False,
+            ),
+            OpenApiParameter(
+                name="offset",
+                type=int,
+                location=OpenApiParameter.QUERY,
+                description="시작 위치 (0부터 시작, 기본값: 0)",
+                required=False,
+            ),
+        ],
         responses={200: AdminLectureListSerializer(many=True)},
     )
     def get(self, request: Request) -> Response:
