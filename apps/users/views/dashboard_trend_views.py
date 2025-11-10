@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from typing import Callable, Type, cast
+from typing import Any, Callable, Dict, Type, cast
 
-from drf_spectacular.utils import OpenApiParameter, extend_schema, inline_serializer, F
+from drf_spectacular.utils import F, OpenApiParameter, extend_schema, inline_serializer
 from rest_framework import serializers, status
 from rest_framework.permissions import IsAdminUser
 from rest_framework.request import Request
@@ -19,11 +19,12 @@ from apps.users.services.dashboard_trend_services import (
     get_withdrawal_trends,
 )
 
+
 def dashboard_trend_schema(
     *,
     summary: str,
     description: str,
-    data_serializer: Type[serializers.Serializer],
+    data_serializer: Type[serializers.Serializer[Dict[str, Any]]],
 ) -> Callable[[F], F]:
     """
     대시보드 추세 API 공통 extend_schema 데코레이터
@@ -34,10 +35,7 @@ def dashboard_trend_schema(
         description=description,
         responses=inline_serializer(
             name="TrendResponse",
-            fields={
-                "detail": serializers.CharField(),
-                "data": data_serializer()
-            },
+            fields={"detail": serializers.CharField(), "data": data_serializer()},
         ),
         parameters=[
             OpenApiParameter(
@@ -50,6 +48,7 @@ def dashboard_trend_schema(
         ],
     )
 
+
 class BaseTrendsAPIView(APIView):
     """
     공통 View:
@@ -61,11 +60,11 @@ class BaseTrendsAPIView(APIView):
     permission_classes = [IsAdminUser]
 
     # 서브클래스에서 지정해야 하는 것들
-    data_serializer_class: Type[serializers.Serializer]
-    service_func: Callable[[Interval], dict]
+    data_serializer_class: Type[serializers.Serializer[Dict[str, Any]]]
+    service_func: Callable[[Interval], dict[str, Any]]
     total_key_name: str
 
-    def _serialize_payload(self, result: dict) -> dict:
+    def _serialize_payload(self, result: dict[str, Any]) -> dict[str, Any]:
         """
         공통 result(total, items, interval, from_date, to_date)
         각 Serializer가 기대하는 total_* 키 이름으로 변환
@@ -81,7 +80,7 @@ class BaseTrendsAPIView(APIView):
         return serializer.data
 
     def get(self, request: Request) -> Response:
-        interval = request.query_params.get("interval", "month")
+        interval = cast(Interval, request.query_params.get("interval", "month"))
         if interval not in ("month", "year"):
             return Response(
                 {"error": "interval 파라미터는 'month' 또는 'year'만 허용됩니다."},
@@ -96,7 +95,7 @@ class BaseTrendsAPIView(APIView):
 # ----- 탈퇴 추세 -----
 class WithdrawalTrendsAPIView(BaseTrendsAPIView):
     data_serializer_class = WithdrawalTrendsDataSerializer
-    service_func = staticmethod(get_withdrawal_trends)
+    service_func = get_withdrawal_trends  # type: ignore[assignment]
     total_key_name = "total_withdrawals"
 
     @dashboard_trend_schema(
@@ -111,13 +110,13 @@ class WithdrawalTrendsAPIView(BaseTrendsAPIView):
 # ----- 가입 추세 -----
 class SignupTrendsAPIView(BaseTrendsAPIView):
     data_serializer_class = SignupTrendsDataSerializer
-    service_func = staticmethod(get_signup_trends)
+    service_func = get_signup_trends  # type: ignore[assignment]
     total_key_name = "total_signups"
 
     @dashboard_trend_schema(
         summary="대시보드 - 회원 가입 추세",
         description="관리자가 월별(최근 12개월)/연별(최근 5년) 가입 추세를 확인합니다.",
-        data_serializer=data_serializer_class
+        data_serializer=data_serializer_class,
     )
     def get(self, request: Request) -> Response:
         return super().get(request)
