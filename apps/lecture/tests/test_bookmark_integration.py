@@ -137,6 +137,7 @@ class LectureBookmarkIntegrationTest(BaseLectureTest):
                     difficulty="EASY",
                     description="설명",
                     platform="INFLEARN",
+                    external_id=i + 3,
                     original_price=10000,
                     discount_price=5000,
                     url_link=f"https://example.com/{i}",

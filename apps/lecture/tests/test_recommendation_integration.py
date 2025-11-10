@@ -133,6 +133,7 @@ class RecommendationEndToEndTest(IsolatedRedisTestClient, BaseLectureTest):
         """테스트 강의 생성 헬퍼"""
         lectures = [
             CrawledLecture.objects.create(
+                external_id=300000 + i,
                 title=f"테스트 강의 {i+1}",
                 instructor=f"강사{i+1}",
                 average_rating=4.0 + (i * 0.1),

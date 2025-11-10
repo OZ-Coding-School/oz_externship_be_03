@@ -33,6 +33,8 @@ class CrawledLecture(UUIDBaseModel):
     url_link = models.CharField(max_length=500, null=False)
     thumbnail_img_url = models.CharField(max_length=500, null=True, blank=True)
 
+    external_id = models.BigIntegerField()
+
     categories: "ManyToManyField[Category,Category]" = models.ManyToManyField(
         "Category", through="LectureCategory", related_name="crawled_lecture_categories"
     )
@@ -41,7 +43,7 @@ class CrawledLecture(UUIDBaseModel):
 
     class Meta:
         db_table = "crawled_lectures"
-        unique_together = (("platform", "title", "instructor"),)
+        unique_together = [("platform", "external_id")]
         ordering = ["-created_at"]
 
     def __str__(self) -> str:

@@ -1,9 +1,12 @@
 import asyncio
+import logging
 from typing import Any, Dict, List, Optional
 
 import aiohttp
 
 from .inflearn_ctg import InflearnCategoryCrawler
+
+logger = logging.getLogger(__name__)
 
 
 class InflearnLectureCrawlerAsync(InflearnCategoryCrawler):
@@ -35,19 +38,19 @@ class InflearnLectureCrawlerAsync(InflearnCategoryCrawler):
                 return result
 
         except asyncio.TimeoutError:
-            print(f"{page_number} 타임아웃 - 스킵")
+            logger.error(f"{page_number} 타임아웃 - 스킵")
             return None
 
         except aiohttp.ClientResponseError as e:
-            print(f"{page_number} HTTP 에러 {e.status} - 스킵")
+            logger.error(f"{page_number} HTTP 에러 {e.status} - 스킵")
             return None
 
         except aiohttp.ClientError as e:
-            print(f"{page_number} 네트워크 에러 - 스킵")
+            logger.error(f"{page_number} 네트워크 에러 - 스킵")
             return None
 
         except Exception as e:
-            print(f"{page_number} 예상치 못한 에러: {e} - 스킵")
+            logger.error(f"{page_number} 예상치 못한 에러: {e} - 스킵")
             return None
 
     async def crawl_all_pages_async(self, max_concurrent: int = 5, chunk_size: int = 50) -> List[Dict[str, Any]]:
@@ -134,6 +137,7 @@ class InflearnLectureCrawlerAsync(InflearnCategoryCrawler):
             duration_minutes: int = runtime_seconds // 60
 
             lecture_info: Dict[str, Any] = {
+                "external_id": course.get("id"),
                 "title": course.get("title", ""),
                 "instructor": instructor.get("name", ""),
                 "average_rating": round(course.get("star", 0.0), 2),
@@ -144,7 +148,7 @@ class InflearnLectureCrawlerAsync(InflearnCategoryCrawler):
                 "original_price": list_price.get("regularPrice", 0),
                 "discount_price": list_price.get("payPrice", 0),
                 "url_link": f"https://www.inflearn.com/course/{slug}" if slug else "",
-                "thumbnail_img_url": course.get("thumbnailUrl", ""),
+                "thumbnail_img_url": course.get("thumbnailUrl"),
                 # "categories_raw": metadata.get("parentCategories", []),
             }
             processed_data.append(lecture_info)

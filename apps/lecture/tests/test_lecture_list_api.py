@@ -120,6 +120,7 @@ class LectureReviewListApiViewTest(APITestCase):
             difficulty="EASY",
             description="Python 기초 강의",
             platform="INFLEARN",
+            external_id=1,
             original_price=50000,
             discount_price=30000,
             url_link="https://www.inflearn.com/python",
@@ -132,26 +133,31 @@ class LectureReviewListApiViewTest(APITestCase):
                     lecture=cls.lecture,
                     rating="5_OUT_OF_5_STARS",
                     content="최고의 강의",
+                    external_id=1,
                 ),
                 CrawledLectureReview(
                     lecture=cls.lecture,
                     rating="4_OUT_OF_5_STARS",
                     content="좋은 강의",
+                    external_id=2,
                 ),
                 CrawledLectureReview(
                     lecture=cls.lecture,
                     rating="5_OUT_OF_5_STARS",
                     content="평범한 강의",
+                    external_id=3,
                 ),
                 CrawledLectureReview(
                     lecture=cls.lecture,
                     rating="5_OUT_OF_5_STARS",
                     content="나쁜 강의",
+                    external_id=4,
                 ),
                 CrawledLectureReview(
                     lecture=cls.lecture,
                     rating="5_OUT_OF_5_STARS",
                     content="최악의 강의",
+                    external_id=5,
                 ),
             ]
         )

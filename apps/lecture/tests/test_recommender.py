@@ -116,6 +116,7 @@ class RecommendationServiceTestBase(IsolatedRedisTestClient, BaseLectureTest):
     def _create_lecture(title: str, **kwargs: Any) -> CrawledLecture:
         """테스트용 강의 생성 헬퍼"""
         defaults = {
+            "external_id": 500000,
             "instructor": "테스트 강사",
             "average_rating": 4.5,
             "duration": 300,
@@ -495,6 +496,7 @@ class RedisIntegrationTestCase(RecommendationServiceTestBase):
             [
                 CrawledLecture(
                     title=f"강의 {i}",
+                    external_id=800000 + i,
                     instructor=f"강사 {i}",
                     average_rating=4.0 + (i * 0.1),
                     duration=300 + (i * 10),
