@@ -138,7 +138,10 @@ class S3Uploader:
 
             ext = cast(str, file_name).rsplit(".", 1)[-1].lower()
 
-            key = f"{prefix}{uuid.uuid4()}_{file_name}.{ext}"
+            if file_name and "." in file_name:
+                key = f"{prefix}{uuid.uuid4()}_{file_name}"
+            else:
+                key = f"{prefix}{uuid.uuid4()}_{file_name}.{ext}"
 
             try:
                 presigned_post = cls.s3_client.generate_presigned_post(

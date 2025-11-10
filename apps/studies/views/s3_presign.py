@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
@@ -73,6 +75,8 @@ class StudyNoteS3PresignedView(APIView):
         serializer.is_valid(raise_exception=True)
 
         files = serializer.validated_data["files"]
+
+        presigned_urls: list[dict[str, Any]] = []
 
         for f in files:
             file_name = f.get("file_name")
