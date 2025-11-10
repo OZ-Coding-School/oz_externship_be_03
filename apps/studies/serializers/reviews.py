@@ -90,6 +90,7 @@ class _AdminReviewStudyGroupSerializer(serializers.Serializer[Any]):
 
 
 class _AdminReviewAuthorSerializer(serializers.Serializer[Any]):
+    id = serializers.IntegerField()
     nickname = serializers.CharField()
     email = serializers.EmailField()
 
@@ -138,14 +139,3 @@ class AdminReviewDetailSerializer(serializers.ModelSerializer[Review]):
             "created_at",
             "updated_at",
         )
-
-    def get_study_group(self, obj: Review) -> dict[str, Any]:
-        sg = obj.study_group
-        return {
-            "id": sg.id,
-            "uuid": sg.uuid,
-            "name": sg.name,
-            "introduction": sg.introduction,
-            "start_at": sg.start_at.strftime(DATETIME_MINUTE_FMT) if sg.start_at else None,
-            "end_at": sg.end_at.strftime(DATETIME_MINUTE_FMT) if sg.end_at else None,
-        }

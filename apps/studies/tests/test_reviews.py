@@ -444,10 +444,11 @@ class AdminReviewListAPITests(_BaseFixtures):
         res = self.client.get(self._url())
         self.assertEqual(res.status_code, 200)
 
-        detail = res.data["detail"]
-        self.assertIn("results", detail)
+        if "results" in res.data:
+            results = res.data["results"]
+        else:
+            results = res.data
 
-        results = detail["results"]
         self.assertGreaterEqual(len(results), 3)
 
     def test_staff_list_reviews_200(self) -> None:
@@ -473,9 +474,10 @@ class AdminReviewListAPITests(_BaseFixtures):
         res = self.client.get(self._url(), {"group_uuid": str(self.study_group.uuid)})
         self.assertEqual(res.status_code, 200)
 
-        # 페이지네이션된 응답이거나 리스트 응답
-        detail = res.data["detail"]
-        results = detail["results"]
+        if "results" in res.data:
+            results = res.data["results"]
+        else:
+            results = res.data
 
         self.assertEqual(len(results), 2)
         group_names = [r["study_group"]["name"] for r in results]
@@ -487,8 +489,10 @@ class AdminReviewListAPITests(_BaseFixtures):
         res = self.client.get(self._url(), {"group_uuid": "invalid-uuid"})
         self.assertEqual(res.status_code, 200)
 
-        detail = res.data["detail"]
-        results = detail["results"]
+        if "results" in res.data:
+            results = res.data["results"]
+        else:
+            results = res.data
         # 전체 리뷰 반환됐는지만 보면 됨
         self.assertGreaterEqual(len(results), 3)
 
@@ -498,8 +502,10 @@ class AdminReviewListAPITests(_BaseFixtures):
         res = self.client.get(self._url())
         self.assertEqual(res.status_code, 200)
 
-        detail = res.data["detail"]
-        results = detail["results"]
+        if "results" in res.data:
+            results = res.data["results"]
+        else:
+            results = res.data
 
         if len(results) >= 2:
             from datetime import datetime
@@ -514,8 +520,10 @@ class AdminReviewListAPITests(_BaseFixtures):
         res = self.client.get(self._url())
         self.assertEqual(res.status_code, 200)
 
-        detail = res.data["detail"]
-        results = detail["results"]
+        if "results" in res.data:
+            results = res.data["results"]
+        else:
+            results = res.data
 
         review = results[0]
 
@@ -532,6 +540,7 @@ class AdminReviewListAPITests(_BaseFixtures):
         self.assertIn("uuid", review["study_group"])
         self.assertIn("name", review["study_group"])
 
+        self.assertIn("id", review["author"])
         self.assertIn("nickname", review["author"])
         self.assertIn("email", review["author"])
 
@@ -555,7 +564,7 @@ class AdminReviewDetailAPITests(_BaseFixtures):
         self.client = APIClient()
 
     def _url(self, review: Review) -> str:
-        return reverse("studies:admin-review-detail", kwargs={"review_uuid": str(review.uuid)})
+        return reverse("studies:admin-review-detail", kwargs={"pk": str(self.review.pk)})
 
     def test_admin_detail_review_200(self) -> None:
         """어드민 사용자가 리뷰 상세 조회하면 200"""
@@ -563,10 +572,10 @@ class AdminReviewDetailAPITests(_BaseFixtures):
         res = self.client.get(self._url(self.review))
         self.assertEqual(res.status_code, 200)
 
-        detail = res.data["detail"]
-        self.assertEqual(detail["id"], self.review.pk)
-        self.assertEqual(detail["content"], "테스트 리뷰 내용")
-        self.assertEqual(detail["star_rating"], 5)
+        data = res.data
+        self.assertEqual(data["id"], self.review.pk)
+        self.assertEqual(data["content"], "테스트 리뷰 내용")
+        self.assertEqual(data["star_rating"], 5)
 
     def test_staff_detail_review_200(self) -> None:
         """스태프 사용자가 리뷰 상세 조회하면 200"""
@@ -589,7 +598,7 @@ class AdminReviewDetailAPITests(_BaseFixtures):
         """존재하지 않는 review_uuid로 조회하면 404"""
         self.client.force_authenticate(user=self.admin_user)
         fake_uuid = "00000000-0000-0000-0000-000000000999"
-        res = self.client.get(reverse("studies:admin-review-detail", kwargs={"review_uuid": fake_uuid}))
+        res = self.client.get(reverse("studies:admin-review-detail", kwargs={"pk": 99999}))
         self.assertEqual(res.status_code, 404)
 
     def test_detail_review_response_structure(self) -> None:
@@ -597,17 +606,17 @@ class AdminReviewDetailAPITests(_BaseFixtures):
         res = self.client.get(self._url(self.review))
         self.assertEqual(res.status_code, 200)
 
-        detail = res.data["detail"]
+        data = res.data
 
-        self.assertIn("id", detail)
-        self.assertIn("study_group", detail)
-        self.assertIn("author", detail)
-        self.assertIn("star_rating", detail)
-        self.assertIn("content", detail)
-        self.assertIn("created_at", detail)
-        self.assertIn("updated_at", detail)
+        self.assertIn("id", data)
+        self.assertIn("study_group", data)
+        self.assertIn("author", data)
+        self.assertIn("star_rating", data)
+        self.assertIn("content", data)
+        self.assertIn("created_at", data)
+        self.assertIn("updated_at", data)
 
-        sg = detail["study_group"]
+        sg = data["study_group"]
         self.assertIn("id", sg)
         self.assertIn("uuid", sg)
         self.assertIn("name", sg)
@@ -615,7 +624,8 @@ class AdminReviewDetailAPITests(_BaseFixtures):
         self.assertIn("start_at", sg)
         self.assertIn("end_at", sg)
 
-        author = detail["author"]
+        author = data["author"]
+        self.assertIn("id", author)
         self.assertIn("nickname", author)
         self.assertIn("email", author)
 
@@ -624,18 +634,19 @@ class AdminReviewDetailAPITests(_BaseFixtures):
         res = self.client.get(self._url(self.review))
         self.assertEqual(res.status_code, 200)
 
-        detail = res.data["detail"]
+        data = res.data
 
-        self.assertEqual(detail["id"], self.review.pk)
-        self.assertEqual(detail["content"], self.review.content)
-        self.assertEqual(detail["star_rating"], 5)
+        self.assertEqual(data["id"], self.review.pk)
+        self.assertEqual(data["content"], self.review.content)
+        self.assertEqual(data["star_rating"], 5)
 
-        sg = detail["study_group"]
+        sg = data["study_group"]
         self.assertEqual(sg["id"], self.study_group.id)
         self.assertEqual(str(sg["uuid"]), str(self.study_group.uuid))
         self.assertEqual(sg["name"], self.study_group.name)
         self.assertEqual(sg["introduction"], self.study_group.introduction)
 
-        author = detail["author"]
+        author = data["author"]
+        self.assertEqual(author["id"], self.user.id)
         self.assertEqual(author["nickname"], self.user.nickname)
         self.assertEqual(author["email"], self.user.email)

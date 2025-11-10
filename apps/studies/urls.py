@@ -40,7 +40,7 @@ urlpatterns = [
     path("groups/<uuid:group_uuid>/reviews", GroupReviewListCreateView.as_view(), name="group-reviews"),
     path("admin/reviews", AdminReviewListView.as_view(), name="admin-review-list"),
     path(
-        "admin/reviews/<uuid:review_uuid>",
+        "admin/reviews/<int:pk>",
         AdminReviewDetailView.as_view(),
         name="admin-review-detail",
     ),

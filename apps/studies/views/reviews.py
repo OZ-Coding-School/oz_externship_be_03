@@ -30,6 +30,7 @@ from apps.studies.serializers.reviews import (
     ReviewUpdateSerializer,
 )
 from apps.users.permissions import IsStaffRole
+from uuid import UUID
 
 
 @extend_schema_view(
@@ -255,27 +256,18 @@ class AdminReviewListView(generics.ListAPIView[Review]):
     permission_classes = [IsStaffRole]
     serializer_class = AdminReviewListSerializer
 
-    def get_queryset(self) -> QuerySet[Review]:
+    def get_queryset(self):
         qs = Review.objects.select_related("study_group", "user").order_by("-created_at")
         group_uuid = self.request.query_params.get("group_uuid")
         if group_uuid:
             try:
-                uuid_obj = UUID(str(group_uuid))
-                qs = qs.filter(study_group__uuid=uuid_obj)
-            except (TypeError, ValueError):
+                qs = qs.filter(study_group__uuid=UUID(group_uuid))
+            except (ValueError, TypeError):
                 pass
         return qs
 
     def list(self, request: Request, *args: Any, **kwargs: Any) -> Response:
-        original_response = super().list(request, *args, **kwargs)
-        return Response(
-            {
-                "status": 200,
-                "message": "조회가 완료되었습니다",
-                "detail": original_response.data,
-            },
-            status=200,
-        )
+        return super().list(request, *args, **kwargs)
 
 
 @extend_schema(
@@ -288,18 +280,7 @@ class AdminReviewListView(generics.ListAPIView[Review]):
 class AdminReviewDetailView(generics.RetrieveAPIView[Review]):
     permission_classes = [IsStaffRole]
     serializer_class = AdminReviewDetailSerializer
-    lookup_field = "uuid"
-    lookup_url_kwarg = "review_uuid"
     queryset = Review.objects.select_related("study_group", "user")
 
     def retrieve(self, request: Request, *args: Any, **kwargs: Any) -> Response:
-        instance = self.get_object()
-        serializer = self.get_serializer(instance)
-        return Response(
-            {
-                "status": 200,
-                "message": "리뷰 상세 조회 완료입니다.",
-                "detail": serializer.data,
-            },
-            status=200,
-        )
+        return super().retrieve(request, *args, **kwargs)
