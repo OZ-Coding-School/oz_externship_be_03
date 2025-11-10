@@ -72,17 +72,17 @@ class ChatConsumerTest(TransactionTestCase):
         # 2. Set up WebSocket communicators for both users
         communicator1 = WebsocketCommunicator(
             ChatConsumer.as_asgi(),
-            f"/ws/study-groups/{study_group.id}/chat/",
+            f"/ws/study-groups/{study_group.uuid}/chat/",
         )
         communicator1.scope["user"] = user1
-        communicator1.scope["url_route"] = {"kwargs": {"study_group_id": study_group.id}}
+        communicator1.scope["url_route"] = {"kwargs": {"study_group_uuid": str(study_group.uuid)}}
 
         communicator2 = WebsocketCommunicator(
             ChatConsumer.as_asgi(),
-            f"/ws/study-groups/{study_group.id}/chat/",
+            f"/ws/study-groups/{study_group.uuid}/chat/",
         )
         communicator2.scope["user"] = user2
-        communicator2.scope["url_route"] = {"kwargs": {"study_group_id": study_group.id}}
+        communicator2.scope["url_route"] = {"kwargs": {"study_group_uuid": str(study_group.uuid)}}
 
         # 3. Connect both users to the WebSocket
         connected1, _ = await communicator1.connect()
@@ -138,10 +138,10 @@ class ChatConsumerTest(TransactionTestCase):
 
         communicator = WebsocketCommunicator(
             ChatConsumer.as_asgi(),
-            f"/ws/study-groups/{study_group.id}/chat/",
+            f"/ws/study-groups/{study_group.uuid}/chat/",
         )
         communicator.scope["user"] = user
-        communicator.scope["url_route"] = {"kwargs": {"study_group_id": study_group.id}}
+        communicator.scope["url_route"] = {"kwargs": {"study_group_uuid": str(study_group.uuid)}}
 
         connected, subprotocol = await communicator.connect()
         self.assertTrue(connected)
@@ -159,11 +159,11 @@ class ChatConsumerTest(TransactionTestCase):
 
         communicator = WebsocketCommunicator(
             ChatConsumer.as_asgi(),
-            f"/ws/study-groups/{study_group.id}/chat/",
+            f"/ws/study-groups/{study_group.uuid}/chat/",
         )
         # User is not set, so it will be an AnonymousUser
         communicator.scope["user"] = AnonymousUser()
-        communicator.scope["url_route"] = {"kwargs": {"study_group_id": study_group.id}}
+        communicator.scope["url_route"] = {"kwargs": {"study_group_uuid": str(study_group.uuid)}}
 
         connected, subprotocol = await communicator.connect()
         self.assertFalse(connected)
@@ -181,14 +181,14 @@ class ChatConsumerTest(TransactionTestCase):
             gender="M",
             birthday="2000-01-01",
         )
-        # Use a non-existent study_group_id
-        invalid_study_group_id = 99999
+        # Use a non-existent study_group_uuid
+        invalid_study_group_uuid = "00000000-0000-0000-0000-000000000000"
 
         communicator = WebsocketCommunicator(
             ChatConsumer.as_asgi(),
-            f"/ws/study-groups/{invalid_study_group_id}/chat/",
+            f"/ws/study-groups/{invalid_study_group_uuid}/chat/",
         )
-        communicator.scope["url_route"] = {"kwargs": {"study_group_id": invalid_study_group_id}}
+        communicator.scope["url_route"] = {"kwargs": {"study_group_uuid": invalid_study_group_uuid}}
         communicator.scope["user"] = user
         connected, subprotocol = await communicator.connect()
         self.assertFalse(connected)
@@ -214,10 +214,10 @@ class ChatConsumerTest(TransactionTestCase):
         )
         communicator = WebsocketCommunicator(
             ChatConsumer.as_asgi(),
-            f"/ws/study-groups/{study_group.id}/chat/",
+            f"/ws/study-groups/{study_group.uuid}/chat/",
         )
         communicator.scope["user"] = user
-        communicator.scope["url_route"] = {"kwargs": {"study_group_id": study_group.id}}
+        communicator.scope["url_route"] = {"kwargs": {"study_group_uuid": str(study_group.uuid)}}
         connected, subprotocol = await communicator.connect()
         self.assertFalse(connected)
         self.assertEqual(subprotocol, 403)
@@ -254,7 +254,7 @@ class ChatConsumerTest(TransactionTestCase):
         # 3. Directly instantiate the consumer and call the method
         consumer = ChatConsumer()
         consumer.scope = {"user": user}
-        consumer.study_group_id = study_group.id
+        consumer.study_group_uuid = study_group.uuid
         consumer.user = user
 
         await consumer.mark_messages_as_read()

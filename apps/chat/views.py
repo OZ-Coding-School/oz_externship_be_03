@@ -30,10 +30,10 @@ class ChatMessageListView(APIView):
         """,
         parameters=[
             OpenApiParameter(
-                name="study_group_id",
-                type=int,
+                name="study_group_uuid",
+                type=str,
                 location=OpenApiParameter.PATH,
-                description="그룹 ID",
+                description="그룹 UUID",
                 required=True,
             ),
             OpenApiParameter(
