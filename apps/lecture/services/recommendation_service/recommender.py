@@ -10,7 +10,7 @@ from django.core.cache import cache
 from django.db.models import QuerySet
 from django_redis import get_redis_connection  # type: ignore
 from implicit.als import AlternatingLeastSquares  # type: ignore
-from scipy.sparse import csr_matrix  # type: ignore
+from scipy.sparse import csr_matrix
 
 from apps.lecture.models import (
     CrawledLecture,

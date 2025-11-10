@@ -5,12 +5,12 @@ from io import BytesIO
 from typing import Any, Literal, cast
 from unittest.mock import patch
 
-import boto3  # type: ignore
+import boto3
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
-from moto import mock_aws  # type: ignore
+from moto import mock_aws
 from PIL import Image
 from rest_framework import status
 

@@ -18,7 +18,7 @@ from django.core.cache import cache
 from django.db import IntegrityError, OperationalError, ProgrammingError
 from django.db.models import Q
 from django.utils import timezone
-from scipy.sparse import coo_matrix, csr_matrix  # type: ignore
+from scipy.sparse import coo_matrix, csr_matrix
 
 from apps.lecture.models import (
     CrawledLecture,
