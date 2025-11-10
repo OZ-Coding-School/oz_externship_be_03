@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Any
 
 from django.contrib.auth import get_user_model
 from django.urls import reverse
@@ -11,6 +12,58 @@ from apps.chat.services.chat_service import ChatRoomService
 from apps.studies.models.groups import GroupMember, StudyGroup
 
 User = get_user_model()
+
+
+class TotalUnreadMessageCountAPITest(APITestCase):
+    def setUp(self) -> None:
+        self.user = User.objects.create_user(
+            email="testuser@example.com",
+            password="password123",
+            nickname="testuser",
+            phone_number="01012345678",
+            name="Test User",
+            gender="M",
+            birthday="2000-01-01",
+        )
+        self.study_group1 = StudyGroup.objects.create(
+            name="Group A",
+            max_headcount=10,
+            start_at=timezone.make_aware(datetime(2025, 1, 1, 0, 0, 0)),
+            end_at=timezone.make_aware(datetime(2025, 12, 31, 23, 59, 59)),
+        )
+        self.study_group2 = StudyGroup.objects.create(
+            name="Group B",
+            max_headcount=10,
+            start_at=timezone.make_aware(datetime(2025, 1, 1, 0, 0, 0)),
+            end_at=timezone.make_aware(datetime(2025, 12, 31, 23, 59, 59)),
+        )
+
+        GroupMember.objects.create(user=self.user, study_group=self.study_group1)
+        GroupMember.objects.create(user=self.user, study_group=self.study_group2)
+
+        # Group 1: 3 messages, 1 read by user -> 2 unread
+        msg1_g1 = ChatMessage.objects.create(sender=self.user, study_group=self.study_group1, content="G1 Msg 1")
+        ChatMessage.objects.create(sender=self.user, study_group=self.study_group1, content="G1 Msg 2")
+        ChatMessage.objects.create(sender=self.user, study_group=self.study_group1, content="G1 Msg 3")
+        LastReadMessage.objects.create(user=self.user, study_group=self.study_group1, message=msg1_g1)
+
+        # Group 2: 2 messages, 0 read by user -> 2 unread
+        ChatMessage.objects.create(sender=self.user, study_group=self.study_group2, content="G2 Msg 1")
+        ChatMessage.objects.create(sender=self.user, study_group=self.study_group2, content="G2 Msg 2")
+
+        self.url = reverse("chat:total-unread-messages")
+
+    def test_total_unread_messages_unauthenticated(self: Any) -> None:
+        """인증되지 않은 사용자는 전체 안 읽은 메시지 수를 조회할 수 없습니다."""
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_total_unread_messages_success(self: Any) -> None:
+        """인증된 사용자는 전체 안 읽은 메시지 수를 성공적으로 조회합니다."""
+        self.client.force_authenticate(user=self.user)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.json()["total_unread_count"], 4)  # 2 (G1) + 2 (G2)
 
 
 class ChatMessageListAPIViewTest(APITestCase):

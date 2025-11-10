@@ -7,6 +7,10 @@ from apps.studies.models import StudyGroup
 from apps.users.models import User
 
 
+class TotalUnreadMessageCountSerializer(serializers.Serializer[Any]):
+    total_unread_count = serializers.IntegerField()
+
+
 class ChatMessageSenderSerializer(serializers.ModelSerializer[User]):
     class Meta:
         model = User

@@ -1,8 +1,9 @@
 from typing import cast
 from uuid import UUID
 
-from drf_spectacular.utils import OpenApiParameter, extend_schema
-from rest_framework import status
+# from asgiref.sync import async_to_sync # Removed import
+from drf_spectacular.utils import OpenApiParameter, extend_schema, inline_serializer
+from rest_framework import serializers, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -10,10 +11,35 @@ from rest_framework.views import APIView
 
 from apps.chat.pagination import ChatMessagePagination
 from apps.chat.permissions import IsGroupMember
-from apps.chat.serializers import ChatMessageSerializer, ChatRoomSerializer
+from apps.chat.serializers import (
+    ChatMessageSerializer,
+    ChatRoomSerializer,
+    TotalUnreadMessageCountSerializer,
+)
 from apps.chat.services.chat_service import ChatRoomService
 from apps.studies.models.groups import GroupMember
 from apps.users.models import User
+
+
+class TotalUnreadMessageCountView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        tags=["Chat"],
+        summary="전체 안 읽은 메시지 수 총합 API",
+        description="로그인한 사용자의 모든 채팅방에 대한 전체 안 읽은 메시지 수를 조회합니다.",
+        responses={
+            status.HTTP_200_OK: inline_serializer(
+                name="TotalUnreadMessageCountResponse",
+                fields={"total_unread_count": serializers.IntegerField()},
+            ),
+        },
+    )
+    def get(self, request: Request) -> Response:
+        user = cast(User, request.user)
+        total_unread_count: int = ChatRoomService.get_total_unread_message_count(user)
+        serializer = TotalUnreadMessageCountSerializer({"total_unread_count": total_unread_count})
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 class ChatMessageListView(APIView):

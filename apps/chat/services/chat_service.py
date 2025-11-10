@@ -3,7 +3,15 @@ from uuid import UUID
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from django.db import transaction
-from django.db.models import Count, IntegerField, OuterRef, QuerySet, Subquery, Value
+from django.db.models import (  # Added Sum
+    Count,
+    IntegerField,
+    OuterRef,
+    QuerySet,
+    Subquery,
+    Sum,
+    Value,
+)
 from django.db.models.functions import Coalesce
 
 from apps.chat.models import ChatMessage, LastReadMessage
@@ -75,6 +83,14 @@ class ChatRoomService:
         )
         # TODO: 메시지 생성 후 관련 로직 추가 (예: 웹소켓으로 브로드캐스트)
         return chat_message
+
+    @staticmethod
+    def get_total_unread_message_count(user: User) -> int:
+        """
+        사용자의 모든 채팅방에 대한 전체 안 읽은 메시지 수를 계산합니다.
+        """
+        result = ChatRoomService.get_chat_rooms_for_user(user).aggregate(total=Sum("unread_message_count"))
+        return result["total"] or 0
 
     @staticmethod
     def broadcast_member_removal(study_group_id: int, user_id: int, user_nickname: str, is_kick: bool) -> None:
