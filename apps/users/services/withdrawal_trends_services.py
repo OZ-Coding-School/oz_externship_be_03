@@ -19,8 +19,8 @@ class TrendItem(TypedDict):
 
 class TrendResult(TypedDict):
     interval: Interval
-    from_: date
-    to: date
+    from_date: date
+    to_date: date
     total_withdrawals: int
     items: List[TrendItem]
 
@@ -107,8 +107,8 @@ def _aggregate(interval: Interval, window: Dict[str, date]) -> TrendResult:
 
     return {
         "interval": interval,
-        "from_": window["start"],
-        "to": window["end"],
+        "from_date": window["start"],
+        "to_date": window["end"],
         "total_withdrawals": total_withdrawals,
         "items": trend_items,
     }

@@ -49,8 +49,8 @@ class WithdrawalTrendsAPIView(APIView):
         serializer = WithdrawalTrendsDataSerializer(
             {
                 "interval": result["interval"],
-                "from": result["from_"],
-                "to": result["to"],
+                "from_date": result["from_date"],
+                "to_date": result["to_date"],
                 "total_withdrawals": result["total_withdrawals"],
                 "items": result["items"],
             }

@@ -98,8 +98,8 @@ class WithdrawalTrendsAPITests(IsolatedRedisTestClient):
         # 응답 형태: {"detail": "...", "data": {...}}
         data = body["data"]
         self.assertEqual(data["interval"], "month")
-        self.assertEqual(data["from"], "2024-12-01")
-        self.assertEqual(data["to"], "2025-11-10")
+        self.assertEqual(data["from_date"], "2024-12-01")
+        self.assertEqual(data["to_date"], "2025-11-10")
 
         items = data["items"]
         self.assertEqual(len(items), 12)
@@ -150,8 +150,8 @@ class WithdrawalTrendsAPITests(IsolatedRedisTestClient):
         data = resp.json()["data"]
 
         self.assertEqual(data["interval"], "year")
-        self.assertEqual(data["from"], "2021-01-01")
-        self.assertEqual(data["to"], "2025-11-10")
+        self.assertEqual(data["from_date"], "2021-01-01")
+        self.assertEqual(data["to_date"], "2025-11-10")
 
         items = data["items"]
         self.assertEqual(len(items), 5)
