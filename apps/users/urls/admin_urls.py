@@ -1,5 +1,6 @@
 from django.urls import path
 
+from apps.users.views.admin_dashboard_views import AdminWithdrawalReasonStatsView
 from apps.users.views.admin_users_views import (
     AdminUserListView,
     AdminUserRoleUpdateView,
@@ -33,9 +34,17 @@ urlpatterns = [
         AdminUserRestoreView.as_view(),
         name="admin_user_restore",
     ),
+    # --------------------------------------------------------
+    # 어드민 대시보드
+    # --------------------------------------------------------
     path(
         "admin/dashboard/withdrawals/trends",
         WithdrawalTrendsAPIView.as_view(),
         name="withdrawal_trends",
     ),
+    path(
+        "admin/dashboard/withdrawals/stats",
+        AdminWithdrawalReasonStatsView.as_view(),
+        name="admin_withdrawal_list_by_reason",
+    ),  # 회원 탈퇴 사유 추적
 ]
