@@ -25,7 +25,7 @@ from apps.studies.serializers.notes import (
     StudyNoteListItemSerializer,
     StudyNoteUpdateSerializer,
 )
-from apps.studies.tasks import generate_ai_summary_task
+from apps.studies.services.notes import StudyNoteAIService
 
 logger = logging.getLogger(__name__)
 
@@ -41,8 +41,7 @@ class StudyNoteListAPIView(APIView):
     def get(self, request: Request, group_uuid: UUID) -> Response:
         notes = (
             StudyNote.objects.filter(study_group__uuid=group_uuid)
-            .select_related("author")  # 각 그룹별 노트리스트이기 때문에 그룹ID필드 제거
-            .prefetch_related("attachments")
+            .select_related("author")
             .annotate(files_count=Count("attachments", distinct=True))
             .order_by("-created_at")
         )
@@ -77,14 +76,11 @@ class StudyNoteCreateAPIView(APIView):
 
         note = serializer.save()
 
-        # 비동기 AI 요약 생성 (Celery)
-        # 작성된 노트의 ID를 태스크 큐에 전달하여 Gemini 요약문 생성 및 DB 저장 수행
+        # Gemini 요약문 생성 및 DB 저장 수행
         try:
-            generate_ai_summary_task.delay(note.id)
+            StudyNoteAIService.summarize(note)
         except Exception as e:
-            logger.error(
-                "[NoteCreate] AI 요약 비동기 호출 실패: note_id=%s, error=%s", note.id, e, exc_info=True
-            )  # ex) [NoteCreate] AI 요약 비동기호출 실패 : "1", "{e}" 레이즈 방식이라 가볍고 모든 걸 str로 타입변환
+            logger.error("[NoteCreate] AI 요약 생성 실패: note_id=%s, error=%s", note.id, e, exc_info=True)
 
         return Response(
             {
@@ -107,9 +103,9 @@ class StudyNoteDetailAPIView(APIView):
 
     def get_permissions(self) -> list[Union[BasePermission, DjangoObjectPermissions]]:
         """HTTP 메서드별 권한 분기"""
-        if self.request.method not in ("PATCH", "DELETE"):
-            return [IsAuthenticated(), IsGroupMember()]
-        return [IsAuthenticated(), IsGroupMember(), IsStudyNoteAuthor()]
+        if self.request.method in ("PATCH", "DELETE"):
+            return [IsAuthenticated(), IsGroupMember(), IsStudyNoteAuthor()]
+        return [IsAuthenticated(), IsGroupMember()]
 
     def _get_note(self, note_id: int) -> StudyNote:
         return get_object_or_404(
@@ -117,10 +113,16 @@ class StudyNoteDetailAPIView(APIView):
             id=note_id,
         )
 
+    def _check_permissions_for_note(self, request: Request, note: StudyNote) -> None:
+        """공통 권한 검증 (그룹멤버 + 작성자)"""
+        if not IsGroupMember().has_object_permission(request, self, note.study_group):
+            self.permission_denied(request, message=IsGroupMember.message)
+        if not IsStudyNoteAuthor().has_object_permission(request, self, note):
+            self.permission_denied(request, message=IsStudyNoteAuthor.message)
+
     @extend_schema(summary="스터디 노트 단일 조회 API")
     def get(self, request: Request, note_id: int) -> Response:
         note = self._get_note(note_id)
-
         self.check_object_permissions(request, obj=note.study_group)
 
         serializer = StudyNoteDetailSerializer(note)
@@ -136,7 +138,7 @@ class StudyNoteDetailAPIView(APIView):
     @extend_schema(summary="스터디 노트 수정 API")
     def patch(self, request: Request, note_id: int) -> Response:
         note = self._get_note(note_id)
-        self.check_object_permissions(request, obj=note.study_group)
+        self._check_permissions_for_note(request, note)
 
         serializer = StudyNoteUpdateSerializer(note, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
@@ -146,7 +148,7 @@ class StudyNoteDetailAPIView(APIView):
         # 요구사항엔 없지만 필요하다고 생각돼서 추가
         if "content" in serializer.validated_data:
             try:
-                generate_ai_summary_task.delay(updated_note.id, force=True)
+                StudyNoteAIService.summarize(updated_note)
             except Exception as e:
                 logger.error(
                     "[NoteUpdate] AI 요약 재생성 실패: note_id=%s, error=%s",
@@ -167,6 +169,6 @@ class StudyNoteDetailAPIView(APIView):
     @extend_schema(summary="스터디 노트 삭제 API")
     def delete(self, request: Request, note_id: int) -> Response:
         note = self._get_note(note_id)
-        self.check_object_permissions(request, obj=note.study_group)
+        self._check_permissions_for_note(request, note)
         note.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)

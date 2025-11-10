@@ -99,7 +99,9 @@ class StudyNoteCRUDRefactoredTestCase(APITestCase):
 
 class StudyNoteAISummaryTestCase(APITestCase):
     """
-    ✅ AI 요약 Celery 태스크 호출 Mock 테스트
+    ✅ AI 요약 기능 관련 테스트 (동기 호출 기반)
+    - 생성 시 summarize 호출
+    - 수정 시 content 변경 시 summarize 재호출
     """
 
     def setUp(self) -> None:
@@ -125,14 +127,13 @@ class StudyNoteAISummaryTestCase(APITestCase):
 
         GroupMember.objects.create(study_group=self.group, user=self.user, is_leader=True)
         self.client.force_authenticate(user=self.user)
-
         self.create_url = reverse("studies:study-note-create")
 
     # ----------------------------------------------------------------------
 
-    @patch("apps.studies.tasks.generate_ai_summary_task.delay")
-    def test_ai_summary_task_is_called_on_create(self, mock_delay: MagicMock) -> None:
-        """✅ 노트 생성 시 AI 요약 태스크가 비동기로 호출되는지 확인"""
+    @patch("apps.studies.services.notes.StudyNoteAIService.summarize")
+    def test_ai_summary_called_on_create(self, mock_summarize: MagicMock) -> None:
+        """✅ 노트 생성 시 summarize가 호출되는지 확인"""
         payload = {
             "title": "테스트 노트",
             "content": "Gemini 모델 호출 테스트",
@@ -142,15 +143,16 @@ class StudyNoteAISummaryTestCase(APITestCase):
         res = self.client.post(self.create_url, payload, format="json")
         self.assertEqual(res.status_code, status.HTTP_201_CREATED, res.json())
 
-        # ✅ Celery 태스크가 호출되었는지 확인
-        note_id = res.json()["data"]["id"]
-        mock_delay.assert_called_once_with(note_id)
+        # StudyNoteAIService.summarize가 호출되었는지 확인
+        mock_summarize.assert_called_once()
+        called_note = mock_summarize.call_args[0][0]
+        self.assertIsInstance(called_note, StudyNote)
 
     # ----------------------------------------------------------------------
 
-    @patch("apps.studies.tasks.generate_ai_summary_task.delay")
-    def test_ai_summary_task_is_called_on_update(self, mock_delay: MagicMock) -> None:
-        """✅ 노트 수정 시 content가 바뀌면 AI 요약 재생성 태스크 호출 확인"""
+    @patch("apps.studies.services.notes.StudyNoteAIService.summarize")
+    def test_ai_summary_called_on_update(self, mock_summarize: MagicMock) -> None:
+        """✅ 노트 수정 시 content 변경 시 summarize 재호출"""
         note = StudyNote.objects.create(
             study_group=self.group,
             author=self.user,
@@ -160,6 +162,8 @@ class StudyNoteAISummaryTestCase(APITestCase):
 
         detail_url = reverse("studies:study-note-detail", kwargs={"note_id": note.id})
         res = self.client.patch(detail_url, {"content": "수정된 내용"}, format="json")
+        self.assertEqual(res.status_code, status.HTTP_200_OK, res.json())
 
-        self.assertEqual(res.status_code, status.HTTP_200_OK)
-        mock_delay.assert_called_once_with(note.id, force=True)
+        mock_summarize.assert_called_once()
+        called_note = mock_summarize.call_args[0][0]
+        self.assertEqual(called_note.id, note.id)
