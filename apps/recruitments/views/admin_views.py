@@ -124,4 +124,4 @@ class AdminRecruitmentDetailAPIView(APIView):
 
         recruitment.delete()
         # 테스트 커버리지용 명시적 반환
-        return Response({"detail": "삭제 완료"}, status=status.HTTP_204_NO_CONTENT)
+        return Response(status=status.HTTP_204_NO_CONTENT)
