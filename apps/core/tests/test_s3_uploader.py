@@ -3,11 +3,11 @@ from __future__ import annotations
 import uuid
 from typing import Any, Dict, List, Literal, Optional
 
-import boto3
+import boto3 # type: ignore
 from django.conf import settings
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
-from moto import mock_aws
+from moto import mock_aws # type: ignore
 
 from apps.core.utils.s3_uploader import S3Uploader
 
