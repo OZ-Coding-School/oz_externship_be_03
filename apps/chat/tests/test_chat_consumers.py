@@ -6,7 +6,7 @@ from django.contrib.auth.models import AnonymousUser
 from django.test import TransactionTestCase
 
 from apps.chat.consumers import ChatConsumer
-from apps.chat.models.chat_message import ChatMessage
+from apps.chat.models import ChatMessage, LastReadMessage
 from apps.studies.models.groups import GroupMember, StudyGroup
 from apps.users.models.user import User
 
@@ -26,6 +26,11 @@ class ChatConsumerTest(TransactionTestCase):
     def _create_group_member(self, **kwargs: Any) -> GroupMember:
         """동기 방식으로 그룹 멤버 생성"""
         return GroupMember.objects.create(**kwargs)
+
+    @sync_to_async
+    def _create_chat_message(self, **kwargs: Any) -> ChatMessage:
+        """동기 방식으로 채팅 메시지 생성"""
+        return ChatMessage.objects.create(**kwargs)
 
     """
     Test suite for the ChatConsumer.
@@ -201,7 +206,7 @@ class ChatConsumerTest(TransactionTestCase):
             gender="M",
             birthday="2000-01-01",
         )
-        study_group = await StudyGroup.objects.acreate(
+        study_group = await self._create_study_group(
             name="Test Study Group",
             max_headcount=10,
             start_at="2025-10-21T10:00:00Z",
@@ -218,3 +223,44 @@ class ChatConsumerTest(TransactionTestCase):
         self.assertEqual(subprotocol, 403)
 
         await communicator.disconnect()
+
+    async def test_mark_messages_as_read_logic(self) -> None:
+        """
+        Tests that the mark_messages_as_read method correctly updates the LastReadMessage.
+        This test calls the method directly to bypass transaction issues with the test server.
+        """
+        # 1. Create test data
+        user = await self._create_user(
+            email="testuser@example.com",
+            password="password123",
+            nickname="testuser",
+            phone_number="01012345678",
+            name="Test User",
+            gender="M",
+            birthday="2000-01-01",
+        )
+        study_group = await self._create_study_group(
+            name="Test Study Group",
+            max_headcount=10,
+            start_at="2025-10-21T10:00:00Z",
+            end_at="2025-11-21T10:00:00Z",
+        )
+        await self._create_group_member(study_group=study_group, user=user)
+
+        # 2. Create some messages
+        await self._create_chat_message(study_group=study_group, sender=user, content="Message 1")
+        last_message = await self._create_chat_message(study_group=study_group, sender=user, content="Message 2")
+
+        # 3. Directly instantiate the consumer and call the method
+        consumer = ChatConsumer()
+        consumer.scope = {"user": user}
+        consumer.study_group_id = study_group.id
+        consumer.user = user
+
+        await consumer.mark_messages_as_read()
+
+        # 4. Verify LastReadMessage is updated
+        last_read_entry = await LastReadMessage.objects.select_related("message").aget(
+            user=user, study_group=study_group
+        )
+        self.assertEqual(last_read_entry.message, last_message)
