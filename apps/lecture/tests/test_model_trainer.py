@@ -435,7 +435,7 @@ class ModelTrainerFullTrainingTestCase(ModelTrainerTestBase):
     def test_train_and_save_full_model_no_data(self) -> None:
         """데이터 없을 때 테스트"""
         # Given: 빈 행렬
-        empty_matrix = csr_matrix((0, 0), dtype=np.float32) # type: ignore [type-var]
+        empty_matrix = csr_matrix((0, 0), dtype=np.float32)  # type: ignore [type-var]
         self.mock_data_loader.build_user_item_matrix.return_value = (
             empty_matrix,
             {},
