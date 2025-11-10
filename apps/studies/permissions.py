@@ -37,9 +37,20 @@ class IsGroupMember(DjangoObjectPermissions):
         return True
 
     def has_object_permission(self, request: HttpRequest, view: Any, obj: StudyGroup) -> bool:
+        # has obj로 대상 객체를 note로 잡아야해서 조건문 추가. 그런데 user 정의가 members if 문 안에 있어서
+        # elif에서 user를 찾지 못 하기 때문에 조건문 밖으로 이동
+
+        user = cast(User, request.user)
+
+        # 그룹 객체일 때
         if hasattr(obj, "group_members"):
-            user = cast(User, request.user)
             return obj.group_members.filter(user=user).exists()
+
+        # 노트 객체일 때
+        elif isinstance(obj, StudyNote):
+            return obj.study_group.group_members.filter(user=user).exists()
+
+        # 그 외 객체는 False
         return False
 
 

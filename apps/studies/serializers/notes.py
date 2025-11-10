@@ -6,8 +6,7 @@ from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
 from apps.studies.models import StudyGroup
-from apps.studies.models.notes import StudyNote
-from apps.studies.models.notes import StudyNote, StudyNoteAttachment
+from apps.studies.models.notes import StudyNote, StudyNoteAttachment, StudyNoteImage
 
 User = get_user_model()
 
@@ -18,6 +17,24 @@ class StudyNoteAuthorSerializer(serializers.ModelSerializer[Any]):
     class Meta:
         model = User
         fields = ("id", "nickname", "profile_img_url")
+
+
+class StudyNoteAttachmentSerializer(serializers.ModelSerializer[Any]):
+    """스터디 노트 첨부파일 Serializer"""
+
+    class Meta:
+        model = StudyNoteAttachment
+        fields = ("id", "file_name", "file_url", "created_at")
+        read_only_fields = fields
+
+
+class StudyNoteImageSerializer(serializers.ModelSerializer[Any]):
+    """스터디 노트 이미지 Serializer"""
+
+    class Meta:
+        model = StudyNoteImage
+        fields = ("id", "img_url", "created_at")
+        read_only_fields = fields
 
 
 class StudyNoteCreateSerializer(serializers.ModelSerializer[StudyNote]):
@@ -75,6 +92,8 @@ class StudyNoteDetailSerializer(serializers.ModelSerializer[StudyNote]):
     """
 
     author = StudyNoteAuthorSerializer(read_only=True)
+    attachments = StudyNoteAttachmentSerializer(many=True, read_only=True)
+    images = StudyNoteImageSerializer(many=True, read_only=True)
     created_at = serializers.DateTimeField(read_only=True, format="%Y-%m-%d %H:%M")
     updated_at = serializers.DateTimeField(read_only=True, format="%Y-%m-%d %H:%M")
 
@@ -87,20 +106,13 @@ class StudyNoteDetailSerializer(serializers.ModelSerializer[StudyNote]):
             "author",
             "study_group",
             "attachments",
+            "images",
             "created_at",
             "updated_at",
             "ai_summary",
         )
         read_only_fields = fields
 
-
-class StudyNoteAttachmentSerializer(serializers.ModelSerializer[Any]):
-    """스터디 노트 첨부파일 Serializer"""
-
-    class Meta:
-        model = StudyNoteAttachment
-        fields = ("id", "file_name", "file_url", "created_at")
-        read_only_fields = fields
 
 class StudyNoteSummarySerializer(serializers.ModelSerializer[StudyNote]):
     """

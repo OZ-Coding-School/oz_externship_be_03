@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import textwrap
 import logging
 import re
-from typing import ClassVar
+import textwrap
+from typing import ClassVar, cast
 
 from django.conf import settings
 from django.utils import timezone
@@ -11,6 +11,7 @@ from google import genai
 from google.genai.types import GenerateContentConfig
 
 from apps.studies.models.notes import StudyNote
+from apps.users.models import User
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,7 @@ class StudyNoteAIService:
     - 학습 노트의 내용을 프롬프트에 맞춰 AI 요약문으로 정제하고, 결과를 DB에 저장
     """
 
-    MODEL_NAME = ClassVar[str] = "gemini-2.5-flash"
+    MODEL_NAME: ClassVar[str] = "gemini-2.5-flash"
 
     _CLIENT: ClassVar[genai.Client] = genai.Client(api_key=settings.GEMINI_API_KEY)
 
@@ -73,7 +74,8 @@ class StudyNoteAIService:
     @classmethod
     def _self_check_summary(cls, draft: str, content: str) -> str:
         """1차 요약 결과가 불완전할 경우 2차 self-prompt로 수정"""
-        refine_prompt = textwrap.dedent(f"""
+        refine_prompt = textwrap.dedent(
+            f"""
         아래는 AI가 생성한 1차 요약 결과입니다.  
         만약 요약이 불완전하거나 요약문 형식이 어긋난 경우,  
         학습 내용을 기반으로 동일한 형식으로 다시 작성하십시오.
@@ -87,7 +89,8 @@ class StudyNoteAIService:
 
         ---
         **출력 형식은 기존 요약 템플릿과 동일하게 유지하십시오.**
-        """)
+        """
+        )
 
         try:
             res = cls._CLIENT.models.generate_content(
@@ -113,14 +116,16 @@ class StudyNoteAIService:
     @classmethod
     def summarize(cls, note: StudyNote) -> str:
         """Gemini API를 호출해 학습 내용 요약을 생성"""
-        content =  (note.content or "").strip()
+        content = (note.content or "").strip()
 
         if len(content) < 10 or len(re.findall(r"\w+", content)) < 5:
-            return cls._save_summary(note, "### 자동요약이 생략되었습니다.\n\n입력된 내용이 너무 짧거나 불충분하여 생성할 요약이 없습니다")
+            return cls._save_summary(
+                note, "### 자동요약이 생략되었습니다.\n\n입력된 내용이 너무 짧거나 불충분하여 생성할 요약이 없습니다"
+            )
 
         # author의 데이터 수집, 선언
         date_str = timezone.localtime(note.created_at).strftime("%Y년 %m월 %d일 %A")
-        author_name = note.author.nickname
+        author_name = cast(User, note.author).nickname
 
         prompt = cls.SUMMARY_PROMPT_TEMPLATE.format(
             date_str=date_str,
@@ -135,7 +140,7 @@ class StudyNoteAIService:
             response = cls._CLIENT.models.generate_content(
                 model=cls.MODEL_NAME,
                 contents=prompt,
-                config = GenerateContentConfig(
+                config=GenerateContentConfig(
                     temperature=0.7,
                     top_p=0.9,
                     max_output_tokens=max_output_tokens,
@@ -152,6 +157,4 @@ class StudyNoteAIService:
         except Exception as e:
             # %s 자리에 오는 값을(e) str()로 변환시켜주고 필요할 때에만 작동되는 지연 평가방식 가볍고 기능적이라고함
             logger.error("AI요약 생성 실패: %s", e, exc_info=True)
-            return cls._save_summary(
-                note, "### AI요약 오류:\n\nAI 요약 생성 중 오류 발생. 잠시 후 다시 시도하세요"
-            )
+            return cls._save_summary(note, "### AI요약 오류:\n\nAI 요약 생성 중 오류 발생. 잠시 후 다시 시도하세요")
