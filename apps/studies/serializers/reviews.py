@@ -89,7 +89,9 @@ class _AdminReviewStudyGroupSerializer(serializers.Serializer[Any]):
     id = serializers.IntegerField()
     uuid = serializers.UUIDField()
     name = serializers.CharField()
-
+    introduction = serializers.CharField()
+    start_at = serializers.DateTimeField(format=DATETIME_MINUTE_FMT, allow_null=True)
+    end_at = serializers.DateTimeField(format=DATETIME_MINUTE_FMT, allow_null=True)
 
 class _AdminReviewAuthorSerializer(serializers.Serializer[Any]):
     id = serializers.IntegerField()
