@@ -125,7 +125,7 @@ class AdminReviewDetailSerializer(serializers.ModelSerializer[Review]):
     """
 
     id = serializers.IntegerField()
-    study_group = _AdminReviewStudyGroupSerializer(source="study_group", read_only=True)
+    study_group = _AdminReviewStudyGroupSerializer(read_only=True)
     author = _AdminReviewAuthorSerializer(source="user", read_only=True)
     star_rating = StarRatingField(read_only=True, represent="int")
     created_at = serializers.DateTimeField(format=DATETIME_MINUTE_FMT, read_only=True)
