@@ -65,14 +65,17 @@ class RecommendationService:
 
     캐싱 계층:
     1. 메모리: 인스턴스 변수 (_model, _user_to_idx 등)
-    2. Redis: 빠른 분산 캐시 (우선 사용)
-    3. Django 캐시: Redis 실패 시 폴백
-    4. 디스크: 영구 저장소 (pickle 파일)
+    2. Django 캐시 (Redis 백엔드): 빠른 분산 캐시
+    3. 디스크: 영구 저장소
 
     추천 전략:
     1. ALS 모델 기반 추천 (협업 필터링)
     2. 사용자 선호 카테고리 기반 추천
-    3. 전체 인기 강의 추천
+    3. 전체 인기 강의
+
+    Note:
+        Django 캐시는 django_redis.cache.RedisCache로 설정되어 있어
+        자동으로 Redis 사용
     """
 
     # Redis 헬스체크 주기 (1시간)
@@ -204,7 +207,6 @@ class RecommendationService:
 
         Args:
             key: 캐시 키
-            backend: 캐시 백엔드 ('redis' 또는 'django')
 
         Returns:
             역직렬화된 데이터 또는 None (실패 시)
@@ -238,7 +240,6 @@ class RecommendationService:
             key: 캐시 키
             value: 저장할 데이터
             timeout: TTL (초 단위)
-            backend: 캐시 백엔드 ('redis' 또는 'django')
 
         처리 흐름:
         1. value가 None이면 즉시 반환 (저장 안 함)
@@ -299,10 +300,9 @@ class RecommendationService:
             로드 성공 여부 (True/False)
 
         처리 흐름:
-        1. Redis 연결 가능 시 Redis에서 로드 시도
-        2. Redis 실패 시 Django 캐시에서 로드 시도
-        3. 모든 캐시 키가 존재해야 성공
-        4. 로드된 데이터를 인스턴스 변수에 적용
+        1. Django 캐시에서 로드 시도
+        2. 모든 캐시 키가 존재해야 성공
+        3. 로드된 데이터를 인스턴스 변수에 적용
 
         Note:
             - 부분 로드는 실패로 간주 (일관성 보장)
@@ -340,7 +340,7 @@ class RecommendationService:
         인스턴스 모델 데이터를 캐시에 저장
 
         Note:
-            - Redis 우선 저장. Redis 연결 실패 시 Django 캐시로 자동 폴백.
+            - Django 캐시를 통해 Redis에 저장
             - 모든 필수 데이터가 준비되어야 저장 시도
             - 저장 실패 시 에러 로그만 출력 (프로세스 계속)
         """
