@@ -17,38 +17,13 @@ from apps.recruitments.serializers.admin_serializers import (
 
 
 class AdminRecruitmentPagination(PageNumberPagination):
-    # 관리자 공고 목록 페이지네이션
+    """관리자 공고 목록 페이지네이션"""
     page_size = 10
     page_size_query_param = "page_size"
 
-    def get_paginated_response(self, data: list[Any]) -> Response:
-        total = Recruitment.objects.count()
-        open_count = Recruitment.objects.filter(is_closed=False).count()
-        closed_count = Recruitment.objects.filter(is_closed=True).count()
-
-        # 페이지네이션이 비활성화된 경우(테스트용)
-        if not hasattr(self, "page") or self.page is None or not hasattr(self.page, "paginator"):
-            return Response(
-                {
-                    "results": data,
-                    "count": {"total": total, "open": open_count, "closed": closed_count},
-                    "page": None,
-                    "page_size": None,
-                }
-            )
-
-        return Response(
-            {
-                "results": data,
-                "page": self.page.number,
-                "page_size": self.page.paginator.per_page,
-                "count": {"total": total, "open": open_count, "closed": closed_count},
-            }
-        )
-
 
 class AdminRecruitmentListAPIView(generics.ListAPIView[Recruitment]):
-    # 관리자 공고 목록 조회
+    """관리자 공고 목록 조회"""
     serializer_class = AdminRecruitmentListSerializer
     permission_classes = [IsAdminUser]
     pagination_class = AdminRecruitmentPagination
@@ -69,7 +44,7 @@ class AdminRecruitmentListAPIView(generics.ListAPIView[Recruitment]):
         if title:
             qs = qs.filter(title__icontains=title)
 
-        # 상태와 is_closed=true/false 둘 다 지원
+        # 상태(status=open/closed) 또는 is_closed=true/false 모두 지원
         if status_param in ("open", "closed"):
             qs = qs.filter(is_closed=(status_param == "closed"))
         elif is_closed_param in ("true", "false", "True", "False"):
@@ -83,7 +58,7 @@ class AdminRecruitmentListAPIView(generics.ListAPIView[Recruitment]):
 
 
 class AdminRecruitmentDetailAPIView(APIView):
-    # 관리자 공고 상세 조회 및 삭제
+    """관리자 공고 상세 조회 및 삭제"""
     permission_classes = [IsAdminUser]
     parser_classes = [parsers.JSONParser]
 
@@ -102,7 +77,6 @@ class AdminRecruitmentDetailAPIView(APIView):
     def get(self, request: Request, recruitment_id: int, *args: Any, **kwargs: Any) -> Response:
         recruitment = self.get_object(recruitment_id)
         if not recruitment:
-            # 존재하지 않을 경우 404
             return Response({"detail": "조회하려는 공고가 존재하지 않습니다."}, status=status.HTTP_404_NOT_FOUND)
 
         serializer = AdminRecruitmentDetailSerializer(recruitment)
@@ -123,5 +97,4 @@ class AdminRecruitmentDetailAPIView(APIView):
             return Response({"detail": "삭제하려는 공고를 찾을 수 없습니다."}, status=status.HTTP_404_NOT_FOUND)
 
         recruitment.delete()
-        # 테스트 커버리지용 명시적 반환
         return Response(status=status.HTTP_204_NO_CONTENT)
