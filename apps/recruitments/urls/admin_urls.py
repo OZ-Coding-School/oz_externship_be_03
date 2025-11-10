@@ -6,6 +6,6 @@ from apps.recruitments.views.admin_views import (
 )
 
 urlpatterns = [
-    path("", AdminRecruitmentListAPIView.as_view(), name="admin_recruitment_list"),
-    path("<int:recruitment_id>/", AdminRecruitmentDetailAPIView.as_view(), name="admin_recruitment_detail"),
+    path("", AdminRecruitmentListAPIView.as_view(), name="admin-recruitment-list"),
+    path("<int:recruitment_id>", AdminRecruitmentDetailAPIView.as_view(), name="admin-recruitment-detail"),
 ]

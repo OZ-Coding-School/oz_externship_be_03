@@ -1,7 +1,8 @@
-from typing import Any
+from typing import Any, Optional
 
-from drf_spectacular.utils import OpenApiParameter, extend_schema
-from rest_framework import parsers, status
+from django.db.models import QuerySet
+from drf_spectacular.utils import extend_schema
+from rest_framework import generics, parsers, status
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAdminUser
 from rest_framework.request import Request
@@ -11,73 +12,84 @@ from rest_framework.views import APIView
 from apps.recruitments.models import Recruitment
 from apps.recruitments.serializers.admin_serializers import (
     AdminRecruitmentDetailSerializer,
-    AdminRecruitmentSerializer,
+    AdminRecruitmentListSerializer,
 )
 
 
-# 관리자용 공고 목록 페이지네이션 설정
-class RecruitmentAdminPagination(PageNumberPagination):
+class AdminRecruitmentPagination(PageNumberPagination):
+    # 관리자 공고 목록 페이지네이션
     page_size = 10
     page_size_query_param = "page_size"
-    max_page_size = 50
+
+    def get_paginated_response(self, data: list[Any]) -> Response:
+        total = Recruitment.objects.count()
+        open_count = Recruitment.objects.filter(is_closed=False).count()
+        closed_count = Recruitment.objects.filter(is_closed=True).count()
+
+        # 페이지네이션이 비활성화된 경우(테스트용)
+        if not hasattr(self, "page") or self.page is None or not hasattr(self.page, "paginator"):
+            return Response(
+                {
+                    "results": data,
+                    "count": {"total": total, "open": open_count, "closed": closed_count},
+                    "page": None,
+                    "page_size": None,
+                }
+            )
+
+        return Response(
+            {
+                "results": data,
+                "page": self.page.number,
+                "page_size": self.page.paginator.per_page,
+                "count": {"total": total, "open": open_count, "closed": closed_count},
+            }
+        )
 
 
-class AdminRecruitmentListAPIView(APIView):
-    # 관리자용 스터디 구인공고 목록 조회
+class AdminRecruitmentListAPIView(generics.ListAPIView[Recruitment]):
+    # 관리자 공고 목록 조회
+    serializer_class = AdminRecruitmentListSerializer
     permission_classes = [IsAdminUser]
-    serializer_class = AdminRecruitmentSerializer
-    pagination_class = RecruitmentAdminPagination
+    pagination_class = AdminRecruitmentPagination
 
     @extend_schema(
         tags=["AdminRecruitments"],
         summary="관리자용 스터디 구인공고 목록 조회",
-        description="관리자가 등록된 스터디 구인공고를 조회합니다. 태그(tag), 마감 여부(is_closed) 필터 및 페이지네이션(page, page_size)을 지원합니다.",
-        parameters=[
-            OpenApiParameter("tag", str, description="태그명 필터"),
-            OpenApiParameter("is_closed", bool, description="마감 여부 필터 (true / false)"),
-            OpenApiParameter("page", int, description="페이지 번호 (기본값 1)"),
-            OpenApiParameter("page_size", int, description="페이지당 항목 수 (기본값 10)"),
-        ],
-        responses={200: AdminRecruitmentSerializer(many=True)},
+        responses={200: AdminRecruitmentListSerializer(many=True)},
     )
-    def get(self, request: Request, *args: Any, **kwargs: Any) -> Response:
-        # 기본 쿼리셋 (최신순 정렬 추가)
-        qs = (
-            Recruitment.objects.select_related("author", "study_group").prefetch_related("tags").order_by("-created_at")
-        )
+    def get_queryset(self) -> QuerySet[Recruitment]:
+        qs = Recruitment.objects.all().prefetch_related("tags")
 
-        # 태그명 필터
-        tag = request.query_params.get("tag")
-        if tag:
-            qs = qs.filter(tags__name__icontains=tag)
+        title = self.request.query_params.get("title")
+        status_param = self.request.query_params.get("status")
+        is_closed_param = self.request.query_params.get("is_closed")
+        tag_names = self.request.query_params.getlist("tags")
 
-        # 마감 여부 필터
-        is_closed = request.query_params.get("is_closed")
-        if is_closed:
-            v = is_closed.lower()
-            if v in ("true", "1"):
-                qs = qs.filter(is_closed=True)
-            elif v in ("false", "0"):
-                qs = qs.filter(is_closed=False)
+        if title:
+            qs = qs.filter(title__icontains=title)
 
-        # 페이지네이션 적용
-        paginator = self.pagination_class()
-        page = paginator.paginate_queryset(qs, request)
-        serializer = self.serializer_class(page, many=True)
-        return paginator.get_paginated_response(serializer.data)
+        # 상태와 is_closed=true/false 둘 다 지원
+        if status_param in ("open", "closed"):
+            qs = qs.filter(is_closed=(status_param == "closed"))
+        elif is_closed_param in ("true", "false", "True", "False"):
+            qs = qs.filter(is_closed=(is_closed_param.lower() == "true"))
+
+        if tag_names:
+            qs = qs.filter(tags__name__in=tag_names).distinct()
+
+        ordering = self.request.query_params.get("ordering", "-created_at")
+        return qs.order_by(ordering)
 
 
 class AdminRecruitmentDetailAPIView(APIView):
-    # 관리자용 스터디 구인공고 상세 조회 및 삭제
+    # 관리자 공고 상세 조회 및 삭제
     permission_classes = [IsAdminUser]
-    parser_classes = [parsers.JSONParser, parsers.MultiPartParser]
-    serializer_class = AdminRecruitmentDetailSerializer
+    parser_classes = [parsers.JSONParser]
 
-    # 단일 공고 조회
-    def get_object(self, recruitment_id: int) -> Recruitment | None:
+    def get_object(self, recruitment_id: int) -> Optional[Recruitment]:
         return (
-            Recruitment.objects.select_related("author", "study_group")
-            .prefetch_related("tags")
+            Recruitment.objects.prefetch_related("tags", "attachments", "applications")
             .filter(id=recruitment_id)
             .first()
         )
@@ -85,35 +97,31 @@ class AdminRecruitmentDetailAPIView(APIView):
     @extend_schema(
         tags=["AdminRecruitments"],
         summary="관리자용 스터디 구인공고 상세 조회",
-        description="특정 스터디 구인공고의 상세 정보를 조회합니다.",
-        responses={
-            200: AdminRecruitmentDetailSerializer,
-            404: {"type": "object", "properties": {"message": {"type": "string"}}},
-        },
+        responses={200: AdminRecruitmentDetailSerializer},
     )
     def get(self, request: Request, recruitment_id: int, *args: Any, **kwargs: Any) -> Response:
-        # 공고 상세 조회
         recruitment = self.get_object(recruitment_id)
         if not recruitment:
-            return Response({"message": "해당 공고를 찾을 수 없습니다."}, status=status.HTTP_404_NOT_FOUND)
+            # 존재하지 않을 경우 404
+            return Response({"detail": "조회하려는 공고가 존재하지 않습니다."}, status=status.HTTP_404_NOT_FOUND)
 
-        serializer = self.serializer_class(recruitment)
-        return Response(serializer.data)
+        serializer = AdminRecruitmentDetailSerializer(recruitment)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
     @extend_schema(
         tags=["AdminRecruitments"],
         summary="관리자용 스터디 구인공고 삭제",
-        description="특정 스터디 구인공고를 삭제합니다.",
         responses={
             204: None,
-            404: {"type": "object", "properties": {"message": {"type": "string"}}},
+            400: {"type": "object", "properties": {"detail": {"type": "string"}}},
+            404: {"type": "object", "properties": {"detail": {"type": "string"}}},
         },
     )
     def delete(self, request: Request, recruitment_id: int, *args: Any, **kwargs: Any) -> Response:
-        # 공고 삭제
         recruitment = self.get_object(recruitment_id)
         if not recruitment:
-            return Response({"message": "해당 공고를 찾을 수 없습니다."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": "삭제하려는 공고를 찾을 수 없습니다."}, status=status.HTTP_404_NOT_FOUND)
 
         recruitment.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        # 테스트 커버리지용 명시적 반환
+        return Response({"detail": "삭제 완료"}, status=status.HTTP_204_NO_CONTENT)
