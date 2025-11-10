@@ -11,16 +11,33 @@ from apps.users.models import SocialUser, User
 from apps.users.services.auth_services import _issue_tokens
 
 
-# =====================================================
-# ✅ 카카오 로그인 서비스
-# =====================================================
+# 디버깅 관련 코드
+def _debug_log_response(prefix: str, response: requests.Response) -> None:
+    if settings.DEBUG:
+        print(f"\n[{prefix}] 상태 코드: {response.status_code}")
+        try:
+            print(f"[{prefix}] 응답 본문:", response.json())
+        except Exception:
+            print(f"[{prefix}] 원본 응답:", response.text)
+
+
+# 테스트 환경일 때는 무조건 mock
+def _is_mock_mode() -> bool:
+    from django.conf import settings
+
+    if getattr(settings, "TEST", False):
+        return True
+    if settings.DEBUG and not getattr(settings, "SOCIAL_AUTH_FORCE_REAL_REQUEST", False):
+        return True
+    return False
+
+
+# 카카오
 class KakaoAuthService:
-    """카카오 소셜 로그인 서비스"""
 
     @staticmethod
     def exchange_code_for_token(code: str) -> str:
-        """인가 코드(code) → access_token 교환"""
-        if settings.DEBUG and code.startswith("FAKE_"):
+        if _is_mock_mode() and code.startswith("FAKE_"):
             print(f"[MOCK] 카카오 인가 코드 테스트: {code}")
             return "mock_access_token_for_kakao"
 
@@ -34,21 +51,22 @@ class KakaoAuthService:
 
         try:
             response = requests.post(token_url, data=payload, timeout=5)
-            if response.status_code == 400:
-                raise ValidationError("인가 코드 형식이 올바르지 않습니다.")
-            response.raise_for_status()
+            _debug_log_response("KAKAO TOKEN", response)
+            if response.status_code != 200:
+                raise ValidationError(f"[KakaoTokenError] {response.status_code}: {response.text}")
             token_data: Dict[str, Any] = response.json()
             access_token = token_data.get("access_token")
             if not isinstance(access_token, str):
-                raise ValidationError("액세스 토큰이 발급되지 않았습니다.")
+                raise ValidationError(f"[KakaoTokenError] 액세스 토큰 누락: {token_data}")
             return access_token
-        except requests.RequestException:
-            raise ValidationError("인가 코드 형식이 올바르지 않습니다.")
+
+        except requests.RequestException as e:
+            print(f"[KakaoTokenRequestException] {e}")
+            raise ValidationError(f"[KakaoTokenRequestException] 인가 코드 교환 실패: {str(e)}")
 
     @staticmethod
     def get_user_info(access_token: str) -> Dict[str, Any]:
-        """카카오 사용자 정보 조회"""
-        if settings.DEBUG and access_token.startswith("mock_access_token_for_"):
+        if _is_mock_mode() and access_token.startswith("mock_access_token_for_"):
             print("[MOCK] 카카오 사용자 정보 반환")
             return {
                 "email": "kakao_test@example.com",
@@ -64,46 +82,37 @@ class KakaoAuthService:
         headers = {"Authorization": f"Bearer {access_token}"}
         try:
             resp = requests.get("https://kapi.kakao.com/v2/user/me", headers=headers, timeout=5)
-            resp.raise_for_status()
+            _debug_log_response("KAKAO USERINFO", resp)
+            if resp.status_code != 200:
+                raise ValidationError(f"[KakaoUserInfoError] {resp.status_code}: {resp.text}")
+
             data: Dict[str, Any] = resp.json()
             kakao_account = data.get("kakao_account", {})
             profile = kakao_account.get("profile", {})
-
-            # ✅ birthdate(카카오) → birthday(DB)로 변환
-            birthdate = kakao_account.get("birthdate")
-            if not birthdate:
-                raise ValidationError("생년월일 제공에 동의하지 않아 로그인할 수 없습니다.")
-            if birthdate.startswith("0000-"):
-                birthdate = birthdate.replace("0000-", "1900-")
-            elif len(birthdate) == 4:
-                birthdate = f"{birthdate}-01-01"
-
-            # ✅ 프로필 이미지
-            profile_img = profile.get("picture") or profile.get("profile_image_url", "")
+            birthdate = kakao_account.get("birthdate") or "1900-01-01"
 
             return {
-                "email": kakao_account.get("email", ""),
+                "email": kakao_account.get("email", "") or f"no_email_{data.get('id')}@kakao.local",
                 "name": kakao_account.get("name", profile.get("nickname", "")),
                 "nickname": profile.get("nickname", ""),
                 "gender": kakao_account.get("gender", ""),
-                "birthday": birthdate,  # ✅ DB 필드명 맞춤
+                "birthday": birthdate,
                 "phone_number": kakao_account.get("phone_number", ""),
-                "profile_img_url": profile_img,
+                "profile_img_url": profile.get("profile_image_url", ""),
                 "provider_id": str(data.get("id", "")),
             }
 
-        except requests.RequestException:
-            raise ValidationError("유저 정보를 가져올 수 없습니다.")
+        except requests.RequestException as e:
+            print(f"[KakaoUserInfoException] {e}")
+            raise ValidationError(f"[KakaoUserInfoException] 유저 정보를 가져올 수 없습니다: {str(e)}")
 
     @staticmethod
     def handle_login(code: str) -> Dict[str, Any]:
         access_token = KakaoAuthService.exchange_code_for_token(code)
         user_info = KakaoAuthService.get_user_info(access_token)
 
-        email = user_info.get("email", "").strip()
-        birthday = user_info.get("birthday")
-        if not email or not birthday:
-            raise ValidationError("유저 정보(이메일/생년월일)를 가져올 수 없습니다.")
+        email = user_info.get("email", "").strip() or f"no_email_{user_info.get('provider_id')}@kakao.local"
+        birthday = user_info.get("birthday", "1900-01-01")
 
         user, _ = User.objects.get_or_create(
             email=email,
@@ -119,23 +128,20 @@ class KakaoAuthService:
         )
         SocialUser.objects.update_or_create(user=user, provider=Provider.KAKAO.value)
         tokens = _issue_tokens(user)
-        return {
-            "detail": "카카오 로그인에 성공했습니다.",
-            "data": {"access": tokens["access"], "refresh": tokens["refresh"]},
-        }
+        return {"detail": "카카오 로그인에 성공했습니다.", "data": tokens}
 
 
-# =====================================================
-# ✅ 네이버 로그인 서비스
-# =====================================================
+# 네이버
 class NaverAuthService:
-    """네이버 소셜 로그인 서비스"""
 
     @staticmethod
     def exchange_code_for_token(code: str, state: Optional[str]) -> str:
-        if settings.DEBUG and code.startswith("FAKE_"):
+        if _is_mock_mode() and code.startswith("FAKE_"):
             print(f"[MOCK] 네이버 인가 코드 테스트: {code}")
             return "mock_access_token_for_naver"
+
+        if not state:
+            raise ValidationError("[NaverStateError] state 값이 누락되었습니다. 요청이 위조되었을 수 있습니다.")
 
         token_url = "https://nid.naver.com/oauth2.0/token"
         payload = {
@@ -143,26 +149,30 @@ class NaverAuthService:
             "client_id": cast(str, settings.NAVER_CLIENT_ID),
             "client_secret": cast(str, settings.NAVER_CLIENT_SECRET),
             "code": code,
-            "state": state or "RANDOM_STATE_STRING",
+            "state": state,
         }
 
         try:
             response = requests.post(token_url, data=payload, timeout=5)
-            if response.status_code == 400:
-                raise ValidationError("인가 코드 형식이 올바르지 않습니다.")
-            response.raise_for_status()
+            _debug_log_response("NAVER TOKEN", response)
+
+            if response.status_code != 200:
+                raise ValidationError(f"[NaverTokenError] {response.status_code}: {response.text}")
+
             token_data: Dict[str, Any] = response.json()
             access_token = token_data.get("access_token")
             if not isinstance(access_token, str):
-                raise ValidationError("액세스 토큰이 발급되지 않았습니다.")
+                raise ValidationError(f"[NaverTokenError] 액세스 토큰 누락: {token_data}")
+
             return access_token
-        except requests.RequestException:
-            raise ValidationError("인가 코드 형식이 올바르지 않습니다.")
+
+        except requests.RequestException as e:
+            print(f"[NaverTokenRequestException] {e}")
+            raise ValidationError(f"[NaverTokenRequestException] 인가 코드 교환 실패: {str(e)}")
 
     @staticmethod
     def get_user_info(access_token: str) -> Dict[str, Any]:
-        """네이버 사용자 정보 조회"""
-        if settings.DEBUG and access_token.startswith("mock_access_token_for_"):
+        if _is_mock_mode() and access_token.startswith("mock_access_token_for_"):
             print("[MOCK] 네이버 사용자 정보 반환")
             return {
                 "email": "naver_test@example.com",
@@ -178,23 +188,17 @@ class NaverAuthService:
         headers = {"Authorization": f"Bearer {access_token}"}
         try:
             resp = requests.get("https://openapi.naver.com/v1/nid/me", headers=headers, timeout=5)
-            resp.raise_for_status()
+            _debug_log_response("NAVER USERINFO", resp)
+            if resp.status_code != 200:
+                raise ValidationError(f"[NaverUserInfoError] {resp.status_code}: {resp.text}")
+
             naver_account = resp.json().get("response", {})
-
             birthyear = naver_account.get("birthyear", "")
-            birthday_fragment = naver_account.get("birthday", "")  # ex: "05-05" or "0505"
-
-            # ✅ birthday 포맷 보정
-            if len(birthday_fragment) == 4 and "-" not in birthday_fragment:
-                birthday_fragment = f"{birthday_fragment[:2]}-{birthday_fragment[2:]}"
-
-            if not birthyear or not birthday_fragment:
-                raise ValidationError("생년월일 제공에 동의하지 않아 로그인할 수 없습니다.")
-
-            birthday = f"{birthyear}-{birthday_fragment}"  # YYYY-MM-DD
+            birthday_fragment = naver_account.get("birthday", "")
+            birthday = f"{birthyear}-{birthday_fragment}" if birthyear and birthday_fragment else "1900-01-01"
 
             return {
-                "email": naver_account.get("email", ""),
+                "email": naver_account.get("email", "") or f"no_email_{naver_account.get('id')}@naver.local",
                 "name": naver_account.get("name", ""),
                 "nickname": naver_account.get("nickname", ""),
                 "gender": naver_account.get("gender", ""),
@@ -204,18 +208,17 @@ class NaverAuthService:
                 "provider_id": str(naver_account.get("id", "")),
             }
 
-        except requests.RequestException:
-            raise ValidationError("유저 정보를 가져올 수 없습니다.")
+        except requests.RequestException as e:
+            print(f"[NaverUserInfoException] {e}")
+            raise ValidationError(f"[NaverUserInfoException] 유저 정보를 가져올 수 없습니다: {str(e)}")
 
     @staticmethod
     def handle_login(code: str, state: Optional[str]) -> Dict[str, Any]:
         access_token = NaverAuthService.exchange_code_for_token(code, state)
         user_info = NaverAuthService.get_user_info(access_token)
 
-        email = user_info.get("email", "").strip()
-        birthday = user_info.get("birthday")
-        if not email or not birthday:
-            raise ValidationError("유저 정보(이메일/생년월일)를 가져올 수 없습니다.")
+        email = user_info.get("email", "").strip() or f"no_email_{user_info.get('provider_id')}@naver.local"
+        birthday = user_info.get("birthday", "1900-01-01")
 
         user, _ = User.objects.get_or_create(
             email=email,
@@ -231,17 +234,11 @@ class NaverAuthService:
         )
         SocialUser.objects.update_or_create(user=user, provider=Provider.NAVER.value)
         tokens = _issue_tokens(user)
-        return {
-            "detail": "네이버 로그인에 성공했습니다.",
-            "data": {"access": tokens["access"], "refresh": tokens["refresh"]},
-        }
+        return {"detail": "네이버 로그인에 성공했습니다.", "data": tokens}
 
 
-# =====================================================
-# ✅ 통합 진입점
-# =====================================================
+#진입점
 class SocialAuthService:
-    """공통 소셜 로그인 진입점"""
 
     @staticmethod
     def handle_social_login(provider: str, code: str, state: Optional[str] = None) -> Dict[str, Any]:
