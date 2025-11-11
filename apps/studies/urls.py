@@ -26,7 +26,10 @@ from apps.studies.views.s3_presign import (
     StudyGroupS3PresignedView,
     StudyNoteS3PresignedView,
 )
-from apps.studies.views.schedules import GroupScheduleCreateView
+from apps.studies.views.schedules import (
+    GroupScheduleDetailUpdateDeleteView,
+    GroupScheduleListCreateView,
+)
 
 app_name = "studies"
 
@@ -61,14 +64,23 @@ urlpatterns = [
         MemberLeaveView.as_view(),
         name="study-member-leave",
     ),
-    # 스터디 그룹 멤버 추방 API
+    # 스터디 그룹 멤버 추방
     path(
         "groups/<uuid:group_uuid>/members/<int:member_id>",
         MemberKickView.as_view(),
         name="study-member-kick",
     ),
-    # Schedule APIs
-    path("study-schedules", GroupScheduleCreateView.as_view(), name="study-schedules-create"),
+    # 스케줄 APIs (CRUD 전부 지원)
+    path(
+        "groups/<uuid:group_uuid>/schedules",
+        GroupScheduleListCreateView.as_view(),
+        name="group-schedule-list-create",
+    ),
+    path(
+        "groups/<uuid:group_uuid>/schedules/<uuid:schedule_uuid>",
+        GroupScheduleDetailUpdateDeleteView.as_view(),
+        name="group-schedule-detail-update-delete",
+    ),
     # StudyNote APIs
     path(
         "groups/<uuid:group_uuid>/notes",
