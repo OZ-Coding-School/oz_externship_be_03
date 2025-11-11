@@ -6,7 +6,7 @@ from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import generics, parsers, status
 from rest_framework.pagination import PageNumberPagination
-from rest_framework.permissions import AllowAny, IsAdminUser
+from rest_framework.permissions import IsAdminUser
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -106,6 +106,7 @@ class AdminRecruitmentDetailAPIView(APIView):
     def get_object(self, recruitment_uuid: UUID) -> Optional[Recruitment]:
         return (
             Recruitment.objects.prefetch_related("tags", "attachments", "applications")
+            .annotate(bookmark_count=Count("bookmarks"))
             .filter(uuid=recruitment_uuid)
             .first()
         )

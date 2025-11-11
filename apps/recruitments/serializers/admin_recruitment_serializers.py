@@ -72,7 +72,7 @@ class AdminRecruitmentDetailSerializer(serializers.ModelSerializer[Recruitment])
     attachments = AdminRecruitmentAttachmentSerializer(many=True, read_only=True)
     tags = AdminRecruitmentTagSerializer(many=True, read_only=True)
     applications = AdminApplicationSerializer(many=True, read_only=True)
-    bookmark_count = serializers.SerializerMethodField()
+    bookmark_count = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = Recruitment
@@ -93,7 +93,3 @@ class AdminRecruitmentDetailSerializer(serializers.ModelSerializer[Recruitment])
             "bookmark_count",
             "applications",
         ]
-
-    def get_bookmark_count(self, obj: Recruitment) -> int:
-        """SerializerMethodField 명시적 반환"""
-        return getattr(obj, "bookmark_count", 0)
