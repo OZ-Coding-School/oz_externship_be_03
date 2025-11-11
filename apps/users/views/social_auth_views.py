@@ -36,6 +36,7 @@ def _set_refresh_cookie(response: Response, result: dict[str, Any]) -> None:
             samesite="None",
         )
 
+
 # 카카오
 @extend_schema(
     tags=["Auth"],
@@ -144,14 +145,13 @@ class NaverAuthView(APIView):
 
             return response
 
-
-
         except ValidationError as e:
             error_msg = str(e)
             if "다른 소셜" in error_msg:
                 return Response(
                     {"error": "이미 다른 소셜 계정과 연결되어 있습니다. 연결된 소셜 계정으로 로그인해주세요."},
-                    status=400,)
+                    status=400,
+                )
             if any(k in error_msg for k in ["토큰", "access"]):
                 return Response({"error": "유효하지 않은 네이버 토큰입니다."}, status=401)
             if "state" in error_msg:
@@ -163,7 +163,8 @@ class NaverAuthView(APIView):
         except PermissionError:
             return Response(
                 {"error": "잘못된 접근입니다. 요청이 위조되었을 수 있습니다."},
-                status=403,)
+                status=403,
+            )
 
         except Exception as e:
             print(f"[NaverAuthView] Unhandled exception: {e}")

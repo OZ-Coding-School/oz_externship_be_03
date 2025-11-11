@@ -136,7 +136,9 @@ class KakaoAuthService:
                     tokens = _issue_tokens(existing_user)
                     return {"detail": "카카오 로그인에 성공했습니다.", "data": tokens, "created": False}
                 else:
-                    raise ValidationError("이미 다른 소셜 계정으로 가입된 사용자입니다. 연결하신 소셜로 다시 로그인해주세요.")
+                    raise ValidationError(
+                        "이미 다른 소셜 계정으로 가입된 사용자입니다. 연결하신 소셜로 다시 로그인해주세요."
+                    )
             else:
                 # ✅ 일반 회원 → 소셜 테이블 생성 + 로그인 처리
                 SocialUser.objects.create(
@@ -150,7 +152,9 @@ class KakaoAuthService:
         if phone_number:
             phone_owner = User.objects.filter(phone_number=phone_number).exclude(email=email).first()
             if phone_owner:
-                raise ValidationError("이미 다른 소셜 계정으로 가입된 사용자입니다. 연결하신 소셜로 다시 로그인해주세요.")
+                raise ValidationError(
+                    "이미 다른 소셜 계정으로 가입된 사용자입니다. 연결하신 소셜로 다시 로그인해주세요."
+                )
 
         nickname = cast(str, user_info.get("nickname") or "")
         if User.objects.filter(nickname=nickname).exists():
@@ -264,7 +268,9 @@ class NaverAuthService:
                     return {"detail": "네이버 로그인에 성공했습니다.", "data": tokens, "created": False}
                 else:
                     # 다른 소셜과 연결된 계정
-                    raise ValidationError("이미 다른 소셜 계정으로 가입된 사용자입니다. 연결하신 소셜로 다시 로그인해주세요.")
+                    raise ValidationError(
+                        "이미 다른 소셜 계정으로 가입된 사용자입니다. 연결하신 소셜로 다시 로그인해주세요."
+                    )
             else:
                 # ✅ 일반 회원 → 소셜 테이블 새로 생성 + 로그인 처리
                 SocialUser.objects.create(
@@ -279,7 +285,9 @@ class NaverAuthService:
         if phone_number:
             phone_owner = User.objects.filter(phone_number=phone_number).exclude(email=email).first()
             if phone_owner:
-                raise ValidationError("이미 다른 소셜 계정으로 가입된 사용자입니다. 연결하신 소셜로 다시 로그인해주세요.")
+                raise ValidationError(
+                    "이미 다른 소셜 계정으로 가입된 사용자입니다. 연결하신 소셜로 다시 로그인해주세요."
+                )
 
         # ✅ 신규 가입 처리
         nickname = cast(str, user_info.get("nickname") or "")

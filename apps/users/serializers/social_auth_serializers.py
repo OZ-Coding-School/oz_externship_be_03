@@ -15,9 +15,7 @@ class NaverSocialRequestSerializer(serializers.Serializer[Any]):
 
 class KakaoSocialResponseSerializer(serializers.Serializer[Any]):
     detail = serializers.CharField(help_text="카카오 로그인이 완료되었습니다.", required=True)
-    data = serializers.DictField(
-        child=serializers.CharField(), help_text="JWT 토큰 데이터", required=True
-    )
+    data = serializers.DictField(child=serializers.CharField(), help_text="JWT 토큰 데이터", required=True)  # type: ignore[assignment]
 
     @classmethod
     def from_service_result(cls, result: Dict[str, Any]) -> Response:
@@ -32,12 +30,9 @@ class KakaoSocialResponseSerializer(serializers.Serializer[Any]):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
-
 class NaverSocialResponseSerializer(serializers.Serializer[Any]):
     detail = serializers.CharField(help_text="네이버 로그인이 완료되었습니다.", required=True)
-    data = serializers.DictField(
-        child=serializers.CharField(), help_text="JWT 토큰 데이터", required=True
-    )
+    data = serializers.DictField(child=serializers.CharField(), help_text="JWT 토큰 데이터", required=True)  # type: ignore[assignment]
 
     @classmethod
     def from_service_result(cls, result: Dict[str, Any]) -> Response:
