@@ -274,7 +274,7 @@ class RecommendationEndToEndTest(IsolatedRedisTestClient, BaseLectureTest):
         users = self._create_test_users(2)
         lectures = self._create_test_lectures(3)
 
-        category = Category.objects.create(name="Test Category")
+        category = Category.objects.create(name="Test Category",slug="test-category")
         for lecture in lectures:
             LectureCategory.objects.create(lecture=lecture, category=category)
 

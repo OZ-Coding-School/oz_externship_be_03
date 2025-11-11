@@ -18,10 +18,10 @@ class CategoryListAPITest(APITestCase):
 
         cls.category1, cls.category2, cls.category3, cls.category4 = Category.objects.bulk_create(
             [
-                Category(name="Python"),
-                Category(name="C++"),
-                Category(name="Django"),
-                Category(name="Spring"),
+                Category(name="Python", slug="python3"),
+                Category(name="C++", slug="django"),
+                Category(name="Django", slug="javascript"),
+                Category(name="Spring", slug="react"),
             ]
         )
 
