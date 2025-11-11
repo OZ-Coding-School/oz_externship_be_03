@@ -159,7 +159,7 @@ class StudyGroupDetailMemberSerializer(serializers.ModelSerializer[GroupMember])
 
     class Meta:
         model = GroupMember
-        fields = ("uuid", "nickname", "is_leader")
+        fields = ("id", "uuid", "nickname", "is_leader")
 
 
 class StudyGroupDetailSerializer(StudyGroupBaseSerializer):
