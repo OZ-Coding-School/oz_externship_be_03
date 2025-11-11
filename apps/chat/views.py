@@ -17,11 +17,12 @@ from apps.chat.serializers import (
     TotalUnreadMessageCountSerializer,
 )
 from apps.chat.services.chat_service import ChatRoomService
+from apps.core.views import ExceptionHandledAPIView
 from apps.studies.models.groups import GroupMember
 from apps.users.models import User
 
 
-class TotalUnreadMessageCountView(APIView):
+class TotalUnreadMessageCountView(ExceptionHandledAPIView):
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
