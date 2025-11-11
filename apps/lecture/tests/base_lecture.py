@@ -17,8 +17,8 @@ class BaseLectureTest(APITestCase):
     def setUpTestData(cls) -> None:
         cls.category1, cls.category2 = Category.objects.bulk_create(
             [
-                Category(name="Python",slug="python"),
-                Category(name="C++",slug="c-plus-plus"),
+                Category(name="Python", slug="python"),
+                Category(name="C++", slug="c-plus-plus"),
             ]
         )
 
