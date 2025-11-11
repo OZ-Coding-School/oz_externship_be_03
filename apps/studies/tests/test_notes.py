@@ -51,6 +51,47 @@ class StudyNoteCRUDRefactoredTestCase(APITestCase):
 
     # ----------------------------------------------------------------------
 
+    def test_get_requires_authentication(self) -> None:
+        """❌ 비로그인 사용자는 접근 불가"""
+        self.client.logout()
+        note = StudyNote.objects.create(study_group=self.group, author=self.user, title="테스트", content="내용")
+        detail_url = reverse("studies:study-note-detail", kwargs={"note_id": note.id})
+        res = self.client.get(detail_url)
+        self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_get_forbidden_for_non_member(self) -> None:
+        """❌ 그룹 미가입 사용자는 조회 불가 (403)"""
+        User = get_user_model()
+        outsider = User.objects.create_user(
+            email="outsider@test.com",
+            password="test1234",
+            nickname="outsider",
+            birthday=date(1999, 1, 1),
+        )
+        self.client.force_authenticate(user=outsider)
+        note = StudyNote.objects.create(study_group=self.group, author=self.user, title="테스트", content="내용")
+        detail_url = reverse("studies:study-note-detail", kwargs={"note_id": note.id})
+        res = self.client.get(detail_url)
+        self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_get_success_for_group_member(self) -> None:
+        """✅ 그룹 멤버는 작성자가 아니어도 조회 가능"""
+        User = get_user_model()
+        member = User.objects.create_user(
+            email="member@test.com",
+            password="test1234",
+            nickname="member",
+            birthday=date(1999, 1, 1),
+        )
+        GroupMember.objects.create(study_group=self.group, user=member)
+        note = StudyNote.objects.create(study_group=self.group, author=self.user, title="테스트", content="내용")
+        self.client.force_authenticate(user=member)
+        detail_url = reverse("studies:study-note-detail", kwargs={"note_id": note.id})
+        res = self.client.get(detail_url)
+        self.assertEqual(res.status_code, status.HTTP_200_OK, res.json())
+
+    # ----------------------------------------------------------------------
+
     def test_create_and_retrieve_study_note(self) -> None:
         """✅ 노트 생성 → 목록 → 상세 조회"""
         payload = {
@@ -78,7 +119,7 @@ class StudyNoteCRUDRefactoredTestCase(APITestCase):
     # ----------------------------------------------------------------------
 
     def test_update_and_delete_study_note(self) -> None:
-        """✅ 노트 수정 및 삭제"""
+        """✅ 작성자는 노트를 수정 및 삭제 가능"""
         note = StudyNote.objects.create(
             study_group=self.group,
             author=self.user,
@@ -86,6 +127,7 @@ class StudyNoteCRUDRefactoredTestCase(APITestCase):
             content="초기 내용",
         )
 
+        GroupMember.objects.get_or_create(study_group=self.group, user=self.user)
         detail_url = reverse("studies:study-note-detail", kwargs={"note_id": note.id})
 
         res_patch = self.client.patch(detail_url, {"title": "수정된 제목"}, format="json")
@@ -95,6 +137,27 @@ class StudyNoteCRUDRefactoredTestCase(APITestCase):
         res_delete = self.client.delete(detail_url)
         self.assertEqual(res_delete.status_code, status.HTTP_204_NO_CONTENT)
         self.assertFalse(StudyNote.objects.filter(id=note.id).exists())
+
+    def test_update_forbidden_for_non_author(self) -> None:
+        """❌ 작성자가 아닌 멤버는 수정 불가"""
+        User = get_user_model()
+        other = User.objects.create_user(
+            email="other@test.com",
+            password="test1234",
+            nickname="other",
+            birthday=date(1999, 1, 1),
+        )
+        GroupMember.objects.create(study_group=self.group, user=other)
+        note = StudyNote.objects.create(
+            study_group=self.group,
+            author=self.user,
+            title="수정불가",
+            content="내용",
+        )
+        self.client.force_authenticate(user=other)
+        detail_url = reverse("studies:study-note-detail", kwargs={"note_id": note.id})
+        res = self.client.patch(detail_url, {"title": "수정시도"}, format="json")
+        self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
 
 
 class StudyNoteAISummaryTestCase(APITestCase):
@@ -125,7 +188,7 @@ class StudyNoteAISummaryTestCase(APITestCase):
             status="ACTIVE",
         )
 
-        GroupMember.objects.create(study_group=self.group, user=self.user, is_leader=True)
+        GroupMember.objects.get_or_create(study_group=self.group, user=self.user, is_leader=True)
         self.client.force_authenticate(user=self.user)
         self.create_url = reverse("studies:study-note-create")
 
@@ -160,6 +223,7 @@ class StudyNoteAISummaryTestCase(APITestCase):
             content="수정 전 내용",
         )
 
+        GroupMember.objects.get_or_create(study_group=self.group, user=self.user)
         detail_url = reverse("studies:study-note-detail", kwargs={"note_id": note.id})
         res = self.client.patch(detail_url, {"content": "수정된 내용"}, format="json")
         self.assertEqual(res.status_code, status.HTTP_200_OK, res.json())

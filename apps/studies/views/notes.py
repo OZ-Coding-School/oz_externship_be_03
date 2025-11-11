@@ -1,22 +1,19 @@
 from __future__ import annotations
 
 import logging
-from typing import Union
+from typing import Any, Optional, Sequence, cast
 from uuid import UUID
 
 from django.db.models import Count
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
-from rest_framework.permissions import (
-    BasePermission,
-    DjangoObjectPermissions,
-    IsAuthenticated,
-)
+from rest_framework.permissions import BasePermission, IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.studies.models.groups import StudyGroup
 from apps.studies.models.notes import StudyNote
 from apps.studies.permissions import IsGroupMember, IsStudyNoteAuthor
 from apps.studies.serializers.notes import (
@@ -30,7 +27,16 @@ from apps.studies.services.notes import StudyNoteAIService
 logger = logging.getLogger(__name__)
 
 
-class StudyNoteListAPIView(APIView):
+# 5팀 응답 규약 믹신
+class BaseResponseMixin:
+    def success(self, message: str, data: Optional[Any] = None, code: int = status.HTTP_200_OK) -> Response:
+        return Response({"status": code, "message": message, "data": data}, status=code)
+
+    def no_content(self) -> Response:
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class StudyNoteListAPIView(BaseResponseMixin, APIView):
     """
     스터디 노트 목록 조회 API
     """
@@ -45,18 +51,14 @@ class StudyNoteListAPIView(APIView):
             .annotate(files_count=Count("attachments", distinct=True))
             .order_by("-created_at")
         )
-        serializer = StudyNoteListItemSerializer(notes, many=True)
-        return Response(
-            {
-                "status": status.HTTP_200_OK,
-                "message": "노트 목록을 성공적으로 조회했습니다.",
-                "data": serializer.data,
-            },
-            status=status.HTTP_200_OK,
+        serializer = StudyNoteListItemSerializer(cast(Sequence[StudyNote], notes), many=True)
+        return self.success(
+            "노트 목록을 성공적으로 조회했습니다.",
+            serializer.data,
         )
 
 
-class StudyNoteCreateAPIView(APIView):
+class StudyNoteCreateAPIView(BaseResponseMixin, APIView):
     """
     스터디 노트 목록 생성 API
     """
@@ -71,7 +73,6 @@ class StudyNoteCreateAPIView(APIView):
             context={"request": request, "view": self},
         )
         serializer.is_valid(raise_exception=True)
-
         self.check_object_permissions(request, serializer.validated_data["study_group"])
 
         note = serializer.save()
@@ -82,17 +83,14 @@ class StudyNoteCreateAPIView(APIView):
         except Exception as e:
             logger.error("[NoteCreate] AI 요약 생성 실패: note_id=%s, error=%s", note.id, e, exc_info=True)
 
-        return Response(
-            {
-                "status": status.HTTP_201_CREATED,
-                "message": "노트가 성공적으로 생성되었습니다.",
-                "data": StudyNoteDetailSerializer(note).data,
-            },
-            status=status.HTTP_201_CREATED,
+        return self.success(
+            "노트가 성공적으로 생성되었습니다.",
+            StudyNoteDetailSerializer(note).data,
+            code=status.HTTP_201_CREATED,
         )
 
 
-class StudyNoteDetailAPIView(APIView):
+class StudyNoteDetailAPIView(BaseResponseMixin, APIView):
     """
     노트 단일 조회, 수정, 삭제 API
     - GET: [IsAuthenticated, IsGroupMember]
@@ -101,11 +99,11 @@ class StudyNoteDetailAPIView(APIView):
 
     permission_classes = [IsAuthenticated, IsGroupMember, IsStudyNoteAuthor]
 
-    def get_permissions(self) -> list[Union[BasePermission, DjangoObjectPermissions]]:
-        """HTTP 메서드별 권한 분기"""
-        if self.request.method in ("PATCH", "DELETE"):
-            return [IsAuthenticated(), IsGroupMember(), IsStudyNoteAuthor()]
-        return [IsAuthenticated(), IsGroupMember()]
+    def get_permissions(self) -> list[BasePermission]:
+        """메서드별로 다른 권한 적용"""
+        if self.request.method == "GET":
+            return [IsAuthenticated(), IsGroupMember()]
+        return [IsAuthenticated(), IsGroupMember(), IsStudyNoteAuthor()]
 
     def _get_note(self, note_id: int) -> StudyNote:
         return get_object_or_404(
@@ -113,32 +111,31 @@ class StudyNoteDetailAPIView(APIView):
             id=note_id,
         )
 
-    def _check_permissions_for_note(self, request: Request, note: StudyNote) -> None:
-        """공통 권한 검증 (그룹멤버 + 작성자)"""
-        if not IsGroupMember().has_object_permission(request, self, note.study_group):
-            self.permission_denied(request, message=IsGroupMember.message)
+    # 도저히 self._check_object_permission(note.study_group)만 넘겨서 그룹멤버+노트어써 검증 꼬이지않게 하는법 모르겠어서
+    # 테스트 코드를 그에 맞춰서 깎지도 못 하겠고 검증 2개씩 넣어도 note퍼미션이 note 객체를 그룹퍼미션에서 찾는 등의 오류를
+    # 막기위해 싹 다 포문으로 굴리려다가 헬퍼만들어서 개별로 맥이기가 더 간단하다고하여 헬퍼 생성했습니다
+    def _check_group_member_permission(self, request: Request, study_group: StudyGroup) -> None:
+        """그룹 멤버 권한 체크"""
+        if not IsGroupMember().has_object_permission(request, self, study_group):
+            self.permission_denied(request, message="스터디 그룹 멤버만 접근할 수 있습니다.")
+
+    def _check_note_author_permission(self, request: Request, note: StudyNote) -> None:
+        """노트 작성자 권한 체크"""
         if not IsStudyNoteAuthor().has_object_permission(request, self, note):
-            self.permission_denied(request, message=IsStudyNoteAuthor.message)
+            self.permission_denied(request, message="해당 노트를 수정 또는 삭제할 권한이 없습니다.")
 
     @extend_schema(summary="스터디 노트 단일 조회 API")
     def get(self, request: Request, note_id: int) -> Response:
         note = self._get_note(note_id)
-        self.check_object_permissions(request, obj=note.study_group)
-
+        self._check_group_member_permission(request, note.study_group)
         serializer = StudyNoteDetailSerializer(note)
-        return Response(
-            {
-                "status": status.HTTP_200_OK,
-                "message": "노트를 성공적으로 조회했습니다.",
-                "data": serializer.data,
-            },
-            status=status.HTTP_200_OK,
-        )
+        return self.success("노트를 성공적으로 조회했습니다.", serializer.data)
 
     @extend_schema(summary="스터디 노트 수정 API")
     def patch(self, request: Request, note_id: int) -> Response:
         note = self._get_note(note_id)
-        self._check_permissions_for_note(request, note)
+        self._check_group_member_permission(request, note.study_group)
+        self._check_note_author_permission(request, note)
 
         serializer = StudyNoteUpdateSerializer(note, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
@@ -156,19 +153,12 @@ class StudyNoteDetailAPIView(APIView):
                     e,
                     exc_info=True,
                 )
-
-        return Response(
-            {
-                "status": status.HTTP_200_OK,
-                "message": "노트가 성공적으로 수정되었습니다.",
-                "data": StudyNoteDetailSerializer(updated_note).data,
-            },
-            status=status.HTTP_200_OK,
-        )
+        return self.success("노트가 성공적으로 수정되었습니다.", StudyNoteDetailSerializer(updated_note).data)
 
     @extend_schema(summary="스터디 노트 삭제 API")
     def delete(self, request: Request, note_id: int) -> Response:
         note = self._get_note(note_id)
-        self._check_permissions_for_note(request, note)
+        self._check_group_member_permission(request, note.study_group)
+        self._check_note_author_permission(request, note)
         note.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        return self.no_content()
