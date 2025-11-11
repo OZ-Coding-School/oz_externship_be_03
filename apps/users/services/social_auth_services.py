@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from datetime import datetime
 from typing import Any, Dict, Optional, cast
 
@@ -46,8 +45,6 @@ class KakaoAuthService:
             "redirect_uri": cast(str, settings.KAKAO_REDIRECT_URI),
             "code": code,
         }
-
-        print("🔍 Token 요청 payload:", payload)
         try:
             response = requests.post(token_url, data=payload, timeout=5)
             _debug_log_response("KAKAO TOKEN", response)

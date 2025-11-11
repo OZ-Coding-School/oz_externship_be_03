@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from django.conf import settings
 from drf_spectacular.utils import OpenApiResponse, extend_schema
 from rest_framework import status
 from rest_framework.exceptions import ValidationError
@@ -60,12 +59,6 @@ class KakaoAuthView(APIView):
         if not code:
             return Response({"error": "인가 코드가 누락되었습니다."}, status=status.HTTP_400_BAD_REQUEST)
 
-        print("\n[DEBUG] ===== KakaoAuthView Request Info =====")
-        print(f"[DEBUG] 받은 인가코드(code): {code}")
-        print(f"[DEBUG] KAKAO_CLIENT_ID: {getattr(settings, 'KAKAO_CLIENT_ID', None)}")
-        print(f"[DEBUG] KAKAO_REDIRECT_URI: {getattr(settings, 'KAKAO_REDIRECT_URI', None)}")
-        print("[DEBUG] ======================================\n")
-
         try:
             result = KakaoAuthService.handle_login(code)
             response_data = {
@@ -115,13 +108,6 @@ class NaverAuthView(APIView):
         code = request.data.get("code")
         state = request.data.get("state")
 
-        print("\n[DEBUG] ===== NaverAuthView Request Info =====")
-        print(f"[DEBUG] 받은 인가코드(code): {code}")
-        print(f"[DEBUG] 받은 state: {state}")
-        print(f"[DEBUG] NAVER_CLIENT_ID: {getattr(settings, 'NAVER_CLIENT_ID', None)}")
-        print(f"[DEBUG] NAVER_REDIRECT_URI: {getattr(settings, 'NAVER_REDIRECT_URI', None)}")
-        print("[DEBUG] ======================================\n")
-
         if not code:
             return Response({"error": "인가 코드가 누락되었습니다."}, status=status.HTTP_400_BAD_REQUEST)
         if not state:
@@ -140,7 +126,6 @@ class NaverAuthView(APIView):
             response = Response(response_serializer.data, status=status.HTTP_200_OK)
             _set_refresh_cookie(response, result)
 
-            print(f"[✅ NAVER 처리 완료] code={code}, state={state}")
             return response
 
         except ValidationError as e:
