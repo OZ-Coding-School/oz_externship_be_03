@@ -9,6 +9,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.core.views import ExceptionHandledAPIView
 from apps.users.serializers.admin_dashboard_trend_serializers import (
     SignupTrendsDataSerializer,
     WithdrawalTrendsDataSerializer,
@@ -58,7 +59,7 @@ def dashboard_trend_schema(
     )
 
 
-class BaseTrendsAPIView(APIView):
+class BaseTrendsAPIView(ExceptionHandledAPIView):
     """
     공통 View:
     - interval query 파싱/검증
