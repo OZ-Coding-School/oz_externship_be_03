@@ -17,17 +17,14 @@ class StudyScheduleBaseSerializer(serializers.ModelSerializer[GroupSchedule]):
 
     # 날짜/시간 포맷 지정 (프론트 요구사항 반영)
     session_date = serializers.DateField(
-        format="%Y-%m-%d",
         input_formats=["%Y-%m-%d"],
         help_text="스터디 진행일 (YYYY-MM-DD)",
     )
     start_time = serializers.TimeField(
-        format="%H:%M",
         input_formats=["%H:%M", "%H:%M:%S"],
         help_text="스터디 시작 시간 (HH:MM)",
     )
     end_time = serializers.TimeField(
-        format="%H:%M",
         input_formats=["%H:%M", "%H:%M:%S"],
         help_text="스터디 종료 시간 (HH:MM)",
     )
