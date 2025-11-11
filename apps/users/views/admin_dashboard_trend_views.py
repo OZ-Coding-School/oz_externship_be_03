@@ -9,11 +9,11 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.users.serializers.dashboard_trend_serializers import (
+from apps.users.serializers.admin_dashboard_trend_serializers import (
     SignupTrendsDataSerializer,
     WithdrawalTrendsDataSerializer,
 )
-from apps.users.services.dashboard_trend_services import (
+from apps.users.services.admin_dashboard_trend_services import (
     Interval,
     TrendResult,
     get_signup_trends,

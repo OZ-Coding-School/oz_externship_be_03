@@ -1,5 +1,9 @@
 from django.urls import path
 
+from apps.users.views.admin_dashboard_trend_views import (
+    SignupTrendsAPIView,
+    WithdrawalTrendsAPIView,
+)
 from apps.users.views.admin_dashboard_views import AdminWithdrawalReasonStatsView
 from apps.users.views.admin_users_views import (
     AdminUserListView,
@@ -10,10 +14,6 @@ from apps.users.views.admin_withdrawal_views import (
     AdminUserRestoreView,
     AdminWithdrawalDetailView,
     AdminWithdrawalListView,
-)
-from apps.users.views.dashboard_trend_views import (
-    SignupTrendsAPIView,
-    WithdrawalTrendsAPIView,
 )
 
 app_name = "admin"
