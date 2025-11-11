@@ -6,7 +6,8 @@ from apps.lecture.managers import UserPreferCategoryQuerySet
 
 
 class Category(BaseModel):
-    name = models.CharField(max_length=50, unique=True, null=False)
+    name = models.CharField(max_length=50, null=False)  # unique 제거 - title 역할
+    slug = models.CharField(max_length=150, unique=True, null=False)  # -이유 슬러그가 진짜 고유식별자
 
     class Meta:
         db_table = "categories"
