@@ -28,7 +28,7 @@ class AdminApplicationSerializer(serializers.ModelSerializer[Application]):
 
     class Meta:
         model = Application
-        fields = ["id", "user", "recruitment", "status", "status_display", "created_at", "updated_at"]
+        fields = ["id", "uuid", "user", "recruitment", "status", "status_display", "created_at", "updated_at"]
         read_only_fields = fields
         extra_kwargs = {
             "created_at": {"format": DATETIME_FORMAT},
@@ -83,6 +83,7 @@ class AdminApplicationDetailSerializer(serializers.ModelSerializer[Application])
         model = Application
         fields = [
             "id",
+            "uuid",
             "user",
             "recruitment",
             "self_introduction",
