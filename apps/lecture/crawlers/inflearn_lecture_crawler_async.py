@@ -111,8 +111,14 @@ class InflearnLectureCrawlerAsync(InflearnCategoryCrawler):
 
         return filtered_data
 
-    def convert_to_db_format(self, filtered_items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def get_tags(self, metadata: Dict[str, Any]) -> List[Any]:
+        skill_tags: list[str] = [tag.get("title") for tag in metadata.get("skillTags", []) if tag.get("title")]
+        parent_ctgs: list[str] = metadata.get("parentCategories", [])
+        child_ctgs: list[str] = metadata.get("childCategories", [])
 
+        return skill_tags + parent_ctgs + child_ctgs
+
+    def convert_to_db_format(self, filtered_items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         processed_data: List[Dict[str, Any]] = []
 
         for item in filtered_items:
@@ -149,7 +155,7 @@ class InflearnLectureCrawlerAsync(InflearnCategoryCrawler):
                 "discount_price": list_price.get("payPrice", 0),
                 "url_link": f"https://www.inflearn.com/course/{slug}" if slug else "",
                 "thumbnail_img_url": course.get("thumbnailUrl"),
-                # "categories_raw": metadata.get("parentCategories", []),
+                "categories_raw": self.get_tags(metadata),
             }
             processed_data.append(lecture_info)
 
