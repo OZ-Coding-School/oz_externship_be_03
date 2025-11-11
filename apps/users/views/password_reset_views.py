@@ -9,6 +9,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.core.views import ExceptionHandledAPIView
 from apps.users.enums import EmailVerificationPurpose
 from apps.users.permissions import EmailVerifiedPermission
 from apps.users.serializers.password_reset_serializers import PasswordResetSerializer
@@ -34,7 +35,7 @@ def _header(request: Request, name: str) -> Optional[str]:
         ),
     ],
 )
-class PasswordResetView(APIView):
+class PasswordResetView(ExceptionHandledAPIView):
     # 인증 비활성화
     authentication_classes: tuple[type[BaseAuthentication], ...] = ()
     permission_classes = [EmailVerifiedPermission]
