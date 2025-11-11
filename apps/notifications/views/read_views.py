@@ -27,7 +27,7 @@ def mark_notification_as_read(request: Request, notification_id: int) -> Respons
     notification.is_read = True
     notification.save(update_fields=["is_read"])
 
-    return Response({"error": "Notification marked as read"}, status=status.HTTP_200_OK)
+    return Response({"detail": "Notification marked as read"}, status=status.HTTP_200_OK)
 
 
 # 전체 알림 읽음 처리
@@ -39,4 +39,4 @@ def mark_all_notification_as_read(request: Request) -> Response:
 
     # 해당 사용자의 읽지 않은(is_read=False) 알림을 모두 읽음(True)으로 변경
     updated_count = Notification.objects.filter(user=user, is_read=False).update(is_read=True)
-    return Response({"error": f"{updated_count} notifications marked as read."}, status=status.HTTP_200_OK)
+    return Response({"detail": f"{updated_count} notifications marked as read."}, status=status.HTTP_200_OK)
