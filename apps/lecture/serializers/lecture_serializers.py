@@ -14,7 +14,6 @@ class LectureListSerializer(serializers.ModelSerializer[CrawledLecture]):
     class Meta:
         model = CrawledLecture
         fields = [
-            "id",
             "uuid",
             "title",
             "instructor",
