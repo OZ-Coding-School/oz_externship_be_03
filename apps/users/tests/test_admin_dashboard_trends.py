@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta
 from typing import Any
 from unittest.mock import patch
+from uuid import uuid4
 
 from django.contrib.auth import get_user_model
 from django.urls import reverse
@@ -21,9 +22,16 @@ def aware(dt: datetime) -> datetime:
     return timezone.make_aware(dt, timezone.get_current_timezone())
 
 
-class WithdrawalTrendsAPITests(IsolatedRedisTestClient):
+class BaseTrendsAPITest(IsolatedRedisTestClient):
+    # 서브클래스에서 오버라이드
+    endpoint_name: str = ""
+    TOTAL_KEY: str = "total"
+
+    # setUp에서 생성되는 기본 객체가 현재 달 합계에 더해져야 하는 경우(가입)
+    EXTRA_COUNT: int = 0
+
     def setUp(self) -> None:
-        self.url = reverse("users:withdrawal_trends")
+        self.url = reverse(self.endpoint_name)
         self.admin = User.objects.create_superuser(
             name="관리자",
             email="admin@example.com",
@@ -44,21 +52,18 @@ class WithdrawalTrendsAPITests(IsolatedRedisTestClient):
             gender=Gender.MALE,
             is_active=True,
         )
+        today = aware(datetime(2025, 11, 10))
+        User.objects.filter(pk__in=[self.admin.pk, self.user.pk]).update(created_at=today)  # 2025-11-10로 생성일 고정
 
-    def _mk_withdrawals(self, y: int, m: int, d: int = 1, n: int = 1) -> None:
-        """created_at = y-m-d 로 Withdrawal n개 생성"""
-        dt = aware(datetime(y, m, d, 12, 0, 0))  # 정오로 고정(경계 이슈 방지)
-        for _ in range(n):
-            obj = Withdrawal.objects.create(
-                user=None,
-                reason=Reason.NO_LONGER_NEEDED,
-                reason_detail="테스트용",
-                due_date=date.today() + timedelta(days=14),
-            )
-            # auto_now_add가 있어도 DB 레벨에서 덮어쓰기
-            Withdrawal.objects.filter(pk=obj.pk).update(created_at=dt)
+    # --- 서브클래스에서 구현할 팩토리 메서드 ---
+    def _make_records(self, y: int, m: int, d: int = 1, n: int = 1) -> None:
+        """
+        회원 가입 데이터 생성 / 회원 탈퇴 데이터 생성
+        """
+        raise NotImplementedError
 
-    def test_auth_required(self) -> None:
+    # --- 공통 테스트들 ---
+    def auth_required(self) -> None:
         # 비로그인 → 401
         resp = self.client.get(self.url, {"interval": "month"})
         self.assertEqual(resp.status_code, status.HTTP_401_UNAUTHORIZED)
@@ -69,7 +74,7 @@ class WithdrawalTrendsAPITests(IsolatedRedisTestClient):
         self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
 
     @patch("django.utils.timezone.localdate", return_value=date(2025, 11, 10))
-    def test_invalid_interval(self, _mock_today: Any) -> None:
+    def invalid_interval(self, _mock_today: Any) -> None:
         self.client.force_authenticate(self.admin)
         resp = self.client.get(self.url, {"interval": "weekly"})  # 잘못된 값
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
@@ -77,7 +82,7 @@ class WithdrawalTrendsAPITests(IsolatedRedisTestClient):
         self.assertIn("error", body)
 
     @patch("django.utils.timezone.localdate", return_value=date(2025, 11, 10))
-    def test_monthly_trends(self, _mock_today: Any) -> None:
+    def monthly_trends(self, _mock_today: Any) -> None:
         """
         today=2025-11-10 기준:
         - from_date=2024-12-01, to_date=2025-11-10 (이번 달 포함, 오늘까지)
@@ -87,9 +92,9 @@ class WithdrawalTrendsAPITests(IsolatedRedisTestClient):
         self.client.force_authenticate(self.admin)
 
         # 샘플 데이터: 2024-12(1), 2025-02(2), 2025-11(3; 진행중인 달)
-        self._mk_withdrawals(2024, 12, 15, n=1)
-        self._mk_withdrawals(2025, 2, 1, n=2)
-        self._mk_withdrawals(2025, 11, 9, n=3)  # 오늘(10일) 이전 데이터
+        self._make_records(2024, 12, 15, n=1)
+        self._make_records(2025, 2, 1, n=2)
+        self._make_records(2025, 11, 9, n=3)  # 오늘(10일) 이전 데이터
 
         resp = self.client.get(self.url, {"interval": "month"})
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
@@ -124,15 +129,14 @@ class WithdrawalTrendsAPITests(IsolatedRedisTestClient):
         items_map = {i["period"]: i["count"] for i in items}
         self.assertEqual(items_map["2024-12"], 1)
         self.assertEqual(items_map["2025-02"], 2)
-        self.assertEqual(items_map["2025-11"], 3)  # 진행중인 달 데이터도 반영
+        self.assertEqual(items_map["2025-11"], 3 + self.EXTRA_COUNT)  # 진행중인 달 데이터도 반영
         self.assertEqual(items_map["2025-01"], 0)
         self.assertEqual(items_map["2025-03"], 0)
 
-        # 총합 = 1 + 2 + 3
-        self.assertEqual(data["total_withdrawals"], 6)
+        self.assertEqual(data[self.TOTAL_KEY], 6 + self.EXTRA_COUNT)
 
     @patch("django.utils.timezone.localdate", return_value=date(2025, 11, 10))
-    def test_yearly_trends(self, _mock_today: Any) -> None:
+    def yearly_trends(self, _mock_today: Any) -> None:
         """
         today=2025-11-10 기준:
         - from_date=2021-01-01, to_date=2025-11-10
@@ -141,9 +145,9 @@ class WithdrawalTrendsAPITests(IsolatedRedisTestClient):
         self.client.force_authenticate(self.admin)
 
         # 샘플 데이터: 2021(2), 2023(3), 2025(4)
-        self._mk_withdrawals(2021, 1, 1, n=2)
-        self._mk_withdrawals(2023, 6, 1, n=3)
-        self._mk_withdrawals(2025, 10, 1, n=4)
+        self._make_records(2021, 1, 1, n=2)
+        self._make_records(2023, 6, 1, n=3)
+        self._make_records(2025, 10, 1, n=4)
 
         resp = self.client.get(self.url, {"interval": "year"})
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
@@ -158,9 +162,88 @@ class WithdrawalTrendsAPITests(IsolatedRedisTestClient):
         items_map = {i["period"]: i["count"] for i in items}
         self.assertEqual(items_map["2021"], 2)
         self.assertEqual(items_map["2023"], 3)
-        self.assertEqual(items_map["2025"], 4)
+        self.assertEqual(items_map["2025"], 4 + self.EXTRA_COUNT)
         # 누락 연도는 0
         self.assertEqual(items_map["2022"], 0)
         self.assertEqual(items_map["2024"], 0)
 
-        self.assertEqual(data["total_withdrawals"], 2 + 3 + 4)
+        self.assertEqual(data[self.TOTAL_KEY], 2 + 3 + 4 + self.EXTRA_COUNT)
+
+
+class SignupBaseTrendsAPITests(BaseTrendsAPITest):
+    """
+    회원가입 추세 테스트
+    """
+
+    endpoint_name = "users:signup_trends"
+    TOTAL_KEY = "total_signups"
+
+    # setUp()에서 만든 admin/user 2명이 현재 달 합계에 포함
+    EXTRA_COUNT = 2
+
+    def _make_records(self, y: int, m: int, d: int = 1, n: int = 1) -> None:
+        """created_at=y-m-d 로 User n명 생성(가입 추세용)"""
+        dt = aware(datetime(y, m, d, 12, 0, 0))  # 경계 안전
+        suffix = uuid4().hex[:6]
+        for i in range(n):
+            u = User.objects.create_user(
+                email=f"email{suffix}-{i}@example.com",
+                password="testpwd",
+                is_active=True,
+                name="테스트",
+                nickname=f"유저{suffix}{i}",
+                phone_number=f"0101{i}{suffix}",
+                birthday=date(1990, 1, 1),
+                gender=Gender.MALE,
+            )
+            # auto_now_add 무시: DB에서 생성시각 덮어쓰기
+            User.objects.filter(pk=u.pk).update(created_at=dt)
+
+    def test_auth_required(self) -> None:
+        self.auth_required()
+
+    def test_invalid_interval(self) -> None:
+        self.invalid_interval()
+
+    def test_monthly_trends(self) -> None:
+        self.monthly_trends()
+
+    def test_yearly_trends(self) -> None:
+        self.yearly_trends()
+
+
+class WithdrawalBaseTrendsAPITests(BaseTrendsAPITest):
+    """
+    회원탈퇴 추세 테스트
+    """
+
+    endpoint_name = "users:withdrawal_trends"
+    TOTAL_KEY = "total_withdrawals"
+
+    BASELINE_CURRENT_MONTH_COUNT = 0
+    BASELINE_TOTAL_EXTRA = 0
+
+    def _make_records(self, y: int, m: int, d: int = 1, n: int = 1) -> None:
+        """created_at = y-m-d 로 Withdrawal n개 생성"""
+        dt = aware(datetime(y, m, d, 12, 0, 0))  # 정오로 고정(경계 이슈 방지)
+        for _ in range(n):
+            obj = Withdrawal.objects.create(
+                user=None,
+                reason=Reason.NO_LONGER_NEEDED,
+                reason_detail="테스트용",
+                due_date=date.today() + timedelta(days=14),
+            )
+            # auto_now_add가 있어도 DB 레벨에서 덮어쓰기
+            Withdrawal.objects.filter(pk=obj.pk).update(created_at=dt)
+
+    def test_auth_required(self) -> None:
+        self.auth_required()
+
+    def test_invalid_interval(self) -> None:
+        self.invalid_interval()
+
+    def test_monthly_trends(self) -> None:
+        self.monthly_trends()
+
+    def test_yearly_trends(self) -> None:
+        self.yearly_trends()
