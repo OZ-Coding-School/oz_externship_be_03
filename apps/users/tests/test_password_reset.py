@@ -74,7 +74,7 @@ class PasswordResetIntegrationTests(IsolatedRedisTestClient):
             format="json",
         )
         self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
-        self.assertIn("detail", resp.data)
+        self.assertIn("error", resp.data)
 
     def test_token_is_one_time_consumed(self) -> None:
         token = self._issue_reset_token(email=self.user.email)
@@ -88,15 +88,14 @@ class PasswordResetIntegrationTests(IsolatedRedisTestClient):
         )
         self.assertEqual(r1.status_code, status.HTTP_200_OK)
 
-        # 2회차: 같은 토큰 재사용 → verify_and_consume에서 401 → permission에서 403
-        # DRF 설계 구조상 permission check 중일 때 예외가 발생하면 무조건 403으로 처리하기 때문에 401로 처리 불가
+        # 2회차: 같은 토큰 재사용 → verify_and_consume에서 401
         r2 = self.client.post(
             self._url_with_email(self.user.email),
             data=self._payload(new_pw="OtherPass1!!", new_pw2="OtherPass1!!"),
             format="json",
             **self._headers(token=token),  # type: ignore[arg-type]
         )
-        self.assertEqual(r2.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(r2.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_password_policy_violation_returns_400(self) -> None:
         token = self._issue_reset_token(email=self.user.email)
