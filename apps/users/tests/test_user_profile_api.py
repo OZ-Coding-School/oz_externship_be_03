@@ -56,11 +56,13 @@ class MeAPITest(APITestCase):
 
         # 검증
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data["email"], self.user.email)
-        self.assertEqual(response.data["nickname"], self.user.nickname)
-        self.assertEqual(response.data["name"], self.user.name)
-        self.assertIn("profile_img_url", response.data)  # 필드 존재 확인
-        self.assertIn("created_at", response.data)
+
+        data = response.data["data"]
+        self.assertEqual(data["email"], self.user.email)
+        self.assertEqual(data["nickname"], self.user.nickname)
+        self.assertEqual(data["name"], self.user.name)
+        self.assertIn("profile_img_url", data)
+        self.assertIn("created_at", data)
 
     def test_me_unauthorized(self) -> None:
         """
