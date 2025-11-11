@@ -6,7 +6,7 @@ from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
 from apps.studies.models import StudyGroup
-from apps.studies.models.notes import StudyNote
+from apps.studies.models.notes import StudyNote, StudyNoteAttachment, StudyNoteImage
 
 User = get_user_model()
 
@@ -16,7 +16,25 @@ class StudyNoteAuthorSerializer(serializers.ModelSerializer[Any]):
 
     class Meta:
         model = User
-        fields = ("id", "nickname")
+        fields = ("id", "nickname", "profile_img_url")
+
+
+class StudyNoteAttachmentSerializer(serializers.ModelSerializer[Any]):
+    """스터디 노트 첨부파일 Serializer"""
+
+    class Meta:
+        model = StudyNoteAttachment
+        fields = ("id", "file_name", "file_url", "created_at")
+        read_only_fields = fields
+
+
+class StudyNoteImageSerializer(serializers.ModelSerializer[Any]):
+    """스터디 노트 이미지 Serializer"""
+
+    class Meta:
+        model = StudyNoteImage
+        fields = ("id", "img_url", "created_at")
+        read_only_fields = fields
 
 
 class StudyNoteCreateSerializer(serializers.ModelSerializer[StudyNote]):
@@ -54,16 +72,15 @@ class StudyNoteListItemSerializer(serializers.ModelSerializer[StudyNote]):
 
     author = StudyNoteAuthorSerializer(read_only=True)
     files_count = serializers.IntegerField(read_only=True)
+    created_at = serializers.DateTimeField(read_only=True, format="%Y-%m-%d %H:%M")
 
     class Meta:
         model = StudyNote
         fields = (
             "id",
             "title",
-            "ai_summary",
             "author",
             "created_at",
-            "study_group",
             "files_count",
         )
         read_only_fields = fields
@@ -75,6 +92,10 @@ class StudyNoteDetailSerializer(serializers.ModelSerializer[StudyNote]):
     """
 
     author = StudyNoteAuthorSerializer(read_only=True)
+    attachments = StudyNoteAttachmentSerializer(many=True, read_only=True)
+    images = StudyNoteImageSerializer(many=True, read_only=True)
+    created_at = serializers.DateTimeField(read_only=True, format="%Y-%m-%d %H:%M")
+    updated_at = serializers.DateTimeField(read_only=True, format="%Y-%m-%d %H:%M")
 
     class Meta:
         model = StudyNote
@@ -82,11 +103,13 @@ class StudyNoteDetailSerializer(serializers.ModelSerializer[StudyNote]):
             "id",
             "title",
             "content",
-            "ai_summary",
             "author",
+            "study_group",
+            "attachments",
+            "images",
             "created_at",
             "updated_at",
-            "study_group",
+            "ai_summary",
         )
         read_only_fields = fields
 
@@ -94,17 +117,17 @@ class StudyNoteDetailSerializer(serializers.ModelSerializer[StudyNote]):
 class StudyNoteSummarySerializer(serializers.ModelSerializer[StudyNote]):
     """
     스터디 노트 요약 전용 Serializer
-    - 그룹 정보 제거
+
     """
 
+    # note 생성일을 기준으로 프롬프트(date_str) 사용하여 AI요약하기 때문에 때문에 타임포매팅 x created_at은 형식상 유지
     class Meta:
         model = StudyNote
         fields = (
             "id",
             "title",
             "content",
-            "ai_summary",
             "created_at",
-            "updated_at",
+            "ai_summary",
         )
         read_only_fields = fields

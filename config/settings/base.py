@@ -287,3 +287,7 @@ FRONTEND_DOMAIN = os.environ.get("FRONTEND_DOMAIN", "")
 MODEL_STORAGE_PATH = os.getenv("MODEL_STORAGE_PATH", os.path.join(BASE_DIR, "model_storage"))
 
 APPEND_SLASH = False
+
+# 외부 API 키
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_MODEL_NAME = os.getenv("GEMINI_MODEL_NAME", "gemini-2.5-flash")

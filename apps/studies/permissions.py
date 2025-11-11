@@ -37,9 +37,11 @@ class IsGroupMember(DjangoObjectPermissions):
         return True
 
     def has_object_permission(self, request: HttpRequest, view: Any, obj: StudyGroup) -> bool:
+        user = cast(User, request.user)
+
         if hasattr(obj, "group_members"):
-            user = cast(User, request.user)
             return obj.group_members.filter(user=user).exists()
+
         return False
 
 
