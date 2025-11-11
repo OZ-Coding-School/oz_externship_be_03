@@ -45,7 +45,7 @@ class NotificationReadAPITestCase(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(self.notification_unread.is_read)
-        self.assertEqual(response.data["error"], "Notification marked as read")
+        self.assertEqual(response.data["detail"], "Notification marked as read")
 
     def test_mark_notification_already_read(self) -> None:
         """이미 읽은 알림에 다시 PATCH 요청하면 200 OK지만 상태는 그대로"""
@@ -72,5 +72,5 @@ class NotificationReadAPITestCase(APITestCase):
 
         unread_count = Notification.objects.filter(user=self.user, is_read=False).count()
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn("notifications marked as read", response.data["error"])
+        self.assertIn("notifications marked as read", response.data["detail"])
         self.assertEqual(unread_count, 0)
