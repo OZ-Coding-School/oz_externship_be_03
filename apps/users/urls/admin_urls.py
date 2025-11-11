@@ -8,6 +8,7 @@ from apps.users.views.admin_users_views import (
 )
 from apps.users.views.admin_withdrawal_views import (
     AdminUserRestoreView,
+    AdminWithdrawalDetailView,
     AdminWithdrawalListView,
 )
 from apps.users.views.withdrawal_trends_views import WithdrawalTrendsAPIView
@@ -28,6 +29,11 @@ urlpatterns = [
         "admin/withdrawals",
         AdminWithdrawalListView.as_view(),
         name="admin_withdrawal_list",
+    ),
+    path(
+        "admin/users/withdrawals/<int:user_id>",
+        AdminWithdrawalDetailView.as_view(),
+        name="admin_withdrawal_detail",
     ),
     path(
         "admin/users/<int:user_id>/restore",

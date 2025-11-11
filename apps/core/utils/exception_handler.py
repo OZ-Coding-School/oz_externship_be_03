@@ -4,6 +4,7 @@ from typing import Any, Mapping, Type
 
 from django.http import Http404
 from rest_framework import exceptions, status
+from rest_framework.exceptions import ErrorDetail
 from rest_framework.response import Response
 from rest_framework.views import exception_handler as drf_exception_handler
 
@@ -54,6 +55,14 @@ def exception_handler(exc: Exception, context: dict[str, Any]) -> Response:
 # 3) 메시지 정규화
 # -------------------------------------------------
 def build_error_from_dict(data: Mapping[str, Any], status_code: int) -> Response:
+    # 중복 'error:' 방지
+    if "error" in data and isinstance(data["error"], (str, ErrorDetail)):
+        return Response({"error": str(data["error"])}, status=status_code)
+
+    if "detail" in data:
+        return Response({"error": _first_text(data["detail"])}, status=status_code)
+
+    # 그 외 필드 에러 합치기
     text = _build_error_message(data)
     return Response({"error": text}, status=status_code)
 

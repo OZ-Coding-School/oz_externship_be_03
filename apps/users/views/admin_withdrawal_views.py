@@ -7,7 +7,7 @@ from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
 from rest_framework import status
 from rest_framework.pagination import PageNumberPagination
-from rest_framework.permissions import IsAdminUser, IsAuthenticated
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -16,10 +16,12 @@ from apps.core.views import ExceptionHandledAPIView
 from apps.users.enums import Role
 from apps.users.models.user import User
 from apps.users.models.withdrawal import Withdrawal
-from apps.users.permissions import IsStaffRole
+from apps.users.permissions import IsAdminRole, IsStaffRole
 from apps.users.serializers.admin_withdrawal_serializers import (
+    WithdrawalDetailResponseSerializer,
     WithdrawalListItemSerializer,
 )
+from apps.users.services.admin_withdrawal_services import AdminWithdrawalService
 
 
 @extend_schema(
@@ -56,7 +58,7 @@ from apps.users.serializers.admin_withdrawal_serializers import (
     ],
 )
 class AdminWithdrawalListView(APIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAuthenticated, IsStaffRole]
     ORDERING_PARAM = "ordering"
     ROLE_FILTERING_PARAM = "role"
     VALID_ROLE_PARAMS = [r[0] for r in Role.choices]
@@ -162,3 +164,20 @@ class AdminUserRestoreView(ExceptionHandledAPIView):
             Withdrawal.objects.filter(user_id=user.id).delete()
 
         return Response({"detail": "회원 복구에 성공하였습니다."}, status=status.HTTP_200_OK)
+
+
+@extend_schema(
+    tags=["Admin"],
+    operation_id="api_v1_admin_users_withdrawals_detail",
+    summary="관리자 탈퇴 회원 상세 조회",
+    responses=WithdrawalDetailResponseSerializer,
+)
+class AdminWithdrawalDetailView(ExceptionHandledAPIView):
+    permission_classes = [IsAuthenticated, IsStaffRole]
+
+    def get(self, request: Request, user_id: int) -> Response:
+        data = AdminWithdrawalService.get_withdrawal_detail(user_id)
+        serializer = WithdrawalDetailResponseSerializer(data)
+        return Response(
+            {"detail": "탈퇴 내역 상세 조회에 성공하였습니다.", "data": serializer.data}, status=status.HTTP_200_OK
+        )
