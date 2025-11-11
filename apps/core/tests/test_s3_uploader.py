@@ -108,7 +108,7 @@ class S3UploaderTests(TestCase):
         # ✅ 출력 추가
         import json
 
-        print("\n[DEBUG] Presigned URL result:\n", json.dumps(result, indent=2, ensure_ascii=False))
+        # print("\n[DEBUG] Presigned URL result:\n", json.dumps(result, indent=2, ensure_ascii=False))
 
         self.assertEqual(len(result), 1)
         item = result[0]
