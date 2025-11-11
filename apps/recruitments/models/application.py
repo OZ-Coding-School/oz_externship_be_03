@@ -1,3 +1,4 @@
+import uuid
 from typing import TYPE_CHECKING
 
 from django.conf import settings
@@ -16,6 +17,7 @@ class ApplicationStatus(models.TextChoices):
 class Application(models.Model):
     if TYPE_CHECKING:
         id: int
+    uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True, null=False)
     recruitment = models.ForeignKey(Recruitment, on_delete=models.CASCADE, related_name="applications")
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="applications")
 

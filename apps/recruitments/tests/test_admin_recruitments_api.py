@@ -60,18 +60,18 @@ class AdminRecruitmentAPITestCase(TestCase):
         self.assertIn("results", data)
 
     def test_admin_can_filter_open_and_closed(self) -> None:
-        """is_closed 필터 테스트"""
+        """status 필터 테스트"""
         # 마감 상태로 변경
         self.recruitment.is_closed = True
         self.recruitment.save()
 
-        url_closed = f"{reverse('admin-recruitment-list')}?is_closed=true"
+        url_closed = f"{reverse('admin-recruitment-list')}?status=closed"
         res_closed = self.client.get(url_closed)
         self.assertEqual(res_closed.status_code, status.HTTP_200_OK)
         for item in res_closed.json()["results"]:
             self.assertTrue(item["is_closed"])
 
-        url_open = f"{reverse('admin-recruitment-list')}?is_closed=false"
+        url_open = f"{reverse('admin-recruitment-list')}?status=open"
         res_open = self.client.get(url_open)
         self.assertEqual(res_open.status_code, status.HTTP_200_OK)
         for item in res_open.json()["results"]:
@@ -80,7 +80,7 @@ class AdminRecruitmentAPITestCase(TestCase):
     # 상세 조회
     def test_admin_can_retrieve_recruitment_detail(self) -> None:
         """관리자 상세 조회"""
-        url = reverse("admin-recruitment-detail", args=[self.recruitment.id])
+        url = reverse("admin-recruitment-detail", kwargs={"recruitment_uuid": self.recruitment.uuid})
         res = self.client.get(url)
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         body = res.json()
@@ -91,7 +91,7 @@ class AdminRecruitmentAPITestCase(TestCase):
 
     def test_retrieve_nonexistent_recruitment_returns_404(self) -> None:
         """존재하지 않는 공고 조회 시 404"""
-        url = reverse("admin-recruitment-detail", args=[9999])
+        url = reverse("admin-recruitment-detail", kwargs={"recruitment_uuid": "00000000-0000-0000-0000-000000000000"})
         res = self.client.get(url)
         self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
         self.assertIn("detail", res.json())
@@ -99,7 +99,7 @@ class AdminRecruitmentAPITestCase(TestCase):
     # 삭제
     def test_admin_can_delete_recruitment(self) -> None:
         """관리자 공고 삭제"""
-        url = reverse("admin-recruitment-detail", args=[self.recruitment.id])
+        url = reverse("admin-recruitment-detail", kwargs={"recruitment_uuid": self.recruitment.uuid})
         res = self.client.delete(url)
         self.assertEqual(res.status_code, status.HTTP_204_NO_CONTENT)
         self.assertFalse(
@@ -109,7 +109,7 @@ class AdminRecruitmentAPITestCase(TestCase):
 
     def test_delete_nonexistent_recruitment_returns_404(self) -> None:
         """존재하지 않는 공고 삭제 시 404"""
-        url = reverse("admin-recruitment-detail", args=[9999])
+        url = reverse("admin-recruitment-detail", kwargs={"recruitment_uuid": "00000000-0000-0000-0000-000000000000"})
         res = self.client.delete(url)
         self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
         self.assertIn("detail", res.json())

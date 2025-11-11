@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from django.db.models import Q, QuerySet, TextChoices
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema
@@ -96,13 +98,13 @@ class ApplicationDetailAdminAPIView(APIView):
         tags=["Application"],
         summary="어드민용 지원 내역 상세 조회 API",
     )
-    def get(self, request: Request, application_id: int) -> Response:
-        application = self.get_object(application_id)
+    def get(self, request: Request, application_uuid: UUID) -> Response:
+        application = self.get_object(application_uuid)
         serializer = self.serializer_class(application)
         return Response(serializer.data)
 
-    def get_object(self, application_id: int) -> Application:
+    def get_object(self, application_uuid: UUID) -> Application:
         try:
-            return Application.objects.get(id=application_id)
+            return Application.objects.get(uuid=application_uuid)
         except Application.DoesNotExist:
-            raise NotFound(f"application_id: {application_id} not found")
+            raise NotFound(f"application_uuid: {application_uuid} not found")

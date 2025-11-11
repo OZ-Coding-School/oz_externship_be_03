@@ -1,10 +1,12 @@
 from typing import Any, Optional
+from uuid import UUID
 
-from django.db.models import QuerySet
-from drf_spectacular.utils import extend_schema
+from django.db.models import Count, QuerySet, TextChoices
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import generics, parsers, status
 from rest_framework.pagination import PageNumberPagination
-from rest_framework.permissions import IsAdminUser
+from rest_framework.permissions import AllowAny, IsAdminUser
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -29,34 +31,70 @@ class AdminRecruitmentListAPIView(generics.ListAPIView[Recruitment]):
     serializer_class = AdminRecruitmentListSerializer
     permission_classes = [IsAdminUser]
     pagination_class = AdminRecruitmentPagination
+    valid_status_params = ("open", "closed")
+
+    class OrderingChoices(TextChoices):
+        LATEST = "-created_at", "latest"
+        OLDEST = "created_at", "oldest"
+        MOST_BOOKMARKS = "-bookmark_count", "most_bookmarks"
+        MOST_VIEWS = "-views_count", "most_views"
 
     @extend_schema(
-        tags=["AdminRecruitments"],
+        tags=["Admin"],
         summary="관리자용 스터디 구인공고 목록 조회",
+        parameters=[
+            OpenApiParameter(
+                name="keyword",
+                type=OpenApiTypes.STR,
+                required=False,
+                description="공고 제목을 기준으로 검색하기 위한 파라미터입니다.",
+            ),
+            OpenApiParameter(
+                name="tag",
+                type=OpenApiTypes.STR,
+                required=False,
+                many=True,
+                description="공고 태그를 기준으로 필터링 하기 위한 파라미터입니다.",
+            ),
+            OpenApiParameter(
+                name="status",
+                enum=valid_status_params,
+                required=False,
+                description="공고를 오픈, 마감 여부 상태에 따라 필터링 하기 위한 파라미터입니다.",
+            ),
+            OpenApiParameter(
+                name="ordering",
+                enum=[OrderingChoices.labels],
+                required=False,
+                description="공고 목록을 기준에 따라 정렬하기 위한 파라미터입니다. (기본값은 최신순)",
+            ),
+        ],
         responses={200: AdminRecruitmentListSerializer(many=True)},
     )
+    def get(self, request: Request, *args: Any, **kwargs: Any) -> Response:
+        return super().get(request, *args, **kwargs)
+
     def get_queryset(self) -> QuerySet[Recruitment]:
-        qs = Recruitment.objects.all().prefetch_related("tags")
+        qs = Recruitment.objects.prefetch_related("tags").annotate(bookmark_count=Count("bookmarks"))
+        keyword = self.request.query_params.get("keyword")
+        status_param = self.request.query_params.get("status", "")
+        tags = self.request.query_params.getlist("tag", [])
+        ordering_param = self.request.query_params.get("ordering", self.OrderingChoices.LATEST)
+        ordering = getattr(self.OrderingChoices, ordering_param.upper(), self.OrderingChoices.LATEST)
 
-        title = self.request.query_params.get("title")
-        status_param = self.request.query_params.get("status")
-        is_closed_param = self.request.query_params.get("is_closed")
-        tag_names = self.request.query_params.getlist("tags")
+        if keyword:
+            qs = qs.filter(title__icontains=keyword)
 
-        if title:
-            qs = qs.filter(title__icontains=title)
+        if status_param in self.valid_status_params:
+            qs = qs.filter(is_closed=(status_param == self.valid_status_params[1]))
 
-        # 상태(status=open/closed) 또는 is_closed=true/false 모두 지원
-        if status_param in ("open", "closed"):
-            qs = qs.filter(is_closed=(status_param == "closed"))
-        elif is_closed_param in ("true", "false", "True", "False"):
-            qs = qs.filter(is_closed=(is_closed_param.lower() == "true"))
+        if tags:
+            qs = qs.filter(tags__name__in=tags).distinct()
 
-        if tag_names:
-            qs = qs.filter(tags__name__in=tag_names).distinct()
+        if ordering:
+            qs = qs.order_by(ordering)
 
-        ordering = self.request.query_params.get("ordering", "-created_at")
-        return qs.order_by(ordering)
+        return qs
 
 
 class AdminRecruitmentDetailAPIView(APIView):
@@ -65,20 +103,20 @@ class AdminRecruitmentDetailAPIView(APIView):
     permission_classes = [IsAdminUser]
     parser_classes = [parsers.JSONParser]
 
-    def get_object(self, recruitment_id: int) -> Optional[Recruitment]:
+    def get_object(self, recruitment_uuid: UUID) -> Optional[Recruitment]:
         return (
             Recruitment.objects.prefetch_related("tags", "attachments", "applications")
-            .filter(id=recruitment_id)
+            .filter(uuid=recruitment_uuid)
             .first()
         )
 
     @extend_schema(
-        tags=["AdminRecruitments"],
+        tags=["Admin"],
         summary="관리자용 스터디 구인공고 상세 조회",
         responses={200: AdminRecruitmentDetailSerializer},
     )
-    def get(self, request: Request, recruitment_id: int, *args: Any, **kwargs: Any) -> Response:
-        recruitment = self.get_object(recruitment_id)
+    def get(self, request: Request, recruitment_uuid: UUID, *args: Any, **kwargs: Any) -> Response:
+        recruitment = self.get_object(recruitment_uuid)
         if not recruitment:
             return Response({"detail": "조회하려는 공고가 존재하지 않습니다."}, status=status.HTTP_404_NOT_FOUND)
 
@@ -94,8 +132,8 @@ class AdminRecruitmentDetailAPIView(APIView):
             404: {"type": "object", "properties": {"detail": {"type": "string"}}},
         },
     )
-    def delete(self, request: Request, recruitment_id: int, *args: Any, **kwargs: Any) -> Response:
-        recruitment = self.get_object(recruitment_id)
+    def delete(self, request: Request, recruitment_uuid: UUID, *args: Any, **kwargs: Any) -> Response:
+        recruitment = self.get_object(recruitment_uuid)
         if not recruitment:
             return Response({"detail": "삭제하려는 공고를 찾을 수 없습니다."}, status=status.HTTP_404_NOT_FOUND)
 

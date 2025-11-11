@@ -43,13 +43,13 @@ class AdminRecruitmentListSerializer(serializers.ModelSerializer[Recruitment]):
 
     tags: serializers.SlugRelatedField[Tag] = serializers.SlugRelatedField(slug_field="name", read_only=True, many=True)
     status = serializers.SerializerMethodField()
-    bookmark_count = serializers.SerializerMethodField()
-    applications = AdminApplicationSerializer(many=True, read_only=True)
+    bookmark_count = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = Recruitment
         fields = [
             "id",
+            "uuid",
             "title",
             "tags",
             "is_closed",
@@ -59,16 +59,11 @@ class AdminRecruitmentListSerializer(serializers.ModelSerializer[Recruitment]):
             "bookmark_count",
             "created_at",
             "updated_at",
-            "applications",
         ]
 
     def get_status(self, obj: Recruitment) -> str:
         """공고 상태 (모집중 / 마감)"""
         return "마감" if obj.is_closed else "모집중"
-
-    def get_bookmark_count(self, obj: Recruitment) -> int:
-        """북마크 개수 반환"""
-        return getattr(obj, "bookmark_count", 0)
 
 
 class AdminRecruitmentDetailSerializer(serializers.ModelSerializer[Recruitment]):
