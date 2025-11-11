@@ -9,7 +9,7 @@ from django.db import transaction
 from apps.lecture.crawlers.inflearn_lecture_crawler_async import (
     InflearnLectureCrawlerAsync,
 )
-from apps.lecture.models import CrawledLecture
+from apps.lecture.models import Category, CrawledLecture, LectureCategory
 from apps.lecture.services.recommendation_service.data_loader import DataLoader
 from apps.lecture.services.recommendation_service.model_trainer import ModelTrainer
 
@@ -101,50 +101,47 @@ def crawl_inflearn_lectures() -> Dict[str, Any]:
             logger.info("크롤링된 데이터 없음")
             return {"status": "failed", "count": 0}
 
-        with transaction.atomic():
-            # 로그용 기존 강의 수
-            before_count = CrawledLecture.objects.filter(platform="INFLEARN").count()
+        before_count = CrawledLecture.objects.filter(platform="INFLEARN").count()
 
-            lecture_to_save = [
-                CrawledLecture(
-                    external_id=info["external_id"],
-                    platform=info["platform"],
-                    title=info["title"],
-                    instructor=info["instructor"],
-                    average_rating=info["average_rating"],
-                    duration=info["duration"],
-                    difficulty=info["difficulty"],
-                    description=info["description"],
-                    original_price=info["original_price"],
-                    discount_price=info["discount_price"],
-                    url_link=info["url_link"],
-                    thumbnail_img_url=info["thumbnail_img_url"],
-                )
-                for info in lectures_data
-            ]
+        lectures: List[CrawledLecture] = []
+        lecture_categories: dict[str, list[str]] = {}
 
-            CrawledLecture.objects.bulk_create(
-                lecture_to_save,
-                update_conflicts=True,
-                unique_fields=["platform", "external_id"],
-                update_fields=[
-                    "platform",
-                    "title",
-                    "instructor",
-                    "average_rating",
-                    "duration",
-                    "difficulty",
-                    "description",
-                    "original_price",
-                    "discount_price",
-                    "url_link",
-                    "thumbnail_img_url",
-                ],
-            )
+        for data in lectures_data:
+            lecture_categories[data["external_id"]] = data.pop("categories_raw", [])
+            lectures.append(CrawledLecture(**data))
 
-            after_count = CrawledLecture.objects.filter(platform="INFLEARN").count()
-            created_count = after_count - before_count
-            updated_count = len(lectures_data) - created_count
+        created_lectures = CrawledLecture.objects.bulk_create(
+            lectures,
+            update_conflicts=True,
+            update_fields=[
+                "description",
+                "average_rating",
+                "duration",
+                "difficulty",
+                "original_price",
+                "discount_price",
+                "url_link",
+                "thumbnail_img_url",
+            ],
+            unique_fields=["platform", "external_id"],
+        )
+
+        lecture_category_models = []
+
+        for lecture in created_lectures:
+            category_names = lecture_categories.get(lecture.external_id, [])  # type: ignore
+            for ctg_name in category_names:
+                ctg, _ = Category.objects.get_or_create(name=ctg_name)
+                lecture_category_models.append(LectureCategory(lecture=lecture, category=ctg))
+
+        LectureCategory.objects.bulk_create(
+            lecture_category_models,
+            ignore_conflicts=True,
+        )
+
+        after_count = CrawledLecture.objects.filter(platform="INFLEARN").count()
+        created_count = after_count - before_count
+        updated_count = len(lectures_data) - created_count
 
         logger.info(f"크롤링 완료 - 신규: {created_count}, 업데이트: {updated_count}")
         return {"status": "success", "created": created_count, "updated": updated_count, "total": len(lectures_data)}
