@@ -189,7 +189,7 @@ class AdminApplicationAPITestCase(APITestCase):
         self.assertEqual(response.status_code, 403)
 
     def test_admin_application_detail_success(self) -> None:
-        url = reverse("admin-application-detail", kwargs={"application_id": self.applications[0].pk})
+        url = reverse("admin-application-detail", kwargs={"application_uuid": self.applications[0].uuid})
 
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
@@ -235,12 +235,12 @@ class AdminApplicationAPITestCase(APITestCase):
             is_superuser=False,
             is_staff=False,
         )
-        url = reverse("admin-application-detail", kwargs={"application_id": self.applications[0].pk})
+        url = reverse("admin-application-detail", kwargs={"application_uuid": self.applications[0].uuid})
         self.client.force_authenticate(user=user)
         response = self.client.get(url)
         self.assertEqual(response.status_code, 403)
 
     def test_admin_application_detail_failed_with_invalid_application_id(self) -> None:
-        url = reverse("admin-application-detail", kwargs={"application_id": 2121212312})
+        url = reverse("admin-application-detail", kwargs={"application_uuid": "00000000-0000-0000-0000-000000000000"})
         response = self.client.get(url)
         self.assertEqual(response.status_code, 404)
