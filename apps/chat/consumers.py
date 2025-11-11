@@ -2,6 +2,7 @@
 
 import json
 from typing import Any, cast
+from uuid import UUID
 
 from channels.db import database_sync_to_async
 from channels.generic.websocket import (
@@ -16,13 +17,13 @@ from apps.users.models.user import User
 
 
 class ChatConsumer(AsyncJsonWebsocketConsumer):  # type: ignore[misc]
-    study_group_id: int
+    study_group_uuid: UUID
     room_group_name: str
     user: AbstractBaseUser
 
     async def connect(self) -> None:
-        self.study_group_id = self.scope["url_route"]["kwargs"]["study_group_id"]
-        self.room_group_name = f"chat_{self.study_group_id}"
+        self.study_group_uuid = self.scope["url_route"]["kwargs"]["study_group_uuid"]
+        self.room_group_name = f"chat_{self.study_group_uuid}"
         self.user = self.scope["user"]
 
         if not await self.is_valid_study_group() or not await self.is_group_member(self.user):
@@ -48,10 +49,13 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):  # type: ignore[misc]
         """
         Marks all messages in the current study group as read for the current user.
         """
-        latest_message = await ChatMessage.objects.filter(study_group_id=self.study_group_id).alast()
+        # Retrieve the StudyGroup object using its UUID
+        study_group = await StudyGroup.objects.aget(uuid=self.study_group_uuid)
+
+        latest_message = await ChatMessage.objects.filter(study_group=study_group).alast()
         if latest_message:
             await LastReadMessage.objects.aupdate_or_create(
-                study_group_id=self.study_group_id,
+                study_group=study_group,
                 user=self.user,
                 defaults={"message": latest_message},
             )
@@ -90,18 +94,18 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):  # type: ignore[misc]
             )
 
     async def is_valid_study_group(self) -> bool:
-        return await StudyGroup.objects.filter(id=self.study_group_id).aexists()
+        return await StudyGroup.objects.filter(uuid=self.study_group_uuid).aexists()
 
     async def is_group_member(self, user: AbstractBaseUser) -> bool:
         if not user.is_authenticated or not isinstance(user, get_user_model()):
             return False
-        return await GroupMember.objects.filter(study_group_id=self.study_group_id, user=user).aexists()
+        return await GroupMember.objects.filter(study_group__uuid=self.study_group_uuid, user=user).aexists()
 
     async def create_chat_message(self, user: AbstractBaseUser, content: str) -> None:
         """
         Asynchronously creates a chat message in the database.
         """
-        study_group = await StudyGroup.objects.aget(id=self.study_group_id)
+        study_group = await StudyGroup.objects.aget(uuid=self.study_group_uuid)
         await ChatMessage.objects.acreate(
             sender=cast(User, user),
             study_group=study_group,
@@ -139,5 +143,5 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):  # type: ignore[misc]
         Closes the WebSocket connection.
         """
         disconnected_study_group_id = event.get("study_group_id")
-        if disconnected_study_group_id == self.study_group_id:
+        if disconnected_study_group_id == self.study_group_uuid:
             await self.close(code=4001)
