@@ -91,14 +91,26 @@ class MeView(APIView):
         tags=["Users"],
         summary="내 정보 조회",
         description="로그인한 사용자가 본인 정보를 조회한다.",
-        responses=UserProfileSerializer,
+        responses=inline_serializer(
+            name="UserProfileDetailResponse",
+            fields={
+                "detail": serializers.CharField(),
+                "data": UserProfileSerializer(),
+            },
+        ),
     )
     def get(self, request: Request) -> Response:
         """
         현재 로그인한 사용자 정보 반환
         """
         serializer = UserProfileSerializer(request.user)
-        return Response(serializer.data, status=200)
+        return Response(
+            {
+                "detail": "내 정보를 조회합니다.",
+                "data": serializer.data,
+            },
+            status=200,
+        )
 
 
 class UserProfileUpdateView(ExceptionHandledAPIView):
