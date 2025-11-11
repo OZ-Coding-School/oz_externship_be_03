@@ -1,15 +1,15 @@
 from django.urls import path
 
 from apps.recruitments.views.recruitments import (
+    RecruitmentDetailUpdateDeleteAPIView,
     RecruitmentListCreateAPIView,
-    RecruitmentRetrieveUpdateDestroyAPIView,
+    RecruitmentUserListAPIView,
 )
 
 urlpatterns = [
-    path("", RecruitmentListCreateAPIView.as_view(), name="recruitment-list-create"),
+    path("", RecruitmentListCreateAPIView.as_view(), name="list-create"),  # REQ-RECM-001,003
     path(
-        "<int:recruitment_id>/",
-        RecruitmentRetrieveUpdateDestroyAPIView.as_view(),
-        name="recruitment-detail",
-    ),
+        "/<int:recruitment_id>", RecruitmentDetailUpdateDeleteAPIView.as_view(), name="detail"
+    ),  # REQ-RECM-006,007,009
+    path("/users/<int:user_id>", RecruitmentUserListAPIView.as_view(), name="user-list"),  # REQ-RECM-005
 ]

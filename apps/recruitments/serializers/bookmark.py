@@ -2,15 +2,9 @@ from typing import Any
 
 from rest_framework import serializers
 
-from apps.recruitments.models.bookmark import Bookmark
 
-
-class BookmarkSerializer(serializers.ModelSerializer[Bookmark]):
-
-    class Meta:
-        model = Bookmark
-        fields = ["user_id", "recruitment_id", "created_at"]
-        extra_kwargs = {
-            "user_id": {"read_only": True},
-            "created_at": {"read_only": True},
-        }
+class BookmarkToggleSerializer(serializers.Serializer[Any]):
+    recruitment_id = serializers.IntegerField(read_only=True)
+    user_id = serializers.IntegerField(read_only=True)
+    is_bookmarked = serializers.BooleanField(read_only=True)
+    message = serializers.CharField(read_only=True)
