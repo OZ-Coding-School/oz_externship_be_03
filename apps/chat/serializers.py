@@ -36,7 +36,7 @@ class ChatRoomSerializer(serializers.ModelSerializer[StudyGroup]):
 
     class Meta:
         model = StudyGroup
-        fields = ["uuid", "name", "last_message", "unread_message_count"]
+        fields = ["uuid", "name", "last_message", "unread_message_count", "created_at", "updated_at"]
         read_only_fields = fields
 
     def get_last_message(self, obj: Any) -> Optional[dict[str, Any]]:
