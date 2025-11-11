@@ -18,11 +18,11 @@ def mark_notification_as_read(request: Request, notification_id: int) -> Respons
     try:
         notification = Notification.objects.get(id=notification_id, user=user)
     except Notification.DoesNotExist:
-        return Response({"detail": "Notification not found"}, status=status.HTTP_404_NOT_FOUND)
+        return Response({"error": "Notification not found"}, status=status.HTTP_404_NOT_FOUND)
 
     # 이미 읽음 상태인 경우, 추가 업데이트 없이 안내 메시지만 반환
     if notification.is_read:
-        return Response({"detail": "Notification already read"}, status=status.HTTP_200_OK)
+        return Response({"error": "Notification already read"}, status=status.HTTP_200_OK)
 
     notification.is_read = True
     notification.save(update_fields=["is_read"])

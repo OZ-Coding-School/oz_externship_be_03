@@ -55,7 +55,7 @@ class NotificationReadAPITestCase(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(self.notification_read.is_read)
-        self.assertEqual(response.data["detail"], "Notification already read")
+        self.assertEqual(response.data["error"], "Notification already read")
 
     def test_mark_notification_not_found(self) -> None:
         """존재하지 않는 알림 ID로 요청하면 404 반환"""
@@ -63,7 +63,7 @@ class NotificationReadAPITestCase(APITestCase):
         response: Response = self.client.patch(url)
 
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
-        self.assertEqual(response.data["detail"], "Notification not found")
+        self.assertEqual(response.data["error"], "Notification not found")
 
     def test_mark_all_notifications_as_read(self) -> None:
         """읽지 않은 모든 알림을 한 번에 읽음 처리"""
