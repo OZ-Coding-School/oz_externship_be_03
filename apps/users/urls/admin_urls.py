@@ -4,7 +4,10 @@ from apps.users.views.admin_dashboard_trend_views import (
     SignupTrendsAPIView,
     WithdrawalTrendsAPIView,
 )
-from apps.users.views.admin_dashboard_views import AdminWithdrawalReasonStatsView
+from apps.users.views.admin_dashboard_views import (
+    AdminWithdrawalReasonStatsAllTimeView,
+    AdminWithdrawalReasonStatsView,
+)
 from apps.users.views.admin_users_views import (
     AdminUserListView,
     AdminUserRoleUpdateView,
@@ -50,7 +53,7 @@ urlpatterns = [
         "admin/dashboard/withdrawals/trends",
         WithdrawalTrendsAPIView.as_view(),
         name="withdrawal_trends",
-    ),
+    ),  # 회원 탈퇴 추세
     path(
         "admin/dashboard/withdrawals/stats",
         AdminWithdrawalReasonStatsView.as_view(),
@@ -61,4 +64,9 @@ urlpatterns = [
         SignupTrendsAPIView.as_view(),
         name="signup_trends",
     ),
+    path(
+        "admin/dashboard/withdrawals/reasons",
+        AdminWithdrawalReasonStatsAllTimeView.as_view(),
+        name="admin_withdrawal_reason_distribution",
+    ),  # 회원 탈퇴 사유 분포
 ]
