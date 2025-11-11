@@ -33,7 +33,7 @@ class AdminApplicationAPITestCase(APITestCase):
             User(
                 email=f"test{i}@example.com",
                 nickname=f"test{i}",
-                name=f"test{i}",
+                name=f"test{i}" if i != 9 else f"test{i} for {cls.search_keyword}",
                 birthday="2000-01-01",
                 gender="M",
                 phone_number=f"010000000{i}",
@@ -72,7 +72,7 @@ class AdminApplicationAPITestCase(APITestCase):
             Recruitment(
                 author=u,
                 study_group=g,
-                title=f"{g.name} recruitment" if g.pk != 9 else f"{g.name} for {cls.search_keyword}",
+                title=f"{g.name} recruitment",
                 content="content",
                 close_at=timezone.now() + timedelta(days=10),
                 is_closed=False,
@@ -123,7 +123,10 @@ class AdminApplicationAPITestCase(APITestCase):
         self.assertIn("results", response.data)
         self.assertIn("next", response.data)
         self.assertIn("previous", response.data)
-        self.assertEqual(len(response.data["results"]), 9)
+        self.assertEqual(
+            len(response.data["results"]),
+            Application.objects.filter(user__name__icontains=self.search_keyword).count(),
+        )
 
     def test_admin_application_list_success_with_ordering_query_param(self) -> None:
         url = reverse("admin-application-list")
