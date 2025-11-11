@@ -28,7 +28,7 @@ class ApplicationAdminAPIView(APIView):
     pagination_class = LimitOffsetPagination
 
     @extend_schema(
-        tags=["Application"],
+        tags=["Admin"],
         summary="어드민용 모든 지원 내역 목록 조회 API",
         operation_id="v1_admin_application_list",
         parameters=[
@@ -95,7 +95,7 @@ class ApplicationDetailAdminAPIView(APIView):
     permission_classes = [IsStaffRole]
 
     @extend_schema(
-        tags=["Application"],
+        tags=["Admin"],
         summary="어드민용 지원 내역 상세 조회 API",
     )
     def get(self, request: Request, application_uuid: UUID) -> Response:

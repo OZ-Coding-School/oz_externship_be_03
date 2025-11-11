@@ -125,7 +125,7 @@ class AdminRecruitmentDetailAPIView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     @extend_schema(
-        tags=["AdminRecruitments"],
+        tags=["Admin"],
         summary="관리자용 스터디 구인공고 삭제",
         responses={
             204: None,
