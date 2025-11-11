@@ -30,23 +30,26 @@ class S3UploaderTests(TestCase):
         self._mock = mock_aws()
         self._mock.start()
 
-        self.bucket: str = "test-bucket"
-        self.region: Literal["ap-northeast-2"] = "ap-northeast-2"
+        self.bucket = "test-bucket"
+        self.region = "ap-northeast-2"
 
         setattr(settings, "AWS_S3_BUCKET_NAME", self.bucket)
         setattr(settings, "AWS_S3_REGION", self.region)
         setattr(settings, "AWS_S3_ACCESS_KEY_ID", "xxx")
         setattr(settings, "AWS_S3_SECRET_ACCESS_KEY", "yyy")
 
-        client = boto3.client("s3", region_name=self.region)
-        client.create_bucket(
+        # mock 시작 후에 클라이언트를 다시 생성
+        S3Uploader.s3_client = boto3.client("s3", region_name=self.region)
+
+        # 버킷 생성
+        S3Uploader.s3_client.create_bucket(
             Bucket=self.bucket,
             CreateBucketConfiguration={"LocationConstraint": self.region},
         )
 
+        # 속성들 반영
         S3Uploader.BUCKET_NAME = self.bucket
         S3Uploader.REGION_NAME = self.region
-        S3Uploader.s3_client = client
         S3Uploader.S3_BASE_URL = f"https://{self.bucket}.s3.{self.region}.amazonaws.com/"
 
     def tearDown(self) -> None:
@@ -101,6 +104,11 @@ class S3UploaderTests(TestCase):
             prefix="uploads/studies/groups/",
             files=files,
         )
+
+        # ✅ 출력 추가
+        import json
+
+        # print("\n[DEBUG] Presigned URL result:\n", json.dumps(result, indent=2, ensure_ascii=False))
 
         self.assertEqual(len(result), 1)
         item = result[0]
