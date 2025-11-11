@@ -8,15 +8,17 @@ from drf_spectacular.views import (
 )
 
 urlpatterns: list[URLPattern | URLResolver] = [
-    path("api/v1/lectures", include("apps.lecture.urls")),
-    path("api/v1/admin/lectures", include("apps.lecture.urls.admin_urls")),
+    path("api/v1/lectures/", include("apps.lecture.urls")),
+    path("api/v1/admin/lectures/", include("apps.lecture.urls.admin_urls")),
     path("api/v1/", include("apps.users.urls")),
     path("api/v1/", include("apps.recruitments.urls.tag")),
+    path("api/v1/admin/users/", include("apps.users.urls.admin_urls")),
     path("api/v1/studies/", include("apps.studies.urls")),
-    path("api/v1/notifications", include("apps.notifications.urls")),
+    path("api/v1/recruitments/", include("apps.recruitments.urls")),
+    path("api/v1/notifications/", include("apps.notifications.urls")),
     path("api/v1/chat/", include("apps.chat.urls")),
-    path("api/v1/recruitments", include("apps.recruitments.urls")),
-    path("api/v1/admin/", include("apps.recruitments.urls.admin_urls")),
+    path("api/v1/applications/", include("apps.recruitments.urls.application")),
+    path("api/v1/admin/applications/", include("apps.recruitments.urls.admin_application")),
 ]
 
 if settings.DEBUG:
