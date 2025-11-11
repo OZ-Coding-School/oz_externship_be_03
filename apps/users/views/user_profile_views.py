@@ -101,7 +101,7 @@ class MeView(APIView):
         return Response(serializer.data, status=200)
 
 
-class UserProfileUpdateView(APIView):
+class UserProfileUpdateView(ExceptionHandledAPIView):
     parser_classes = [MultiPartParser, JSONParser]
 
     @extend_schema(
@@ -141,7 +141,7 @@ class UserProfileUpdateView(APIView):
         )
 
 
-class UserChangePasswordView(APIView):
+class UserChangePasswordView(ExceptionHandledAPIView):
     permission_classes = [IsAuthenticated]
     throttle_scope = "change-password"  # 레이트리밋 스코프
 

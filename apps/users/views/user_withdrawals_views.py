@@ -6,14 +6,9 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
-from rest_framework.views import APIView
-from rest_framework_simplejwt.exceptions import (
-    ExpiredTokenError,
-    InvalidToken,
-    TokenError,
-)
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from apps.core.views import ExceptionHandledAPIView
 from apps.users.enums import EmailVerificationPurpose
 from apps.users.models import User
 from apps.users.permissions import EmailVerifiedPermission
@@ -24,7 +19,7 @@ from apps.users.serializers.user_withdrawal_serializers import (
 from apps.users.services import user_withdrawal_services
 
 
-class UserWithdrawalAPIView(APIView):
+class UserWithdrawalAPIView(ExceptionHandledAPIView):
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
@@ -56,7 +51,7 @@ class UserWithdrawalAPIView(APIView):
         return resp
 
 
-class UserAccountRecoveryAPIView(APIView):
+class UserAccountRecoveryAPIView(ExceptionHandledAPIView):
     authentication_classes: list[type] = []
     permission_classes = [EmailVerifiedPermission]
     purpose = EmailVerificationPurpose.RESTORE_USER

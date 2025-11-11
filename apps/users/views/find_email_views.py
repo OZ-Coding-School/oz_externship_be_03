@@ -8,12 +8,12 @@ from rest_framework import serializers, status
 from rest_framework.authentication import BaseAuthentication
 from rest_framework.request import Request
 from rest_framework.response import Response
-from rest_framework.views import APIView
 
+from apps.core.views import ExceptionHandledAPIView
 from apps.users.enums import PhoneVerificationPurpose
 from apps.users.permissions import PhoneVerifiedPermission
 from apps.users.serializers.find_email_serializers import FindEmailSerializer
-from apps.users.utils.phone_normalize import denormalize_kr_phone, normalize_kr_phone
+from apps.users.utils.phone_normalize import denormalize_kr_phone
 
 User = get_user_model()
 
@@ -43,7 +43,7 @@ def _header(request: Request, name: str) -> Optional[str]:
         ),
     ],
 )
-class FindEmailView(APIView):
+class FindEmailView(ExceptionHandledAPIView):
     # 인증 비활성화
     authentication_classes: tuple[type[BaseAuthentication], ...] = ()
     permission_classes = [PhoneVerifiedPermission]
