@@ -8,8 +8,8 @@ from rest_framework.authentication import BaseAuthentication
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
-from rest_framework.views import APIView
 
+from apps.core.views import ExceptionHandledAPIView
 from apps.users.enums import PhoneVerificationPurpose
 from apps.users.serializers.phone_verification_serializers import (
     ConfirmCodeResponseSerializer,
@@ -44,7 +44,7 @@ def phone_send_schema(summary: str, description: str) -> Callable[[F], F]:
     )
 
 
-class BasePhoneSendCodeView(APIView):
+class BasePhoneSendCodeView(ExceptionHandledAPIView):
     """
     휴대폰 인증코드 전송 공통 베이스
     - 하위 클래스에서 PURPOSE / permission_classes 만 지정
@@ -90,7 +90,7 @@ def phone_confirm_schema(summary: str, description: str) -> Callable[[F], F]:
     )
 
 
-class BasePhoneConfirmCodeView(APIView):
+class BasePhoneConfirmCodeView(ExceptionHandledAPIView):
     """
     휴대폰 인증코드 확인 공통 베이스
     - 하위 클래스에서 PURPOSE / permission_classes 만 지정

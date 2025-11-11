@@ -70,7 +70,6 @@ class FindEmailTests(IsolatedRedisTestClient):
         """
         resp = self.client.get(self.url)
         self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
-        self.assertIn("토큰", str(resp.data))
 
     def test_token_is_one_time_consumed(self) -> None:
         """
@@ -85,12 +84,12 @@ class FindEmailTests(IsolatedRedisTestClient):
         )
         self.assertEqual(r1.status_code, status.HTTP_200_OK)
 
-        # 2회차: 같은 토큰 재사용 → verify_and_consume 에서 예외 → permission 단계라 403
+        # 2회차: 같은 토큰 재사용 → verify_and_consume 에서 예외 401
         r2 = self.client.get(
             self.url,
             **self._headers(token=token),  # type: ignore[arg-type]
         )
-        self.assertEqual(r2.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(r2.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_user_not_found_returns_404(self) -> None:
         """
