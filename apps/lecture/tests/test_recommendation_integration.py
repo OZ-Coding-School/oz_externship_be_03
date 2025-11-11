@@ -189,7 +189,7 @@ class RecommendationEndToEndTest(IsolatedRedisTestClient, BaseLectureTest):
         if recommendations:
             # 각 추천 항목의 필수 필드 검증
             for rec in recommendations:
-                self.assertIn("id", rec, "추천 항목에 'id' 필드가 없습니다")
+                self.assertIn("uuid", rec, "추천 항목에 'uuid' 필드가 없습니다")
                 self.assertIn("title", rec, "추천 항목에 'title' 필드가 없습니다")
                 self.assertIn("is_bookmarked", rec, "추천 항목에 'is_bookmarked' 필드가 없습니다")
                 self.assertIn("categories", rec, "추천 항목에 'categories' 필드가 없습니다")
@@ -230,7 +230,7 @@ class RecommendationEndToEndTest(IsolatedRedisTestClient, BaseLectureTest):
         recommendations = self._get_recommendations_from_response(response)
         # 북마크된 강의는 추천에서 제외되어야 함
         if recommendations:
-            recommended_ids: Set[int] = {rec["id"] for rec in recommendations}
+            recommended_ids: Set[int] = {rec["uuid"] for rec in recommendations}
             for lecture in lectures:
                 self.assertNotIn(lecture.id, recommended_ids, f"북마크된 강의 {lecture.id}가 추천에 포함됨")
 
@@ -265,7 +265,7 @@ class RecommendationEndToEndTest(IsolatedRedisTestClient, BaseLectureTest):
 
             # 북마크된 강의는 추천에서 제외되어야 함
             if recommendations:
-                recommended_ids: Set[int] = {rec["id"] for rec in recommendations}
+                recommended_ids: Set[int] = {rec["uuid"] for rec in recommendations}
                 self.assertNotIn(lectures[0].id, recommended_ids, "북마크된 강의가 추천에 포함됨")
 
     @override_settings(MODEL_STORAGE_PATH=None)
@@ -306,12 +306,12 @@ class RecommendationEndToEndTest(IsolatedRedisTestClient, BaseLectureTest):
             # 각 사용자의 북마크가 추천에서 제외되었는지 확인
             recommendations1 = self._get_recommendations_from_response(response1)
             if recommendations1:
-                user1_ids: Set[int] = {rec["id"] for rec in recommendations1}
+                user1_ids: Set[int] = {rec["uuid"] for rec in recommendations1}
                 self.assertNotIn(lectures[0].id, user1_ids, "User1 북마크가 추천에 포함됨")
 
             recommendations2 = self._get_recommendations_from_response(response2)
             if recommendations2:
-                user2_ids: Set[int] = {rec["id"] for rec in recommendations2}
+                user2_ids: Set[int] = {rec["uuid"] for rec in recommendations2}
                 self.assertNotIn(lectures[1].id, user2_ids, "User2 북마크가 추천에 포함됨")
 
     def test_user_no_authenticated(self) -> None:
