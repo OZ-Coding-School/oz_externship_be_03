@@ -58,7 +58,7 @@ from apps.users.services.admin_withdrawal_services import AdminWithdrawalService
     ],
 )
 class AdminWithdrawalListView(APIView):
-    permission_classes = [IsAdminRole]
+    permission_classes = [IsAuthenticated, IsStaffRole]
     ORDERING_PARAM = "ordering"
     ROLE_FILTERING_PARAM = "role"
     VALID_ROLE_PARAMS = [r[0] for r in Role.choices]
