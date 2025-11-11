@@ -72,24 +72,27 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):  # type: ignore[misc]
     # Receive message from WebSocket
     async def receive_json(self, content: dict[str, Any], **kwargs: Any) -> None:
         message_type = content.get("type")
-        user = self.scope["user"]
+        user = cast(User, self.scope["user"])
 
-        if message_type == "chat.message":
-            message_content = content.get("content", "").strip()  # Ensure message_content is always a string
+        if message_type == "chat.message" and user.is_authenticated:
+            message_content = content.get("content", "").strip()
+            if not message_content:
+                return
 
-            sender_id = None
-            if user.is_authenticated:
-                assert isinstance(user, User)
-                await self.create_chat_message(user, message_content)
-                sender_id = user.id
+            new_message = await self.create_chat_message(user, message_content)
 
             # Send message to room group
             await self.channel_layer.group_send(
                 self.room_group_name,
                 {
                     "type": "chat_message",
-                    "message": message_content,
-                    "sender_id": sender_id,
+                    "id": str(new_message.id),
+                    "content": new_message.content,
+                    "created_at": new_message.created_at.isoformat(),
+                    "sender": {
+                        "id": str(user.id),
+                        "nickname": user.nickname,
+                    },
                 },
             )
 
@@ -101,12 +104,12 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):  # type: ignore[misc]
             return False
         return await GroupMember.objects.filter(study_group__uuid=self.study_group_uuid, user=user).aexists()
 
-    async def create_chat_message(self, user: AbstractBaseUser, content: str) -> None:
+    async def create_chat_message(self, user: AbstractBaseUser, content: str) -> ChatMessage:
         """
         Asynchronously creates a chat message in the database.
         """
         study_group = await StudyGroup.objects.aget(uuid=self.study_group_uuid)
-        await ChatMessage.objects.acreate(
+        return await ChatMessage.objects.acreate(
             sender=cast(User, user),
             study_group=study_group,
             content=content,
@@ -114,13 +117,16 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):  # type: ignore[misc]
 
     # Receive message from room group
     async def chat_message(self, event: dict[str, Any]) -> None:
-        message = event["message"]
-        sender_id = event["sender_id"]
-
         # Send message to WebSocket
         await self.send(
             text_data=json.dumps(
-                {"type": "chat.message", "message": message, "sender_id": sender_id},
+                {
+                    "type": "chat.message",
+                    "id": event["id"],
+                    "content": event["content"],
+                    "created_at": event["created_at"],
+                    "sender": event["sender"],
+                },
                 ensure_ascii=False,
             )
         )

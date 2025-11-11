@@ -98,13 +98,15 @@ class ChatConsumerTest(TransactionTestCase):
             # 5. Verify both users received the message
             response1 = await communicator1.receive_json_from(timeout=5)
             self.assertEqual(response1["type"], "chat.message")
-            self.assertEqual(response1["message"], test_message_content)
-            self.assertEqual(response1["sender_id"], user1.id)
+            self.assertEqual(response1["content"], test_message_content)
+            self.assertEqual(response1["sender"]["id"], str(user1.id))
+            self.assertEqual(response1["sender"]["nickname"], user1.nickname)
 
             response2 = await communicator2.receive_json_from(timeout=5)
             self.assertEqual(response2["type"], "chat.message")
-            self.assertEqual(response2["message"], test_message_content)
-            self.assertEqual(response2["sender_id"], user1.id)
+            self.assertEqual(response2["content"], test_message_content)
+            self.assertEqual(response2["sender"]["id"], str(user1.id))
+            self.assertEqual(response2["sender"]["nickname"], user1.nickname)
 
             # 6. Verify the message is saved in the database
             message_exists = await ChatMessage.objects.filter(
