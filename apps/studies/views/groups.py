@@ -109,6 +109,7 @@ class StudyGroupDetailUpdateView(APIView):
         tags=["StudyGroup"],
         summary="스터디 그룹 정보 수정 API",
         description=("UUID 값을 입력해주세요."),
+        request=StudyGroupCreateSerializer,
         responses={
             200: StudyGroupCreateSerializer,
         },
