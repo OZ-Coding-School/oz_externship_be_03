@@ -241,7 +241,7 @@ class GroupReviewUpdateView(generics.UpdateAPIView[Review]):
 
 @extend_schema(
     operation_id="AdminListReviews",
-    tags=["StudyGroupReview"],
+    tags=["Admin"],
     summary="어드민 리뷰 목록 조회",
     description="관리자 전용. 모든 리뷰를 조회합니다. group_uuid 쿼리 파라미터로 특정 그룹의 리뷰만 필터링 가능합니다.",
     parameters=[
@@ -284,7 +284,7 @@ class AdminReviewListView(generics.ListAPIView[Review]):
 
 @extend_schema(
     operation_id="AdminReviewDetail",
-    tags=["StudyGroupReview"],
+    tags=["Admin"],
     summary="어드민 리뷰 상세 조회",
     description="관리자 전용. 특정 리뷰의 상세 정보를 조회합니다.",
     responses={200: AdminReviewDetailSerializer},

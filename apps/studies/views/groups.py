@@ -3,7 +3,8 @@ from typing import Any, List, cast
 
 from django.db.models import Count
 from django.shortcuts import get_object_or_404
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import parsers, status
 from rest_framework.permissions import BasePermission, IsAuthenticated
 from rest_framework.request import Request
@@ -46,6 +47,21 @@ class StudyGroupListCreateView(APIView):
         operation_id="v1_studies_groups_list",
         tags=["StudyGroup"],
         summary="스터디 그룹 전체 목록 조회 API",
+        parameters=[
+            OpenApiParameter(name="page", type=OpenApiTypes.INT, location=OpenApiParameter.QUERY),
+            OpenApiParameter(
+                name="status",
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description="그룹 상태 필터링: 'PENDING' = 대기중, 'ONGOING' = 진행중, 'ENDED' = 완료됨",
+            ),
+            OpenApiParameter(
+                name="search",
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description="검색어로 필터링",
+            ),
+        ],
         responses={
             200: StudyGroupListSerializer(many=True),
         },
@@ -135,7 +151,7 @@ class AdminStudyGroupListView(APIView):
 
     @extend_schema(
         operation_id="v1_admin_studies_groups_list",
-        tags=["StudyGroup"],
+        tags=["Admin"],
         summary="어드민용 스터디 그룹 목록 조회",
         description=(
             "관리자 전용. "
@@ -185,7 +201,7 @@ class AdminStudyGroupDetailView(APIView):
 
     @extend_schema(
         operation_id="v1_admin_studies_groups_detail",
-        tags=["StudyGroup"],
+        tags=["Admin"],
         summary="관리자 스터디 그룹 상세 조회",
         description="관리자 전용. 리더는 멤버 목록 최상단에 정렬되어 표시됩니다.",
         responses={200: AdminStudyGroupDetailSerializer},
