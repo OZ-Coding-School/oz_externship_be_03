@@ -46,7 +46,7 @@ class RecruitmentAPITestCase(APITestCase):
         self.client.force_authenticate(user=self.user)
 
         self.create_url = reverse("recruitments:list-create")  # POST, GET /api/v1/recruitments/
-        self.user_list_url = reverse("recruitments:user-list", kwargs={"user_id": self.user.id})
+        self.user_list_url = reverse("recruitments:user-list")
 
     def test_001_create_recruitment(self) -> None:
         """스터디 구인 공고 작성 (REQ-RECM-001)"""

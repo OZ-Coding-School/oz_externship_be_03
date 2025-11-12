@@ -11,5 +11,5 @@ urlpatterns = [
     path(
         "/<int:recruitment_id>", RecruitmentDetailUpdateDeleteAPIView.as_view(), name="detail"
     ),  # REQ-RECM-006,007,009
-    path("/users/<int:user_id>", RecruitmentUserListAPIView.as_view(), name="user-list"),  # REQ-RECM-005
+    path("/mine", RecruitmentUserListAPIView.as_view(), name="user-list"),  # REQ-RECM-005
 ]

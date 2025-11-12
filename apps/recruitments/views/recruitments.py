@@ -108,16 +108,13 @@ class RecruitmentUserListAPIView(generics.ListAPIView):  # type: ignore[type-arg
 
     serializer_class = RecruitmentListSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
+    pagination_class = RecruitmentPagination
 
     def get_queryset(self) -> QuerySet[Recruitment]:
-        user_id = self.kwargs["user_id"]
-        if int(user_id) != self.request.user.id and not self.request.user.is_staff:
-            return Recruitment.objects.none()
-
         qs = (
-            Recruitment.objects.filter(author_id=user_id)
+            Recruitment.objects.filter(author_id=self.request.user.id)
             .annotate(bookmark_count=Count("bookmarks"))
-            .prefetch_related("tags", "images")
+            .prefetch_related("tags", "images", "study_group__lectures")
         )
 
         status_param = self.request.query_params.get("status")

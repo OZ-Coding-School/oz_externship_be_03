@@ -5,6 +5,7 @@ from typing import Optional
 from rest_framework import serializers
 from rest_framework.serializers import ModelSerializer
 
+from apps.lecture.models import CrawledLecture
 from apps.recruitments.models import (
     Bookmark,
     Recruitment,
@@ -39,37 +40,40 @@ class RecruitmentAttachmentSerializer(ModelSerializer[RecruitmentAttachment]):
 
 
 # Author
-
-
 class AuthorSerializer(ModelSerializer[User]):
     class Meta:
         model = User
         fields = ["id", "nickname", "profile_img_url"]
 
 
+class MyRecruitmentLectureSerializer(serializers.ModelSerializer[CrawledLecture]):
+    class Meta:
+        model = CrawledLecture
+        fields = ["uuid", "title", "instructor", "thumbnail_img_url", "platform", "url_link"]
+        read_only_fields = fields
+
+
 # List
-
-
 class RecruitmentListSerializer(ModelSerializer[Recruitment]):
     tags = TagSerializer(many=True, read_only=True)
+    lectures = MyRecruitmentLectureSerializer(source="study_group.lectures", many=True, read_only=True)
     bookmark_count = serializers.IntegerField(read_only=True)
     is_bookmarked = serializers.SerializerMethodField()
-    thumbnail_img = serializers.SerializerMethodField()
-    author = AuthorSerializer(read_only=True)
+    thumbnail_img_url = serializers.SerializerMethodField()
 
     class Meta:
         model = Recruitment
         fields = [
-            "id",
             "uuid",
             "title",
-            "thumbnail_img",
+            "thumbnail_img_url",
             "expected_headcount",
-            "author",
+            "lectures",
             "tags",
             "close_at",
             "views_count",
             "bookmark_count",
+            "is_closed",
             "is_bookmarked",
         ]
 
@@ -79,7 +83,7 @@ class RecruitmentListSerializer(ModelSerializer[Recruitment]):
             return False
         return Bookmark.objects.filter(user=request.user, recruitment=obj).exists()
 
-    def get_thumbnail_img(self, obj: Recruitment) -> str:
+    def get_thumbnail_img_url(self, obj: Recruitment) -> str:
         first_image: Optional[RecruitmentImage] = obj.images.first()
         if first_image:
             return first_image.img_url
