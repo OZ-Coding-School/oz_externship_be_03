@@ -1,15 +1,14 @@
 from django.urls import path
 
-from apps.recruitments.views.application_views import ApplicationCreateAPIView
-from apps.recruitments.views.application_withdrawal_views import (
-    ApplicationWithdrawAPIView,
-)
 from apps.recruitments.views.application_views import (
     ApplicationApproveAPIView,
     ApplicationCreateAPIView,
     ApplicationDetailAPIView,
     ApplicationListAPIView,
     ApplicationRejectAPIView,
+)
+from apps.recruitments.views.application_withdrawal_views import (
+    ApplicationWithdrawAPIView,
 )
 from apps.recruitments.views.my_application_views import (
     MyApplicationDetailAPIView,
