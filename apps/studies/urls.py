@@ -27,6 +27,7 @@ from apps.studies.views.s3_presign import (
     StudyNoteS3PresignedView,
 )
 from apps.studies.views.schedules import (
+    AllGroupScheduleListView,
     GroupScheduleDetailUpdateDeleteView,
     GroupScheduleListCreateView,
 )

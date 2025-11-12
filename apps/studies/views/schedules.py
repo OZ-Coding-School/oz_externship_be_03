@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import uuid
+from datetime import date
 
 from django.shortcuts import get_object_or_404
+from django.utils.dateparse import parse_date
 from drf_spectacular.utils import OpenApiExample, OpenApiResponse, extend_schema
 from rest_framework import permissions, status
 from rest_framework.request import Request
@@ -145,3 +147,42 @@ class GroupScheduleDetailUpdateDeleteView(APIView):
         schedule = get_object_or_404(GroupSchedule, uuid=schedule_uuid, study_group__uuid=group_uuid)
         schedule.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class AllGroupScheduleListView(APIView):
+    """
+    모든 스터디 그룹의 스케줄을 날짜 범위로 조회
+    """
+
+    permission_classes = (permissions.IsAuthenticated,)
+
+    @extend_schema(
+        operation_id="ListAllGroupSchedules",
+        tags=["StudyGroupSchedule"],
+        summary="전체 스터디 스케줄 조회",
+        description=(
+            "모든 스터디 그룹의 스케줄을 조회합니다.\n"
+            "쿼리 파라미터로 날짜 범위를 지정할 수 있습니다:\n"
+            "`?start_date=2025-11-01&end_date=2025-11-30`\n\n"
+            "session_date 기준으로 필터링됩니다."
+        ),
+    )
+    def get(self, request: Request) -> Response:
+        start_date_str = request.query_params.get("start_date")
+        end_date_str = request.query_params.get("end_date")
+
+        schedules = GroupSchedule.objects.all()
+
+        start_date_val: date | None = parse_date(start_date_str) if start_date_str else None
+        end_date_val: date | None = parse_date(end_date_str) if end_date_str else None
+
+        if start_date_val and end_date_val:
+            schedules = schedules.filter(session_date__range=(start_date_val, end_date_val))
+        elif start_date_val:
+            schedules = schedules.filter(session_date__gte=start_date_val)
+        elif end_date_val:
+            schedules = schedules.filter(session_date__lte=end_date_val)
+
+        schedules = schedules.order_by("session_date", "start_time")
+        serializer = StudyScheduleDetailSerializer(schedules, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
