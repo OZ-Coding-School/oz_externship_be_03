@@ -1,5 +1,9 @@
 from django.urls import path
 
+from apps.recruitments.views.application_views import ApplicationCreateAPIView
+from apps.recruitments.views.application_withdrawal_views import (
+    ApplicationWithdrawAPIView,
+)
 from apps.recruitments.views.application_views import (
     ApplicationApproveAPIView,
     ApplicationCreateAPIView,
@@ -21,6 +25,11 @@ urlpatterns = [
     path("/applications/me", MyApplicationsAPIView.as_view(), name="my-applications"),
     path(
         "/applications/me/<uuid:application_uuid>", MyApplicationDetailAPIView.as_view(), name="my-application-detail"
+    ),
+    path(
+        "/applications/<uuid:application_uuid>/withdraw",
+        ApplicationWithdrawAPIView.as_view(),
+        name="application-withdraw",
     ),
     path(
         "/<str:recruitment_uuid>/applications/list",
