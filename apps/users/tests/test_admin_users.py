@@ -1,16 +1,25 @@
 from __future__ import annotations
 
-from typing import Mapping, Union
+from io import BytesIO
+from typing import Literal, Mapping, Optional, Protocol, Union
 from unittest.mock import patch
 
+import boto3
+from botocore.client import BaseClient
+from botocore.exceptions import ClientError
+from django.conf import settings
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.http import Http404
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
+from moto import mock_aws
+from PIL import Image
 from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
 
 from apps.core.exceptions import Conflict
+from apps.core.utils.s3_uploader import S3Uploader
 from apps.users.enums import Role, UserStatus
 from apps.users.models import User, Withdrawal
 from apps.users.services.admin_users_services import AdminUserService
@@ -196,6 +205,44 @@ class TestAdminUserViewAPI(AdminUserSeedMixin, APITestCase):
         self.client = APIClient()
         self.client.force_authenticate(user=self.admin)
 
+    # ========== S3 moto 헬퍼 ==========
+    class _MotoLike(Protocol):
+        def start(self) -> None: ...
+        def stop(self) -> None: ...
+
+    _moto: Optional[_MotoLike] = None
+    _s3: Optional[BaseClient] = None
+    _s3_bucket: str = "test-bucket"
+    _s3_region: Literal["ap-northeast-2"] = "ap-northeast-2"
+
+    def _start_s3_mock(self) -> None:
+        self._moto = mock_aws()
+        self._moto.start()
+
+        setattr(settings, "AWS_S3_BUCKET_NAME", self._s3_bucket)
+        setattr(settings, "AWS_S3_REGION", self._s_region if hasattr(self, "_s_region") else self._s3_region)
+        setattr(settings, "AWS_S3_ACCESS_KEY_ID", "xxx")
+        setattr(settings, "AWS_S3_SECRET_ACCESS_KEY", "yyy")
+
+        # moto S3 클라이언트
+        self._s3 = boto3.client("s3", region_name=self._s3_region)
+        self._s3.create_bucket(
+            Bucket=self._s3_bucket,
+            CreateBucketConfiguration={"LocationConstraint": self._s3_region},
+        )
+
+        # S3Uploader 바인딩
+        S3Uploader.BUCKET_NAME = self._s3_bucket
+        S3Uploader.REGION_NAME = self._s3_region
+        S3Uploader.s3_client = self._s3
+        S3Uploader.S3_BASE_URL = f"https://{self._s3_bucket}.s3.{self._s3_region}.amazonaws.com/"
+
+    def _stop_s3_mock(self) -> None:
+        if self._moto:
+            self._moto.stop()
+            self._moto = None
+            self._s3 = None
+
     # ✅ 회원 목록 조회
     def test_user_list(self) -> None:
         url = reverse("users:admin-user-list")
@@ -216,7 +263,7 @@ class TestAdminUserViewAPI(AdminUserSeedMixin, APITestCase):
 
         # 정보 수정
         payload_name = {"name": "수정된유저"}
-        response = self.client.patch(url, payload_name, format="json")
+        response = self.client.patch(url, payload_name, format="multipart")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.user.refresh_from_db()
         self.assertEqual(self.user.name, "수정된유저")
@@ -340,6 +387,72 @@ class TestAdminUserViewAPI(AdminUserSeedMixin, APITestCase):
         url = reverse("users:admin-user-detail", args=[self.user.id])
         resp = self.client.put(url, {"name": "nope"}, format="json")
         self.assertEqual(resp.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    # ========== (이미지) 프로필 업로드 성공 ==========
+    def test_update_profile_image_only_success(self) -> None:
+        self._start_s3_mock()
+        try:
+            url = reverse("users:admin-user-detail", args=[self.user.id])
+
+            buf = BytesIO()
+            Image.new("RGB", (1, 1), (255, 0, 0)).save(buf, format="PNG")
+            buf.seek(0)
+            img = SimpleUploadedFile("avatar.png", buf.getvalue(), content_type="image/png")
+
+            resp = self.client.patch(url, {"profile_img": img}, format="multipart")
+            self.assertEqual(resp.status_code, status.HTTP_200_OK, msg=resp.content)
+
+            body = resp.json()
+            self.assertIn("detail", body)
+            new_url = body["data"]["profile_img_url"]
+            self.assertTrue(new_url.startswith(S3Uploader.S3_BASE_URL))
+
+            new_key = new_url.replace(S3Uploader.S3_BASE_URL, "")
+            head = S3Uploader.s3_client.head_object(Bucket=S3Uploader.BUCKET_NAME, Key=new_key)
+            self.assertEqual(head["ResponseMetadata"]["HTTPStatusCode"], 200)
+        finally:
+            self._stop_s3_mock()
+
+    # ========== (이미지) 기존 이미지가 있을 때 교체 → 기존 삭제 ==========
+    def test_update_profile_image_replaces_old(self) -> None:
+        self._start_s3_mock()
+        try:
+            url = reverse("users:admin-user-detail", args=[self.user.id])
+
+            buf = BytesIO()
+            Image.new("RGB", (1, 1), (0, 255, 0)).save(buf, format="PNG")
+            buf.seek(0)
+            img_bytes = buf.getvalue()
+
+            old_key = f"profiles/{self.user.id}/old.png"
+            S3Uploader.s3_client.put_object(
+                Bucket=S3Uploader.BUCKET_NAME,
+                Key=old_key,
+                Body=img_bytes,
+                ACL="public-read",
+            )
+            self.user.profile_img_url = S3Uploader.S3_BASE_URL + old_key
+            self.user.save(update_fields=["profile_img_url"])
+
+            # 새 이미지 업로드
+            buf2 = BytesIO()
+            Image.new("RGB", (1, 1), (0, 0, 255)).save(buf2, format="PNG")
+            buf2.seek(0)
+            new_img = SimpleUploadedFile("avatar2.png", buf2.getvalue(), content_type="image/png")
+
+            resp = self.client.patch(url, {"profile_img": new_img}, format="multipart")
+            self.assertEqual(resp.status_code, status.HTTP_200_OK, msg=resp.content)
+
+            body = resp.json()
+            new_url = body["data"]["profile_img_url"]
+            self.assertTrue(new_url.startswith(S3Uploader.S3_BASE_URL))
+            new_key = new_url.replace(S3Uploader.S3_BASE_URL, "")
+
+            head_new = S3Uploader.s3_client.head_object(Bucket=S3Uploader.BUCKET_NAME, Key=new_key)
+            self.assertEqual(head_new["ResponseMetadata"]["HTTPStatusCode"], 200)
+
+        finally:
+            self._stop_s3_mock()
 
 
 # ---------------------------------------------------------------------
