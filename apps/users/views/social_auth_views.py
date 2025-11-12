@@ -17,24 +17,12 @@ from apps.users.serializers.social_auth_serializers import (
     NaverSocialResponseSerializer,
 )
 from apps.users.services.social_auth_services import KakaoAuthService, NaverAuthService
+from apps.users.utils.cookies import set_refresh_cookie
 
 
 # 공통
 def _extract_access_token(result: dict[str, Any]) -> str:
     return result.get("data", {}).get("access") or result.get("data", {}).get("access_token") or "mock_access_token"
-
-
-def _set_refresh_cookie(response: Response, result: dict[str, Any]) -> None:
-
-    refresh_token = result.get("data", {}).get("refresh")
-    if refresh_token:
-        response.set_cookie(
-            key="refresh_token",
-            value=refresh_token,
-            httponly=True,
-            secure=True,
-            samesite="None",
-        )
 
 
 # 카카오
@@ -44,7 +32,7 @@ def _set_refresh_cookie(response: Response, result: dict[str, Any]) -> None:
     request=KakaoAuthRequestSerializer,
     responses={
         200: KakaoSocialResponseSerializer,
-        400: OpenApiResponse(description="요청 형식이 올바르지 않거나 인가 코드가 유효하지 않습니다."),
+        400: OpenApiResponse(description="요청 형식이 올바르지 않습니다."),
         401: OpenApiResponse(description="유효하지 않은 카카오 토큰입니다."),
         500: OpenApiResponse(description="서버 내부 오류"),
     },
@@ -54,7 +42,9 @@ class KakaoAuthView(APIView):
     authentication_classes: tuple[Any, ...] = ()
 
     def post(self, request: Request, *args: Any, **kwargs: Any) -> Response:
+
         # code = request.query_params.get("code")
+
         code = request.data.get("code")
 
         if not code:
@@ -73,7 +63,10 @@ class KakaoAuthView(APIView):
             response_serializer.is_valid(raise_exception=True)
 
             response = Response(response_serializer.data, status=status.HTTP_200_OK)
-            _set_refresh_cookie(response, result)
+            refresh_token = result.get("data", {}).get("refresh")
+            if refresh_token:
+                set_refresh_cookie(response, refresh_token)
+
             return response
 
         except ValidationError as e:
@@ -85,15 +78,19 @@ class KakaoAuthView(APIView):
                 )
             if any(k in error_msg for k in ["토큰", "access"]):
                 return Response({"error": "유효하지 않은 카카오 토큰입니다."}, status=401)
+
             if any(k in error_msg for k in ["code", "인가"]):
-                return Response({"error": "카카오 인가 코드가 유효하지 않습니다."}, status=400)
-            return Response({"error": error_msg}, status=400)
+                return Response({"error": "인가 코드가 유효하지 않습니다."}, status=400)
+
+            return Response(
+                {"error": "요청 형식이 올바르지 않습니다."},
+                status=400,
+            )
         except PermissionError:
             return Response(
                 {"error": "잘못된 접근입니다. 요청이 위조되었을 수 있습니다."},
                 status=403,
             )
-
         except Exception as e:
             print(f"[KakaoAuthView] Unhandled exception: {e}")
             return Response({"error": "예상치 못한 서버 오류가 발생했습니다."}, status=500)
@@ -106,7 +103,7 @@ class KakaoAuthView(APIView):
     request=NaverSocialRequestSerializer,
     responses={
         200: NaverSocialResponseSerializer,
-        400: OpenApiResponse(description="요청 형식이 올바르지 않거나 인가 코드가 유효하지 않습니다."),
+        400: OpenApiResponse(description="요청 형식이 올바르지 않습니다."),
         401: OpenApiResponse(description="유효하지 않은 네이버 토큰입니다."),
         403: OpenApiResponse(description="잘못된 접근입니다."),
         500: OpenApiResponse(description="서버 내부 오류"),
@@ -141,7 +138,9 @@ class NaverAuthView(APIView):
             response_serializer.is_valid(raise_exception=True)
 
             response = Response(response_serializer.data, status=status.HTTP_200_OK)
-            _set_refresh_cookie(response, result)
+            refresh_token = result.get("data", {}).get("refresh")
+            if refresh_token:
+                set_refresh_cookie(response, refresh_token)
 
             return response
 
@@ -153,19 +152,18 @@ class NaverAuthView(APIView):
                     status=400,
                 )
             if any(k in error_msg for k in ["토큰", "access"]):
-                return Response({"error": "유효하지 않은 네이버 토큰입니다."}, status=401)
-            if "state" in error_msg:
-                return Response({"error": "state 값이 누락되었습니다."}, status=400)
+                return Response({"error": "유효하지 않은 카카오 토큰입니다."}, status=401)
             if any(k in error_msg for k in ["code", "인가"]):
-                return Response({"error": "네이버 인가 코드가 유효하지 않습니다."}, status=400)
-            return Response({"error": error_msg}, status=400)
-
+                return Response({"error": "인가 코드가 유효하지 않습니다."}, status=400)
+            return Response(
+                {"error": "요청 형식이 올바르지 않습니다."},
+                status=400,
+            )
         except PermissionError:
             return Response(
                 {"error": "잘못된 접근입니다. 요청이 위조되었을 수 있습니다."},
                 status=403,
             )
-
         except Exception as e:
-            print(f"[NaverAuthView] Unhandled exception: {e}")
+            print(f"[KakaoAuthView] Unhandled exception: {e}")
             return Response({"error": "예상치 못한 서버 오류가 발생했습니다."}, status=500)
