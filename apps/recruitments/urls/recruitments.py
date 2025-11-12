@@ -1,11 +1,10 @@
 from django.urls import path
 
+from apps.recruitments.views.application_views import ApplicationCreateAPIView
 from apps.recruitments.views.my_application_views import (
     MyApplicationDetailAPIView,
     MyApplicationsAPIView,
 )
-from apps.recruitments.views.application_views import ApplicationCreateAPIView
-from apps.recruitments.views.my_application_views import MyApplicationsAPIView
 from apps.recruitments.views.recruitments import (
     RecruitmentDetailUpdateDeleteAPIView,
     RecruitmentListCreateAPIView,

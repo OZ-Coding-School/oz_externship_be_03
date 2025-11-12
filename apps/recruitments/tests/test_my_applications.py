@@ -19,7 +19,7 @@ User = get_user_model()
 
 class MyApplicationsAPITests(APITestCase):
     def setUp(self) -> None:
-        self.url = reverse("my-applications")
+        self.url = reverse("recruitments:my-applications")
 
         # 사용자 2명
         self.user = User.objects.create_user(
@@ -146,7 +146,7 @@ class MyApplicationsAPITests(APITestCase):
     # ==============================
     def test_detail_requires_auth(self) -> None:
         """인증 없이 상세 접근하면 401"""
-        url = reverse("my-application-detail", args=[self.first_application.uuid])
+        url = reverse("recruitments:my-application-detail", args=[self.first_application.uuid])
         resp = self.client.get(url)
         self.assertEqual(resp.status_code, status.HTTP_401_UNAUTHORIZED)
 
@@ -154,7 +154,7 @@ class MyApplicationsAPITests(APITestCase):
         """내 지원서 상세를 스펙대로 반환"""
         self.client.force_authenticate(self.user)
         # 이미지가 있는 recruitment1에 연결된 지원서로 검증
-        url = reverse("my-application-detail", args=[self.first_application.uuid])
+        url = reverse("recruitments:my-application-detail", args=[self.first_application.uuid])
 
         resp = self.client.get(url)
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
@@ -200,6 +200,6 @@ class MyApplicationsAPITests(APITestCase):
         other_app = Application.objects.filter(user=self.other).first()
         self.assertIsNotNone(other_app)
         assert other_app is not None  # mypy용 명시
-        url = reverse("my-application-detail", args=[other_app.uuid])
+        url = reverse("recruitments:my-application-detail", args=[other_app.uuid])
         resp = self.client.get(url)
         self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND)
