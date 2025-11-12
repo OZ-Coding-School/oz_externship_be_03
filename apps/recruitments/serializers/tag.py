@@ -7,7 +7,7 @@ from rest_framework import serializers
 from apps.recruitments.models import Tag
 
 
-class TagSearchResultSerializer(serializers.ModelSerializer[Any]):
+class TagSerializer(serializers.ModelSerializer[Any]):
     """태그 검색 결과를 위한 Serializer"""
 
     class Meta:
