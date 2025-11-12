@@ -11,7 +11,7 @@ from rest_framework.response import Response
 from apps.recruitments.models import Recruitment, Tag
 from apps.recruitments.serializers.tag import (
     RecruitmentTagAddSerializer,
-    TagSearchResultSerializer,
+    TagSerializer,
 )
 from apps.recruitments.services.tags import add_tags_to_recruitment, search_tags
 
@@ -42,7 +42,7 @@ from apps.recruitments.services.tags import add_tags_to_recruitment, search_tags
     ],
     request=RecruitmentTagAddSerializer,
     responses={
-        200: OpenApiResponse(response=TagSearchResultSerializer, description="태그 검색 성공"),
+        200: OpenApiResponse(response=TagSerializer, description="태그 검색 성공"),
         201: OpenApiResponse(response=RecruitmentTagAddSerializer, description="태그 등록 성공"),
         400: OpenApiResponse(description="요청 데이터 형식 오류"),
         401: OpenApiResponse(description="인증되지 않은 사용자"),
@@ -59,7 +59,7 @@ class RecruitmentTagSearchCreateAPIView(generics.GenericAPIView[Any]):
         keyword: str = request.query_params.get("keyword", "")
         qs = search_tags(keyword)
         page = self.paginate_queryset(qs)
-        serializer = TagSearchResultSerializer(page, many=True)
+        serializer = TagSerializer(page, many=True)
         return self.get_paginated_response(serializer.data)
 
     def post(self, request: Request, *args: Any, **kwargs: Any) -> Response:
@@ -103,7 +103,7 @@ class RecruitmentTagSearchCreateAPIView(generics.GenericAPIView[Any]):
     ],
     request=RecruitmentTagAddSerializer,
     responses={
-        200: OpenApiResponse(response=TagSearchResultSerializer, description="태그 검색 성공"),
+        200: OpenApiResponse(response=TagSerializer, description="태그 검색 성공"),
         201: OpenApiResponse(description="공고에 태그 추가 성공"),
         400: OpenApiResponse(description="태그 수 초과 또는 형식 오류"),
         401: OpenApiResponse(description="인증되지 않은 사용자"),
@@ -124,7 +124,7 @@ class RecruitmentTagSearchAddForRecruitmentAPIView(generics.GenericAPIView[Any])
         keyword: str = request.query_params.get("keyword", "")
         qs = search_tags(keyword)
         page = self.paginate_queryset(qs)
-        serializer = TagSearchResultSerializer(page, many=True)
+        serializer = TagSerializer(page, many=True)
         return self.get_paginated_response(serializer.data)
 
     def post(self, request: Request, *args: Any, **kwargs: Any) -> Response:
