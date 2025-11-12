@@ -13,10 +13,10 @@ class MemberService:
 
     @staticmethod
     @transaction.atomic
-    def kick_member(study_group: StudyGroup, target_member_id: int) -> None:
+    def kick_member(study_group: StudyGroup, target_member_uuid: UUID) -> None:
         """REQ-STDY-006: 리더가 특정 멤버를 추방"""
         try:
-            target = GroupMember.objects.get(id=target_member_id, study_group=study_group)
+            target = GroupMember.objects.get(user__uuid=target_member_uuid, study_group=study_group)
         except ObjectDoesNotExist:
             raise ValidationError("해당 멤버를 찾을 수 없습니다.")
 

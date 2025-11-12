@@ -31,15 +31,19 @@ class MemberKickView(APIView):
     def get_object(self, group_uuid: str) -> StudyGroup:
         return StudyGroup.objects.get(uuid=group_uuid)
 
-    def delete(self, request: Request, group_uuid: str, member_id: int) -> Response:
+    def delete(self, request: Request, group_uuid: str) -> Response:
+        serializer = MemberKickSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
         study_group = self.get_object(group_uuid)
 
         # Object-level permission 검사 (멤버 아님 → 403 / 리더 아님 → 400 가능)
         self.check_object_permissions(request, study_group)
 
+        target_member_uuid = serializer.validated_data["target_member_uuid"]
         MemberService.kick_member(
             study_group=study_group,
-            target_member_id=member_id,
+            target_member_uuid=target_member_uuid,
         )
         return Response({"detail": "멤버가 추방되었습니다."}, status=status.HTTP_200_OK)
 

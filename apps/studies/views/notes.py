@@ -43,7 +43,7 @@ class StudyNoteListAPIView(BaseResponseMixin, APIView):
 
     permission_classes = [IsAuthenticated, IsGroupMember]
 
-    @extend_schema(summary="스터디 노트 목록 조회 API")
+    @extend_schema(tags="StudyGroupNote", summary="스터디 노트 목록 조회 API")
     def get(self, request: Request, group_uuid: UUID) -> Response:
         notes = (
             StudyNote.objects.filter(study_group__uuid=group_uuid)
@@ -65,7 +65,7 @@ class StudyNoteCreateAPIView(BaseResponseMixin, APIView):
 
     permission_classes = [IsAuthenticated, IsGroupMember]
 
-    @extend_schema(summary="스터디 노트 생성 API")
+    @extend_schema(tags="StudyGroupNote", summary="스터디 노트 생성 API")
     def post(self, request: Request) -> Response:
         # IsGroupMember.has_permission() 통과 시, view._group 이 주입되어 있음
         serializer = StudyNoteCreateSerializer(
@@ -124,14 +124,14 @@ class StudyNoteDetailAPIView(BaseResponseMixin, APIView):
         if not IsStudyNoteAuthor().has_object_permission(request, self, note):
             self.permission_denied(request, message="해당 노트를 수정 또는 삭제할 권한이 없습니다.")
 
-    @extend_schema(summary="스터디 노트 단일 조회 API")
+    @extend_schema(tags="StudyGroupNote", summary="스터디 노트 단일 조회 API")
     def get(self, request: Request, note_id: int) -> Response:
         note = self._get_note(note_id)
         self._check_group_member_permission(request, note.study_group)
         serializer = StudyNoteDetailSerializer(note)
         return self.success("노트를 성공적으로 조회했습니다.", serializer.data)
 
-    @extend_schema(summary="스터디 노트 수정 API")
+    @extend_schema(tags="StudyGroupNote", summary="스터디 노트 수정 API")
     def patch(self, request: Request, note_id: int) -> Response:
         note = self._get_note(note_id)
         self._check_group_member_permission(request, note.study_group)
@@ -155,7 +155,7 @@ class StudyNoteDetailAPIView(BaseResponseMixin, APIView):
                 )
         return self.success("노트가 성공적으로 수정되었습니다.", StudyNoteDetailSerializer(updated_note).data)
 
-    @extend_schema(summary="스터디 노트 삭제 API")
+    @extend_schema(tags="StudyGroupNote", summary="스터디 노트 삭제 API")
     def delete(self, request: Request, note_id: int) -> Response:
         note = self._get_note(note_id)
         self._check_group_member_permission(request, note.study_group)

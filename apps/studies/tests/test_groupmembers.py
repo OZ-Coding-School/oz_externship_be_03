@@ -64,9 +64,13 @@ class MemberFeatureAPITestCase(APITestCase):
         self.client.force_authenticate(user=self.leader)
         url = reverse(
             "studies:study-member-kick",
-            kwargs={"group_uuid": self.group.uuid, "member_id": self.member_member.id},
+            kwargs={"group_uuid": self.group.uuid},
         )
-        response = self.client.delete(url)
+        response = self.client.delete(
+            url,
+            data={"target_member_uuid": str(self.member_member.user.uuid)},  # 추가!
+            format="json",
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertFalse(GroupMember.objects.filter(id=self.member_member.id).exists())
 
@@ -75,9 +79,13 @@ class MemberFeatureAPITestCase(APITestCase):
         self.client.force_authenticate(user=self.member)
         url = reverse(
             "studies:study-member-kick",
-            kwargs={"group_uuid": self.group.uuid, "member_id": self.leader_member.id},
+            kwargs={"group_uuid": self.group.uuid},
         )
-        response = self.client.delete(url)
+        response = self.client.delete(
+            url,
+            data={"target_member_uuid": str(self.member_member.user.uuid)},  # 추가!
+            format="json",
+        )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_kick_member_unauthenticated(self) -> None:
@@ -85,9 +93,13 @@ class MemberFeatureAPITestCase(APITestCase):
         self.client.logout()
         url = reverse(
             "studies:study-member-kick",
-            kwargs={"group_uuid": self.group.uuid, "member_id": self.member_member.id},
+            kwargs={"group_uuid": self.group.uuid},
         )
-        response = self.client.delete(url)
+        response = self.client.delete(
+            url,
+            data={"target_member_uuid": str(self.member_member.user.uuid)},  # 추가!
+            format="json",
+        )
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     # REQ-STDY-007: 스터디 그룹 탈퇴 테스트
