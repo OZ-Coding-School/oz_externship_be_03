@@ -1,9 +1,17 @@
 from __future__ import annotations
 
 import uuid
+from datetime import date
 
 from django.shortcuts import get_object_or_404
-from drf_spectacular.utils import OpenApiExample, OpenApiResponse, extend_schema
+from django.utils.dateparse import parse_date
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import (
+    OpenApiExample,
+    OpenApiParameter,
+    OpenApiResponse,
+    extend_schema,
+)
 from rest_framework import permissions, status
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -26,6 +34,20 @@ class GroupScheduleListCreateView(APIView):
 
     @extend_schema(
         operation_id="ListGroupSchedules",
+        parameters=[
+            OpenApiParameter(
+                name="start_date",
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description="일정을 시작일로 필터링 = ex(start_date=2025-11-01)",
+            ),
+            OpenApiParameter(
+                name="end_date",
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description="일정을 종료일로 필터링 = ex(end_date=2025-11-01)",
+            ),
+        ],
         responses={
             200: OpenApiResponse(description="그룹 내 스케줄 목록 조회 성공"),
             404: OpenApiResponse(description="스터디 그룹을 찾을 수 없음"),
@@ -35,8 +57,21 @@ class GroupScheduleListCreateView(APIView):
         description="특정 스터디 그룹의 모든 스케줄을 조회합니다.",
     )
     def get(self, request: Request, group_uuid: uuid.UUID) -> Response:
+        start_date_str = request.query_params.get("start_date")
+        end_date_str = request.query_params.get("end_date")
+        start_date_val: date | None = parse_date(start_date_str) if start_date_str else None
+        end_date_val: date | None = parse_date(end_date_str) if end_date_str else None
+
         study_group = get_object_or_404(StudyGroup, uuid=group_uuid)
         schedules = GroupSchedule.objects.filter(study_group=study_group).order_by("session_date", "start_time")
+
+        if start_date_val and end_date_val:
+            schedules = schedules.filter(session_date__range=(start_date_val, end_date_val))
+        elif start_date_val:
+            schedules = schedules.filter(session_date__gte=start_date_val)
+        elif end_date_val:
+            schedules = schedules.filter(session_date__lte=end_date_val)
+
         serializer = StudyScheduleDetailSerializer(schedules, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
