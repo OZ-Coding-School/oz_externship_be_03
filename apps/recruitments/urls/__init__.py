@@ -1,10 +1,17 @@
 from django.urls import include, path
 
+from apps.recruitments.urls.bookmark import urlpatterns as bookmark_urlpatterns
+from apps.recruitments.urls.recruitment_tags import (
+    urlpatterns as recruitment_tags_urlpatterns,
+)
+from apps.recruitments.urls.recruitments import urlpatterns as recruitment_urlpatterns
+from apps.recruitments.urls.tags import urlpatterns as tags_urlpatterns
+
 app_name = "recruitments"
 
 urlpatterns = [
-    path("", include("apps.recruitments.urls.recruitments")),
-    path("/bookmarks", include("apps.recruitments.urls.bookmark")),
-    path("/tags", include("apps.recruitments.urls.tag")),
-    path("", include("apps.recruitments.urls.applications")),
+    *recruitment_urlpatterns,
+    *bookmark_urlpatterns,
+    *recruitment_tags_urlpatterns,
+    *tags_urlpatterns,
 ]
