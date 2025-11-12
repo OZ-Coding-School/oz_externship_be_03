@@ -29,11 +29,11 @@ class AdminWithdrawalService:
 
         # '유예기간 내' 이력 우선, 없으면 최신 이력
         withdrawal = (
-            base_qs.filter(due_date__isnull=False, due_date__gte=today).order_by("-created_at").first()
+            base_qs.filter(due_date__gte=today).order_by("-created_at").first()
             or base_qs.order_by("-created_at").first()
         )
 
-        if not withdrawal or withdrawal.due_date is None:
+        if not withdrawal:
             raise ValidationError({"error": "탈퇴 이력이 없습니다."})
 
         return {
