@@ -37,14 +37,14 @@ urlpatterns = [
         name="admin_withdrawal_list",
     ),
     path(
-        "admin/users/withdrawals/<int:user_id>",
+        "admin/withdrawals/<int:withdrawal_id>",
         AdminWithdrawalDetailView.as_view(),
         name="admin_withdrawal_detail",
     ),
     path(
-        "admin/users/<int:user_id>/restore",
+        "admin/<int:withdrawal_id>/restore",
         AdminUserRestoreView.as_view(),
-        name="admin_user_restore",
+        name="admin_withdrawal_restore",
     ),
     # --------------------------------------------------------
     # 어드민 대시보드

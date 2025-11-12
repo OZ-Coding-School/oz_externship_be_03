@@ -58,7 +58,7 @@ class WithdrawalUserDetailSerializer(serializers.ModelSerializer[User]):
 
 
 class WithdrawalInfoSerializer(serializers.ModelSerializer[Withdrawal]):
-    id = serializers.CharField(source="withdrawal_code", read_only=True)
+    id = serializers.IntegerField(read_only=True)
     created_at = serializers.DateTimeField()
     due_date = serializers.DateField()
 

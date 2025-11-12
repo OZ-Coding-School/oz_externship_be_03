@@ -6,6 +6,7 @@ from django.utils import timezone
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
 from rest_framework import status
+from rest_framework.exceptions import NotFound
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
@@ -124,12 +125,12 @@ class AdminUserRestoreView(ExceptionHandledAPIView):
 
     @extend_schema(
         tags=["Admin"],
-        operation_id="v1_admin_users_restore_withdrawn_user",
+        operation_id="v1_admin_restore_withdrawn_user",
         summary="관리자 탈퇴 회원 복구",
         description=("관리자/스태프가 탈퇴 처리된 회원 계정을 복구\n"),
         parameters=[
             OpenApiParameter(
-                name="user_id",
+                name="withdrawal_id",
                 type=int,
                 location=OpenApiParameter.PATH,
                 required=True,
@@ -142,17 +143,19 @@ class AdminUserRestoreView(ExceptionHandledAPIView):
             409: OpenApiResponse(description="복구 불가 상태(이미 활성 사용자 등)"),
         },
     )
-    def post(self, request: Request, user_id: int) -> Response:
+    def post(self, request: Request, withdrawal_id: int) -> Response:
         # 아래 작업을 하나의 단위로 수행(성공 시 커밋, 실패 시 롤백)
         with transaction.atomic():
             # select_for_update: 트랜잭션 종료까지 다른 트랜잭션의 UPDATE/DELETE 대기
-            user = User.objects.select_for_update().filter(pk=user_id).first()
-            if not user:
-                return Response({"error": "대상 사용자를 찾을 수 없습니다."}, status=status.HTTP_404_NOT_FOUND)
+            try:
+                anchor: Withdrawal = Withdrawal.objects.select_related("user").get(id=withdrawal_id)
+            except Withdrawal.DoesNotExist:
+                raise NotFound("탈퇴 내역을 찾을 수 없습니다.")
 
-            has_withdrawal = Withdrawal.objects.filter(user_id=user.id).exists()
-            if not has_withdrawal:
-                return Response({"error": "탈퇴 내역을 찾을 수 없습니다."}, status=status.HTTP_404_NOT_FOUND)
+            if anchor.user_id is None or anchor.user is None:
+                raise NotFound("대상 사용자를 찾을 수 없습니다.")
+
+            user: User = anchor.user
 
             if user.is_active:
                 return Response({"error": "이미 활성화된 계정입니다."}, status=status.HTTP_409_CONFLICT)
@@ -168,15 +171,15 @@ class AdminUserRestoreView(ExceptionHandledAPIView):
 
 @extend_schema(
     tags=["Admin"],
-    operation_id="api_v1_admin_users_withdrawals_detail",
+    operation_id="api_v1_admin_withdrawals_detail",
     summary="관리자 탈퇴 회원 상세 조회",
     responses=WithdrawalDetailResponseSerializer,
 )
 class AdminWithdrawalDetailView(ExceptionHandledAPIView):
     permission_classes = [IsAuthenticated, IsStaffRole]
 
-    def get(self, request: Request, user_id: int) -> Response:
-        data = AdminWithdrawalService.get_withdrawal_detail(user_id)
+    def get(self, request: Request, withdrawal_id: int) -> Response:
+        data = AdminWithdrawalService.get_withdrawal_detail(withdrawal_id)
         serializer = WithdrawalDetailResponseSerializer(data)
         return Response(
             {"detail": "탈퇴 내역 상세 조회에 성공하였습니다.", "data": serializer.data}, status=status.HTTP_200_OK
