@@ -84,6 +84,7 @@ class AdminUserUpdateSerializer(serializers.ModelSerializer[UserModel]):
     phone_number = serializers.CharField(
         validators=[validate_korean_phone], required=False, help_text="휴대폰 번호 (0100000000) 저장 가능"
     )
+    profile_img = serializers.ImageField(required=False, allow_empty_file=True)
 
     class Meta:
         model = User
@@ -93,7 +94,7 @@ class AdminUserUpdateSerializer(serializers.ModelSerializer[UserModel]):
             "nickname",
             "phone_number",
             "status",
-            "profile_img_url",
+            "profile_img",
             "birthday",
         ]
         extra_kwargs = {field: {"required": False} for field in fields}

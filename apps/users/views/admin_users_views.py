@@ -2,10 +2,13 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
+from django.forms import ValidationError
 from django.http import Http404
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import status
+from rest_framework.decorators import parser_classes
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import BasePermission, IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -129,9 +132,12 @@ class AdminUserView(ExceptionHandledAPIView):
     @extend_schema(
         tags=["Admin"],
         summary="관리자 - 회원 정보 수정",
-        request=AdminUserUpdateSerializer,
+        request={
+            "multipart/form-data": AdminUserUpdateSerializer,
+        },
         responses={200: AdminUserUpdateResponseSerializer, 404: OpenApiTypes.OBJECT},
     )
+    @parser_classes([MultiPartParser, FormParser])
     def patch(self, request: Request, user_id: int) -> Response:
         # 회원 정보 수정
         try:

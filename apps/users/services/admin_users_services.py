@@ -1,5 +1,8 @@
-from typing import Any, Dict
+import logging
+from typing import Any, Dict, Optional
+from urllib.parse import urlparse
 
+from django.db import transaction
 from django.db.models import (
     Case,
     CharField,
@@ -12,10 +15,14 @@ from django.db.models import (
     When,
 )
 from django.shortcuts import get_object_or_404
+from rest_framework.exceptions import ValidationError
 
 from apps.core.exceptions import Conflict
+from apps.core.utils.s3_uploader import S3Uploader
 from apps.users.enums import Role, UserStatus
 from apps.users.models import User, Withdrawal
+
+logger = logging.getLogger(__name__)
 
 
 class AdminUserService:
@@ -122,6 +129,30 @@ class AdminUserService:
     def get_user(user_id: int) -> User:
         return get_object_or_404(User, id=user_id)
 
+    # ----------------------------
+    # 내부 헬퍼
+    # ----------------------------
+    @staticmethod
+    def _resolve_admin_status(value: UserStatus | str) -> bool:
+        if isinstance(value, UserStatus):
+            s = value
+        else:
+            key = str(value).strip().upper()
+            s = UserStatus[key]
+
+        if s == UserStatus.WITHDRAWAL_PENDING:
+            raise Conflict({"error": "탈퇴요청 상태는 관리자에서 직접 지정할 수 없습니다."})
+
+        return s == UserStatus.ACTIVE
+
+    @staticmethod
+    def _s3_key_from_url(url: Optional[str]) -> Optional[str]:
+        if not url:
+            return None
+        parsed = urlparse(url)
+        key = parsed.path.lstrip("/")
+        return key or None
+
     # 회원 정보 수정
     @staticmethod
     def update_user_info(user: User, update_data: Dict[str, Any]) -> User:
@@ -154,17 +185,69 @@ class AdminUserService:
 
         # --- 이전 값과 다른 새 값만 반영 ---
         update_fields: list[str] = []
-        for field, value in update_data.items():
-            if not hasattr(user, field):
-                continue
-            if getattr(user, field) != value:
+
+        # ---------- 1) status → is_active ----------
+        if "status" in update_data:
+            is_active_flag = AdminUserService._resolve_admin_status(update_data.pop("status"))
+            if user.is_active != is_active_flag:
+                user.is_active = is_active_flag
+                update_fields.append("is_active")
+
+        # ---------- 2) 프로필 이미지  ----------
+        new_profile_url: Optional[str] = None
+        new_profile_key: Optional[str] = None
+        old_profile_key: Optional[str] = AdminUserService._s3_key_from_url(user.profile_img_url)
+
+        if "profile_img" in update_data:
+            profile_img = update_data.pop("profile_img")
+
+            if not hasattr(profile_img, "read") or not hasattr(profile_img, "name"):
+                raise ValidationError({"error": "프로필 이미지는 파일로만 업로드할 수 있습니다."})
+
+            # 파일 유효성 검증
+            S3Uploader.validate_file_name(profile_img)
+            S3Uploader.validate_file_extension(profile_img)
+            content_type = getattr(profile_img, "content_type", None)
+            S3Uploader.validate_file_content_type(content_type)
+            ext = str(profile_img.name).rsplit(".", 1)[-1].lower()
+            S3Uploader.validate_file_mime(ext, content_type)
+
+            # 업로드
+            prefix = "profiles/"
+            profile_img.name = f"{user.uuid}_{profile_img.name}"
+            new_profile_url = S3Uploader.upload_file(profile_img, prefix=prefix)
+            new_profile_key = AdminUserService._s3_key_from_url(new_profile_url)
+
+            if user.profile_img_url != new_profile_url:
+                user.profile_img_url = new_profile_url
+                update_fields.append("profile_img_url")
+
+        # ---------- 3) 일반 필드 ----------
+        for field, value in list(update_data.items()):
+            if hasattr(user, field) and getattr(user, field) != value:
                 setattr(user, field, value)
                 update_fields.append(field)
 
         if not update_fields:
             return user
 
-        user.save(update_fields=update_fields)
+        # ---------- 저장  ----------
+        try:
+            with transaction.atomic():
+                user.save(update_fields=update_fields)
+                # 기존 이미지 삭제
+                if old_profile_key and new_profile_key and old_profile_key != new_profile_key:
+                    transaction.on_commit(lambda: S3Uploader.delete_file(old_profile_key))
+
+        except Exception as e:
+            # DB 저장 실패 시 신규 이미지 삭제
+            if new_profile_key:
+                try:
+                    S3Uploader.delete_file(new_profile_key)
+                except Exception:
+                    logger.warning("신규 이미지 삭제 실패: key=%s", new_profile_key, exc_info=True)
+            raise
+
         return user
 
     # 회원 권한 변경
