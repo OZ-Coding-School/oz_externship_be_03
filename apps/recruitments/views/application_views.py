@@ -93,7 +93,6 @@ class ApplicationListAPIView(APIView):
     )
     def get(self, request: Request, recruitment_uuid: str) -> Response:
         """지원 내역 목록 조회"""
-
         recruitment = get_object_or_404(Recruitment, uuid=recruitment_uuid)
         self.check_object_permissions(request, recruitment)
 
@@ -125,17 +124,14 @@ class ApplicationDetailAPIView(APIView):
         tags=["recruitments"],
         responses={200: ApplicationDetailSerializer},
     )
-    def get(self, request: Request, recruitment_uuid: str, application_uuid: str) -> Response:
+    def get(self, request: Request, application_uuid: str) -> Response:
         """지원 내역 상세 조회"""
-
-        recruitment = get_object_or_404(Recruitment, uuid=recruitment_uuid)
-        self.check_object_permissions(request, recruitment)
-
         application = get_object_or_404(
-            Application.objects.select_related("user"),
-            recruitment=recruitment,
+            Application.objects.select_related("user", "recruitment"),
             uuid=application_uuid,
         )
+
+        self.check_object_permissions(request, application.recruitment)
 
         serializer = self.serializer_class(application)
         return Response(serializer.data, status=status.HTTP_200_OK)
@@ -159,17 +155,19 @@ class ApplicationApproveAPIView(APIView):
             400: {"description": "승인 불가"},
         },
     )
-    def post(self, request: Request, recruitment_uuid: str, application_uuid: str) -> Response:
+    def post(self, request: Request, application_uuid: str) -> Response:
         """지원 승인 및 스터디 그룹 멤버 등록"""
+        application = get_object_or_404(
+            Application.objects.select_related("recruitment"),
+            uuid=application_uuid,
+        )
 
-        recruitment = get_object_or_404(Recruitment, uuid=recruitment_uuid)
-        self.check_object_permissions(request, recruitment)
-
-        application = get_object_or_404(Application, recruitment=recruitment, uuid=application_uuid)
+        self.check_object_permissions(request, application.recruitment)
 
         if application.status in ["APPROVED", "REJECTED"]:
             return Response({"detail": "이미 처리된 지원입니다."}, status=status.HTTP_400_BAD_REQUEST)
 
+        recruitment = application.recruitment
         study_group = recruitment.study_group
 
         if not study_group:
@@ -211,13 +209,14 @@ class ApplicationRejectAPIView(APIView):
             400: {"description": "거절 불가"},
         },
     )
-    def post(self, request: Request, recruitment_uuid: str, application_uuid: str) -> Response:
+    def post(self, request: Request, application_uuid: str) -> Response:
         """지원 거절"""
+        application = get_object_or_404(
+            Application.objects.select_related("recruitment"),
+            uuid=application_uuid,
+        )
 
-        recruitment = get_object_or_404(Recruitment, uuid=recruitment_uuid)
-        self.check_object_permissions(request, recruitment)
-
-        application = get_object_or_404(Application, recruitment=recruitment, uuid=application_uuid)
+        self.check_object_permissions(request, application.recruitment)
 
         if application.status in ["APPROVED", "REJECTED"]:
             return Response({"detail": "이미 처리된 지원입니다."}, status=status.HTTP_400_BAD_REQUEST)
