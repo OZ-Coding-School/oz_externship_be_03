@@ -216,6 +216,13 @@ class GroupReviewListCreateView(generics.ListCreateAPIView[Review]):
         }
 
 
+@extend_schema(
+    operation_id="UpdateReview",
+    tags=["StudyGroupReview"],
+    summary="그룹 리뷰 수정",
+    description="리뷰를 수정합니다.",
+    responses={200: ReviewUpdateSerializer},
+)
 class GroupReviewUpdateView(generics.UpdateAPIView[Review]):
     permission_classes = [permissions.IsAuthenticated, IsReviewOwner]
     serializer_class = ReviewUpdateSerializer
