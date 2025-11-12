@@ -2,14 +2,14 @@ from .bookmark import (
     RecruitmentBookmarkedListAPIView,
     RecruitmentBookmarkToggleAPIView,
 )
+from .recruitment_tag_views import (
+    RecruitmentTagSearchAddForRecruitmentAPIView,
+    RecruitmentTagSearchCreateAPIView,
+)
 from .recruitments import (
     RecruitmentDetailUpdateDeleteAPIView,
     RecruitmentListCreateAPIView,
     RecruitmentUserListAPIView,
-)
-from .tag import (
-    RecruitmentTagSearchAddForRecruitmentAPIView,
-    RecruitmentTagSearchCreateAPIView,
 )
 
 __all__ = [
