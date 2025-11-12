@@ -25,7 +25,7 @@ class RecruitmentTagAPITestCase(APITestCase):
             gender="M",
             birthday="1997-03-03",
         )
-
+        self.client.force_authenticate(self.user)
         self.study_group = StudyGroup.objects.create(
             name="Django 입문 스터디",
             start_at=timezone.now() + timedelta(days=1),
