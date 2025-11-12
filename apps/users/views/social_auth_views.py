@@ -53,9 +53,9 @@ class KakaoAuthView(APIView):
     permission_classes = [AllowAny]
     authentication_classes: tuple[Any, ...] = ()
 
-    def get(self, request: Request, *args: Any, **kwargs: Any) -> Response:
-        code = request.query_params.get("code")
-        # code = request.data.get("code")
+    def post(self, request: Request, *args: Any, **kwargs: Any) -> Response:
+        # code = request.query_params.get("code")
+        code = request.data.get("code")
 
         if not code:
             return Response({"error": "인가 코드가 누락되었습니다."}, status=status.HTTP_400_BAD_REQUEST)
@@ -116,12 +116,12 @@ class NaverAuthView(APIView):
     permission_classes = [AllowAny]
     authentication_classes: tuple[Any, ...] = ()
 
-    def get(self, request: Request, *args: Any, **kwargs: Any) -> Response:
-        code = request.query_params.get("code")
-        state = request.query_params.get("state")
+    def post(self, request: Request, *args: Any, **kwargs: Any) -> Response:
+        # code = request.query_params.get("code")
+        # state = request.query_params.get("state")
 
-        # code = request.data.get("code")
-        # state = request.data.get("state")
+        code = request.data.get("code")
+        state = request.data.get("state")
 
         if not code:
             return Response({"error": "인가 코드가 누락되었습니다."}, status=status.HTTP_400_BAD_REQUEST)
