@@ -59,7 +59,7 @@ class ApplicationCreateAPITests(APITestCase):
             is_closed=False,
         )
 
-        self.url = reverse("recruitment-application-create", kwargs={"recruitment_uuid": self.recruitment.uuid})
+        self.url = reverse("recruitments:recruitment-application-create", kwargs={"recruitment_uuid": self.recruitment.uuid})
 
         self.payload_ok = {
             "self_introduction": "저는 백엔드 개발 경험이 있습니다.",
@@ -113,7 +113,7 @@ class ApplicationCreateAPITests(APITestCase):
 
     def test_not_found_recruitment_404(self) -> None:
         self.auth(self.user)
-        bad_url = reverse("recruitment-application-create", kwargs={"recruitment_uuid": _uuid.uuid4()})
+        bad_url = reverse("recruitments:recruitment-application-create", kwargs={"recruitment_uuid": _uuid.uuid4()})
         response = self.client.post(bad_url, data=self.payload_ok, format="json")
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
         self.assertIn("error", response.json())
