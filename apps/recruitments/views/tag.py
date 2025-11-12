@@ -49,7 +49,7 @@ from apps.recruitments.services.tags import add_tags_to_recruitment, search_tags
         409: OpenApiResponse(description="이미 존재하는 태그명으로 등록 시도"),
     },
 )
-class RecruitmentTagSearchCreateAPIView(generics.GenericAPIView[Any]):  # type: ignore[misc]
+class RecruitmentTagSearchCreateAPIView(generics.GenericAPIView[Any]):
     """REQ-RECM-002 — 스터디 구인 공고 작성 시 태그 검색 및 추가"""
 
     permission_classes = [IsAuthenticated]
@@ -110,13 +110,13 @@ class RecruitmentTagSearchCreateAPIView(generics.GenericAPIView[Any]):  # type: 
         404: OpenApiResponse(description="공고를 찾을 수 없음"),
     },
 )
-class RecruitmentTagSearchAddForRecruitmentAPIView(generics.GenericAPIView[Any]):  # type: ignore[misc]
+class RecruitmentTagSearchAddForRecruitmentAPIView(generics.GenericAPIView[Any]):
     """REQ-RECM-008 — 스터디 구인 공고 수정 시 태그 검색 및 추가"""
 
     permission_classes = [IsAuthenticated]
     serializer_class = RecruitmentTagAddSerializer
 
-    def get_object(self) -> Recruitment:  # type: ignore[override]
+    def get_object(self) -> Recruitment:
         """recruitment_id로 해당 공고를 조회"""
         return Recruitment.objects.get(pk=self.kwargs["recruitment_id"])
 
@@ -128,7 +128,7 @@ class RecruitmentTagSearchAddForRecruitmentAPIView(generics.GenericAPIView[Any])
         return self.get_paginated_response(serializer.data)
 
     def post(self, request: Request, *args: Any, **kwargs: Any) -> Response:
-        recruitment: Recruitment = self.get_object()
+        recruitment = self.get_object()
         serializer = RecruitmentTagAddSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         try:

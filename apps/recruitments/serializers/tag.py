@@ -7,7 +7,7 @@ from rest_framework import serializers
 from apps.recruitments.models import Tag
 
 
-class TagSearchResultSerializer(serializers.ModelSerializer[Tag]):  # type: ignore[type-arg]
+class TagSearchResultSerializer(serializers.ModelSerializer[Any]):
     """태그 검색 결과를 위한 Serializer"""
 
     class Meta:
@@ -15,7 +15,7 @@ class TagSearchResultSerializer(serializers.ModelSerializer[Tag]):  # type: igno
         fields = ["id", "name"]
 
 
-class RecruitmentTagAddSerializer(serializers.Serializer[Any]):  # type: ignore[type-arg]
+class RecruitmentTagAddSerializer(serializers.Serializer[Any]):
     """스터디 구인 공고 작성/수정 시 태그 등록 요청용 Serializer"""
 
     tags = serializers.ListField(
