@@ -45,10 +45,10 @@ class KakaoAuthView(APIView):
 
         # code = request.query_params.get("code")
 
-        code = request.data.get("code")
+        serializer = KakaoAuthRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
 
-        if not code:
-            return Response({"error": "인가 코드가 누락되었습니다."}, status=status.HTTP_400_BAD_REQUEST)
+        code = serializer.validated_data["code"]
 
         try:
             result = KakaoAuthService.handle_login(code)
@@ -117,13 +117,12 @@ class NaverAuthView(APIView):
         # code = request.query_params.get("code")
         # state = request.query_params.get("state")
 
-        code = request.data.get("code")
-        state = request.data.get("state")
+        serializer = NaverSocialRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        validated_data = serializer.validated_data
 
-        if not code:
-            return Response({"error": "인가 코드가 누락되었습니다."}, status=status.HTTP_400_BAD_REQUEST)
-        if not state:
-            return Response({"error": "state 값이 누락되었습니다."}, status=status.HTTP_400_BAD_REQUEST)
+        code = validated_data.get("code")
+        state = validated_data.get("state")
 
         try:
             result = NaverAuthService.handle_login(code, state)
@@ -159,6 +158,7 @@ class NaverAuthView(APIView):
                 {"error": "요청 형식이 올바르지 않습니다."},
                 status=400,
             )
+
         except PermissionError:
             return Response(
                 {"error": "잘못된 접근입니다. 요청이 위조되었을 수 있습니다."},
