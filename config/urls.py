@@ -11,7 +11,6 @@ urlpatterns: list[URLPattern | URLResolver] = [
     path("api/v1/lectures", include("apps.lecture.urls")),
     path("api/v1/admin/lectures", include("apps.lecture.urls.admin_urls")),
     path("api/v1/", include("apps.users.urls")),
-    path("api/v1/", include("apps.recruitments.urls.tag")),
     path("api/v1/studies/", include("apps.studies.urls")),
     path("api/v1/admin/studies/", include("apps.studies.urls.admin")),
     path("api/v1/notifications", include("apps.notifications.urls")),
@@ -19,6 +18,7 @@ urlpatterns: list[URLPattern | URLResolver] = [
     path("api/v1/recruitments", include("apps.recruitments.urls")),
     path("api/v1/admin/", include("apps.recruitments.urls.admin_urls")),
 ]
+
 
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

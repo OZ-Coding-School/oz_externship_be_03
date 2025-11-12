@@ -1,3 +1,9 @@
-from .recruitments import urlpatterns as recruitments_urlpatterns
+from django.urls import include, path
 
-urlpatterns = recruitments_urlpatterns
+app_name = "recruitments"
+
+urlpatterns = [
+    path("", include("apps.recruitments.urls.recruitments")),
+    path("/bookmarks", include("apps.recruitments.urls.bookmark")),
+    path("/tags", include("apps.recruitments.urls.tag")),
+]

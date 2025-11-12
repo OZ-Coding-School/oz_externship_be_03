@@ -1,74 +1,69 @@
-from typing import Any
+from __future__ import annotations
 
-from django.utils import timezone
-from drf_spectacular.utils import extend_schema
-from rest_framework import parsers, status
-from rest_framework.permissions import AllowAny
+from typing import Any, cast
+
+from drf_spectacular.utils import OpenApiResponse, extend_schema
+from rest_framework import generics, status
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
-from rest_framework.views import APIView
 
-from apps.recruitments.models.bookmark import Bookmark
-from apps.recruitments.serializers.bookmark import BookmarkSerializer
+from apps.recruitments.models import Recruitment
+from apps.recruitments.serializers.bookmark import BookmarkToggleSerializer
+from apps.recruitments.serializers.recruitments import RecruitmentListSerializer
+from apps.recruitments.services.bookmark import (
+    get_bookmarked_recruitments,
+    toggle_bookmark,
+)
+from apps.users.models import User
 
 
-class BookmarkListCreateAPIView(APIView):
+@extend_schema(tags=["recruitments"], summary="스터디 구인 공고 북마크 추가 / 삭제")
+class RecruitmentBookmarkToggleAPIView(generics.GenericAPIView):  # type: ignore[type-arg]
+    """
+    REQ-RECM-010 — 북마크 추가 or 삭제
+    """
 
-    serializer_class = BookmarkSerializer
-    permission_classes = [AllowAny]
-    parser_classes = [parsers.JSONParser, parsers.MultiPartParser]
+    permission_classes = [IsAuthenticated]
+    serializer_class = BookmarkToggleSerializer
 
-    MOCK_DUPLICATE_IDS = [2, 4]
-    MOCK_NONEXISTENT_IDS = [9999]
+    def post(self, request: Request, recruitment_id: int, *args: Any, **kwargs: Any) -> Response:
+        """POST /api/v1/recruitments/{id}/bookmark — 북마크 추가 or 삭제"""
+        try:
+            recruitment = Recruitment.objects.get(pk=recruitment_id)
+        except Recruitment.DoesNotExist:
+            return Response({"error": "해당 공고를 찾을 수 없습니다."}, status=status.HTTP_404_NOT_FOUND)
 
-    @extend_schema(tags=["Bookmarks"], summary="북마크 생성 API")
-    def post(self, request: Request, *args: Any, **kwargs: Any) -> Response:
-        serializer = self.serializer_class(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        # mypy가 AnonymousUser 가능성을 오인하므로 타입 확정
+        user: User = cast(User, request.user)
 
-        recruitment_id = serializer.validated_data.get("recruitment_id")
-        if recruitment_id is None:
-            return Response({"detail": "recruitment_id가 필요합니다."}, status=status.HTTP_400_BAD_REQUEST)
-        if recruitment_id in self.MOCK_DUPLICATE_IDS:
-            return Response(
-                {"detail": "이미 북마크한 강의입니다."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        if recruitment_id in self.MOCK_NONEXISTENT_IDS:
-            return Response(
-                {"detail": "존재하지 않는 강의입니다."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        mock_bookmark = Bookmark(user_id=1, recruitment_id=recruitment_id, created_at=timezone.now())
-        return Response(
-            self.serializer_class(mock_bookmark).data,
-            status=status.HTTP_201_CREATED,
-        )
-
-    @extend_schema(summary="북마크 목록 조회 API ")
-    def get(self, request: Request) -> Response:
-        mock_data = [Bookmark(user_id=1, recruitment_id=i, created_at=timezone.now()) for i in range(1, 6)]
-        serializer = self.serializer_class(mock_data, many=True)
+        is_bookmarked: bool = toggle_bookmark(recruitment, user)
+        data = {
+            "recruitment_id": recruitment.id,
+            "user_id": user.id,
+            "is_bookmarked": is_bookmarked,
+            "message": "북마크가 추가되었습니다." if is_bookmarked else "북마크가 해제되었습니다.",
+        }
+        serializer = self.get_serializer(data)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
-class BookmarkRetrieveDestroyAPIView(APIView):
+@extend_schema(tags=["recruitments"], summary="북마크한 스터디 구인 공고 목록 조회")
+class RecruitmentBookmarkedListAPIView(generics.ListAPIView):  # type: ignore[type-arg]
+    """
+    REQ-RECM-011 — 북마크 목록 조회
+    """
 
-    serializer_class = BookmarkSerializer
-    permission_classes = [AllowAny]
-    parser_classes = [parsers.JSONParser]
+    permission_classes = [IsAuthenticated]
+    serializer_class = RecruitmentListSerializer
 
-    @extend_schema(tags=["Bookmarks"], summary="북마크 삭제 API")
-    def delete(self, request: Request, bookmark_uuid: str, *args: Any, **kwargs: Any) -> Response:
-        try:
-            bookmark = Bookmark.objects.get(uuid=bookmark_uuid)
-            bookmark.delete()
-            return Response(
-                {"detail": f"북마크(uuid={bookmark_uuid})가 삭제되었습니다."},
-                status=status.HTTP_204_NO_CONTENT,
-            )
-        except Bookmark.DoesNotExist:
-            return Response(
-                {"detail": f"해당 북마크(uuid={bookmark_uuid})를 찾을 수 없습니다."},
-                status=status.HTTP_404_NOT_FOUND,
-            )
+    def get_queryset(self) -> Any:
+        """현재 로그인한 사용자의 북마크 목록을 반환"""
+        user: User = cast(User, self.request.user)
+        return get_bookmarked_recruitments(user)
+
+    def get_serializer_context(self) -> dict[str, Any]:
+        """Serializer context 반환"""
+        ctx = super().get_serializer_context()
+        ctx["request"] = self.request
+        return ctx
