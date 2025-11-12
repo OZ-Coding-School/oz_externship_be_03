@@ -120,7 +120,10 @@ class AdminUserRestoreViewTests(APITestCase):
     user_without_withdrawal_inactive_id: ClassVar[int]
     user_with_withdrawal_active_id: ClassVar[int]
 
-    url_name = "users:admin_user_restore"
+    w_inactive_id: ClassVar[int]
+    w_active_id: ClassVar[int]
+
+    url_name = "users:admin_withdrawal_restore"
 
     @classmethod
     def setUpTestData(cls) -> None:
@@ -136,12 +139,10 @@ class AdminUserRestoreViewTests(APITestCase):
         cls.user_with_withdrawal_active_id = u3.id
 
         today = timezone.localdate()
-        Withdrawal.objects.bulk_create(
-            [
-                Withdrawal(user_id=u1.id, due_date=today),
-                Withdrawal(user_id=u3.id, due_date=today),
-            ]
-        )
+        w1 = Withdrawal.objects.create(user_id=u1.id, due_date=today)
+        w3 = Withdrawal.objects.create(user_id=u3.id, due_date=today)
+        cls.w_inactive_id = w1.id
+        cls.w_active_id = w3.id
 
     def setUp(self) -> None:
         admin = User.objects.get(pk=self.admin_id)
@@ -149,7 +150,7 @@ class AdminUserRestoreViewTests(APITestCase):
 
     def test_restore_success(self) -> None:
         """탈퇴 내역이 있는 비활성 유저 복구 → 200 & is_active=True & Withdrawal 삭제"""
-        url = reverse(self.url_name, kwargs={"user_id": self.user_with_withdrawal_inactive_id})
+        url = reverse(self.url_name, kwargs={"withdrawal_id": self.w_inactive_id})
         res = self.client.post(url)
 
         self.assertEqual(res.status_code, status.HTTP_200_OK)
@@ -158,21 +159,21 @@ class AdminUserRestoreViewTests(APITestCase):
 
     def test_user_not_found(self) -> None:
         """대상 사용자가 없을 때 → 404"""
-        url = reverse(self.url_name, kwargs={"user_id": 999999})
+        url = reverse(self.url_name, kwargs={"withdrawal_id": 999_999})
         res = self.client.post(url)
         self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
         self.assertIn("error", res.data)
 
     def test_withdrawal_not_found(self) -> None:
         """탈퇴 내역이 없을 때 → 404"""
-        url = reverse(self.url_name, kwargs={"user_id": self.user_without_withdrawal_inactive_id})
+        url = reverse(self.url_name, kwargs={"withdrawal_id": 123_456_789})
         res = self.client.post(url)
         self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
         self.assertIn("error", res.data)
 
     def test_conflict_already_active(self) -> None:
         """이미 활성화된 계정일 때(탈퇴내역은 존재) → 409"""
-        url = reverse(self.url_name, kwargs={"user_id": self.user_with_withdrawal_active_id})
+        url = reverse(self.url_name, kwargs={"withdrawal_id": self.w_active_id})
         res = self.client.post(url)
         self.assertEqual(res.status_code, status.HTTP_409_CONFLICT)
         self.assertIn("error", res.data)
@@ -232,7 +233,7 @@ class TestAdminWithdrawalDetailAPI(APITestCase):
     # ---------------------------
     def test_withdrawal_detail_success(self) -> None:
         self.client.force_authenticate(user=self.admin_user)
-        url = reverse("users:admin_withdrawal_detail", kwargs={"user_id": self.withdrawn_user.id})
+        url = reverse("users:admin_withdrawal_detail", kwargs={"withdrawal_id": self.withdrawal.id})
         res = self.client.get(url)
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(res.data["detail"], "탈퇴 내역 상세 조회에 성공하였습니다.")
@@ -253,9 +254,9 @@ class TestAdminWithdrawalDetailAPI(APITestCase):
     # ---------------------------
     def test_withdrawal_detail_not_found(self) -> None:
         self.client.force_authenticate(user=self.admin_user)
-        url = reverse("users:admin_withdrawal_detail", kwargs={"user_id": self.normal_active_user.id})
+        url = reverse("users:admin_withdrawal_detail", kwargs={"withdrawal_id": 999_999})
         res = self.client.get(url)
-        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
         self.assertIn("error", res.data)
         self.assertIn("탈퇴 이력이 없습니다.", res.data["error"])
 
@@ -264,7 +265,7 @@ class TestAdminWithdrawalDetailAPI(APITestCase):
     # ---------------------------
     def test_withdrawal_detail_permission_denied(self) -> None:
         self.client.force_authenticate(user=self.withdrawn_user)
-        url = reverse("users:admin_withdrawal_detail", kwargs={"user_id": self.withdrawn_user.id})
+        url = reverse("users:admin_withdrawal_detail", kwargs={"withdrawal_id": self.withdrawn_user.id})
         res = self.client.get(url)
         self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
 
@@ -274,6 +275,6 @@ class TestAdminWithdrawalDetailAPI(APITestCase):
 # ---------------------------------------------------------------------
 class AdminWithdrawalServiceTests(TestCase):
     def test_user_not_found_raises_not_found(self) -> None:
-        # 존재하지 않는 유저 ID
+        # 존재하지 않는 탈퇴 요청 ID
         with self.assertRaises(NotFound):
-            AdminWithdrawalService.get_withdrawal_detail(user_id=999999)
+            AdminWithdrawalService.get_withdrawal_detail(withdrawal_id=999_999)
