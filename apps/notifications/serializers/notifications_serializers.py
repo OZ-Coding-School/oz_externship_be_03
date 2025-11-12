@@ -13,7 +13,7 @@ class NotificationSerializer(ModelSerializer[Notification]):
     class Meta:
         model = Notification
         # BaseModel 에 생성 및 업데이트 자동 기록이 있으므로 exclude 사용하여 불필요한 필드 숨기는 코드
-        exclude = ("created_at", "updated_at")
+        exclude = ("updated_at",)
 
         # 클라이언트가 임의로 읽음 상태 필드를 수정할 수 없게 읽기 전용으로 설정하는 코드
         extra_kwargs = {
