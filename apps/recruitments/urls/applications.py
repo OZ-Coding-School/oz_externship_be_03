@@ -13,5 +13,7 @@ urlpatterns = [
         name="recruitment-application-create",
     ),
     path("/applications/me", MyApplicationsAPIView.as_view(), name="my-applications"),
-    path("/applications/me/<uuid:application_uuid>", MyApplicationDetailAPIView.as_view(), name="my-application-detail"),
+    path(
+        "/applications/me/<uuid:application_uuid>", MyApplicationDetailAPIView.as_view(), name="my-application-detail"
+    ),
 ]
