@@ -84,9 +84,7 @@ class GroupReviewListCreateView(generics.ListCreateAPIView[Review]):
     ordering: list[str] = ["-created_at"]
 
     def get_permissions(self) -> list[BasePermission]:
-        if self.request.method == "GET":
-            return [permissions.IsAuthenticated(), IsGroupMember()]
-        return [permissions.IsAuthenticated()]
+        return [permissions.IsAuthenticated(), IsGroupMember()]
 
     def get_serializer_class(self) -> type[serializers.Serializer[Any]]:
         return ReviewCreateSerializer if self.request.method == "POST" else ReviewListItemSerializer
@@ -99,7 +97,9 @@ class GroupReviewListCreateView(generics.ListCreateAPIView[Review]):
 
     def get_group_for_write(self) -> StudyGroup:
         group_uuid = self.kwargs["group_uuid"]
-        return get_object_or_404(StudyGroup, uuid=group_uuid)
+        group = get_object_or_404(StudyGroup, uuid=group_uuid)
+        self.check_object_permissions(self.request, group)
+        return group
 
     def get_queryset(self) -> QuerySet[Review]:
         group = self.get_group_for_read()
