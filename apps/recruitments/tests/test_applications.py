@@ -59,7 +59,9 @@ class ApplicationCreateAPITests(APITestCase):
             is_closed=False,
         )
 
-        self.url = reverse("recruitments:recruitment-application-create", kwargs={"recruitment_uuid": self.recruitment.uuid})
+        self.url = reverse(
+            "recruitments:recruitment-application-create", kwargs={"recruitment_uuid": self.recruitment.uuid}
+        )
 
         self.payload_ok = {
             "self_introduction": "저는 백엔드 개발 경험이 있습니다.",
