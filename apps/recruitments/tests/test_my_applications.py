@@ -96,6 +96,9 @@ class MyApplicationsAPITests(APITestCase):
             status=ApplicationStatus.PENDING,
         )
 
+    # ==============================
+    # 지원 목록 조회 API 테스트
+    # ==============================
     def test_auth_required(self) -> None:
         """인증 없이 접근하면 401"""
         resp = self.client.get(self.url)
@@ -137,3 +140,66 @@ class MyApplicationsAPITests(APITestCase):
         self.assertEqual(second["recruitment_img"], "https://cdn.example.com/study.png")
         # first가 recruitment2(프론트)므로 이미지 없음 → None
         self.assertIsNone(first["recruitment_img"])
+
+    # ==============================
+    # 지원 상세 조회 API 테스트
+    # ==============================
+    def test_detail_requires_auth(self) -> None:
+        """인증 없이 상세 접근하면 401"""
+        url = reverse("my-application-detail", args=[self.first_application.uuid])
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_detail_happy_path(self) -> None:
+        """내 지원서 상세를 스펙대로 반환"""
+        self.client.force_authenticate(self.user)
+        # 이미지가 있는 recruitment1에 연결된 지원서로 검증
+        url = reverse("my-application-detail", args=[self.first_application.uuid])
+
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+
+        body: dict[str, Any] = resp.json()
+        self.assertIn("detail", body)
+        self.assertIn("data", body)
+        data = body["data"]
+
+        # 상위 필드 존재
+        for key in [
+            "uuid",
+            "status",
+            "created_at",
+            "self_introduction",
+            "motivation",
+            "objective",
+            "available_time",
+            "has_study_experience",
+            "study_experience",
+            "recruitment",
+        ]:
+            self.assertIn(key, data)
+
+        # 타입/값 일부 확인
+        self.assertEqual(data["uuid"], str(self.first_application.uuid))
+        self.assertIn(data["status"], ["PENDING", "APPROVED", "REJECTED", "CANCELED"])
+
+        # recruitment 서브오브젝트 검증
+        rec = data["recruitment"]
+        for key in ["uuid", "title", "recruitment_img", "expected_headcount", "deadline"]:
+            self.assertIn(key, rec)
+
+        self.assertEqual(rec["uuid"], str(self.recruitment1.uuid))
+        self.assertEqual(rec["title"], self.recruitment1.title)
+        self.assertEqual(rec["recruitment_img"], "https://cdn.example.com/study.png")  # 첫 이미지
+        self.assertEqual(rec["expected_headcount"], self.recruitment1.expected_headcount)
+        self.assertEqual(rec["deadline"], self.recruitment1.close_at.date().isoformat())
+
+    def test_detail_404_when_not_mine(self) -> None:
+        """내 소유가 아닌 지원서 요청 시 404"""
+        self.client.force_authenticate(self.user)
+        other_app = Application.objects.filter(user=self.other).first()
+        self.assertIsNotNone(other_app)
+        assert other_app is not None  # mypy용 명시
+        url = reverse("my-application-detail", args=[other_app.uuid])
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND)
