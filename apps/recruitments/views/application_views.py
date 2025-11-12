@@ -72,7 +72,7 @@ class ApplicationListAPIView(APIView):
         operation_id="list_recruitment_applications",
         summary="지원 내역 목록 조회",
         description="공고 작성자가 특정 공고의 지원 내역 목록을 조회합니다.",
-        tags=["Recruitments"],
+        tags=["recruitments"],
         parameters=[
             OpenApiParameter(
                 name="page",
@@ -122,7 +122,7 @@ class ApplicationDetailAPIView(APIView):
         operation_id="retrieve_recruitment_application",
         summary="지원 내역 상세 조회",
         description="공고 작성자가 지원 내역의 상세 정보를 조회합니다.",
-        tags=["Recruitments"],
+        tags=["recruitments"],
         responses={200: ApplicationDetailSerializer},
     )
     def get(self, request: Request, recruitment_uuid: str, application_uuid: str) -> Response:
@@ -152,7 +152,7 @@ class ApplicationApproveAPIView(APIView):
         operation_id="approve_recruitment_application",
         summary="지원 승인",
         description="공고 작성자가 지원을 승인하고 스터디 그룹 멤버로 등록합니다.",
-        tags=["Recruitments"],
+        tags=["recruitments"],
         request=None,
         responses={
             200: {"description": "승인 완료"},
@@ -204,7 +204,7 @@ class ApplicationRejectAPIView(APIView):
         operation_id="reject_recruitment_application",
         summary="지원 거절",
         description="공고 작성자가 지원을 거절합니다.",
-        tags=["Recruitments"],
+        tags=["recruitments"],
         request=None,
         responses={
             200: {"description": "거절 완료"},
