@@ -27,7 +27,7 @@ class StudyGroupS3PresignedView(APIView):
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
-        tags=["StudyGroupNote"],
+        tags=["StudyGroup"],
         request=PresignedRequestSerializer,
         responses={
             200: PresignedRequestSerializer,
