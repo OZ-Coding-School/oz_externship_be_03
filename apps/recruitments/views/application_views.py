@@ -2,12 +2,10 @@ from __future__ import annotations
 
 from typing import Any, cast
 
-from drf_spectacular.utils import extend_schema, inline_serializer
-from rest_framework import permissions, serializers, status
 from django.db import transaction
 from django.shortcuts import get_object_or_404
-from drf_spectacular.utils import OpenApiParameter, extend_schema
-from rest_framework import status
+from drf_spectacular.utils import OpenApiParameter, extend_schema, inline_serializer
+from rest_framework import permissions, serializers, status
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -15,14 +13,14 @@ from rest_framework.views import APIView
 from apps.recruitments.models import Application, Recruitment
 from apps.recruitments.permissions import IsRecruitmentAuthor
 from apps.recruitments.serializers.application_serializers import (
+    ApplicationCreateSerializer,
     ApplicationDetailSerializer,
     ApplicationListSerializer,
-    ApplicationCreateSerializer,
     ApplicationResponseSerializer,
 )
 from apps.recruitments.services.application_services import create_application
-from apps.users.models import User
 from apps.studies.models.groups import GroupMember
+from apps.users.models import User
 
 
 class ApplicationCreateAPIView(APIView):
@@ -59,6 +57,7 @@ class ApplicationCreateAPIView(APIView):
             },
             status=status.HTTP_201_CREATED,
         )
+
 
 class ApplicationListAPIView(APIView):
     """

@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from apps.recruitments.models.application import Application
 from rest_framework import serializers
 
+from apps.recruitments.models.application import Application
 from apps.users.models import User
+
 
 class ApplicationCreateSerializer(serializers.ModelSerializer[Any]):
     """
@@ -49,6 +50,7 @@ class ApplicationResponseSerializer(serializers.Serializer[Any]):
     def get_user_uuid(self, obj: Application) -> Optional[str]:
         u = getattr(obj.user, "uuid", None)
         return str(u) if u else None
+
 
 class ApplicantSerializer(serializers.ModelSerializer[User]):
     """
