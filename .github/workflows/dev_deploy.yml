@@ -83,7 +83,7 @@ jobs:
               ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPO }}:django-dev \
               sh -c "python manage.py migrate && \
                 python manage.py collectstatic --noinput && \
-                gunicorn --workers 3 --bind 0.0.0.0:8000 config.wsgi:application"
+                gunicorn config.asgi:application -k uvicorn.workers.UvicornWorker -w 3 -b 0.0.0.0:8000"
              
             sleep 5  # Celery가 DB migrate 이후 시작되도록 약간 대기
 
