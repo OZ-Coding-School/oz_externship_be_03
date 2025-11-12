@@ -6,9 +6,12 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.recruitments.models import Application
+from apps.recruitments.models import Application, Recruitment
 from apps.recruitments.permissions import IsRecruitmentAuthor
-from apps.recruitments.serializers.application import ApplicationDetailSerializer, ApplicationListSerializer
+from apps.recruitments.serializers.application import (
+    ApplicationDetailSerializer,
+    ApplicationListSerializer,
+)
 from apps.studies.models.groups import GroupMember
 
 
@@ -45,16 +48,14 @@ class ApplicationListAPIView(APIView):
     )
     def get(self, request: Request, recruitment_uuid: str) -> Response:
         """지원 내역 목록 조회"""
-        from apps.recruitments.models import Recruitment
 
-        # 공고 작성자 권한 확인
         recruitment = get_object_or_404(Recruitment, uuid=recruitment_uuid)
         self.check_object_permissions(request, recruitment)
 
-        # 지원 내역 조회
-        applications = Application.objects.filter(recruitment=recruitment).select_related("user").order_by("-created_at")
+        applications = (
+            Application.objects.filter(recruitment=recruitment).select_related("user").order_by("-created_at")
+        )
 
-        # 페이지네이션
         from rest_framework.pagination import PageNumberPagination
 
         paginator = PageNumberPagination()
@@ -81,13 +82,10 @@ class ApplicationDetailAPIView(APIView):
     )
     def get(self, request: Request, recruitment_uuid: str, application_uuid: str) -> Response:
         """지원 내역 상세 조회"""
-        from apps.recruitments.models import Recruitment
 
-        # 공고 작성자 권한 확인
         recruitment = get_object_or_404(Recruitment, uuid=recruitment_uuid)
         self.check_object_permissions(request, recruitment)
 
-        # 지원 내역 조회
         application = get_object_or_404(
             Application.objects.select_related("user"),
             recruitment=recruitment,
@@ -101,7 +99,6 @@ class ApplicationDetailAPIView(APIView):
 class ApplicationApproveAPIView(APIView):
     """
     공고 작성자의 지원 승인 API
-    - REQ-APLY-004: 승인하기
     """
 
     permission_classes = [IsRecruitmentAuthor]
@@ -119,16 +116,12 @@ class ApplicationApproveAPIView(APIView):
     )
     def post(self, request: Request, recruitment_uuid: str, application_uuid: str) -> Response:
         """지원 승인 및 스터디 그룹 멤버 등록"""
-        from apps.recruitments.models import Recruitment
 
-        # 공고 작성자 권한 확인
         recruitment = get_object_or_404(Recruitment, uuid=recruitment_uuid)
         self.check_object_permissions(request, recruitment)
 
-        # 지원 내역 조회
         application = get_object_or_404(Application, recruitment=recruitment, uuid=application_uuid)
 
-        # 이미 승인되거나 거절된 항목 체크
         if application.status in ["APPROVED", "REJECTED"]:
             return Response({"detail": "이미 처리된 지원입니다."}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -137,18 +130,15 @@ class ApplicationApproveAPIView(APIView):
         if not study_group:
             return Response({"detail": "스터디 그룹이 존재하지 않습니다."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # 공고 모집 인원 체크
         approved_count = Application.objects.filter(recruitment=recruitment, status="APPROVED").count()
 
         if approved_count >= recruitment.expected_headcount:
             return Response({"detail": "모집 인원이 마감되었습니다."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # 스터디 그룹 정원 체크
         current_member_count = study_group.members.count()
         if current_member_count >= study_group.max_headcount:
             return Response({"detail": "스터디 그룹 정원이 초과되었습니다."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # 트랜잭션으로 승인 처리 및 멤버 등록
         with transaction.atomic():
             application.status = "APPROVED"
             application.save()
@@ -161,7 +151,6 @@ class ApplicationApproveAPIView(APIView):
 class ApplicationRejectAPIView(APIView):
     """
     공고 작성자의 지원 거절 API
-    - REQ-APLY-005: 거절하기
     """
 
     permission_classes = [IsRecruitmentAuthor]
@@ -179,16 +168,12 @@ class ApplicationRejectAPIView(APIView):
     )
     def post(self, request: Request, recruitment_uuid: str, application_uuid: str) -> Response:
         """지원 거절"""
-        from apps.recruitments.models import Recruitment
 
-        # 공고 작성자 권한 확인
         recruitment = get_object_or_404(Recruitment, uuid=recruitment_uuid)
         self.check_object_permissions(request, recruitment)
 
-        # 지원 내역 조회
         application = get_object_or_404(Application, recruitment=recruitment, uuid=application_uuid)
 
-        # 이미 승인되거나 거절된 항목 체크
         if application.status in ["APPROVED", "REJECTED"]:
             return Response({"detail": "이미 처리된 지원입니다."}, status=status.HTTP_400_BAD_REQUEST)
 
