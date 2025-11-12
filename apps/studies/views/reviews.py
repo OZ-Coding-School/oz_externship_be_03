@@ -103,11 +103,16 @@ class GroupReviewListCreateView(generics.ListCreateAPIView[Review]):
 
     def get_queryset(self) -> QuerySet[Review]:
         group = self.get_group_for_read()
-        qs = (
-            Review.objects.filter(study_group_id=group.id)  # 내부 정수 PK
-            .only("uuid", "star_rating", "content", "created_at", "updated_at", "user_id", "study_group_id")
-            .order_by(*self.ordering)
+        qs = Review.objects.filter(study_group_id=group.id).only(  # 내부 정수 PK
+            "uuid", "star_rating", "content", "created_at", "updated_at", "user_id", "study_group_id"
         )
+
+        ordering = self.request.query_params.get("ordering", "-created_at")
+        allowed = ("-created_at", "created_at", "-updated_at", "updated_at")
+        if ordering not in allowed:
+            ordering = "-created_at"
+
+        qs = qs.order_by(ordering)
 
         rating_str = self.request.query_params.get("rating")
         if rating_str:
@@ -257,14 +262,21 @@ class AdminReviewListView(generics.ListAPIView[Review]):
     serializer_class = AdminReviewListSerializer
 
     def get_queryset(self) -> QuerySet[Review]:
-        qs = Review.objects.select_related("study_group", "user").order_by("-created_at")
+        qs = Review.objects.select_related("study_group", "user")
+
         group_uuid = self.request.query_params.get("group_uuid")
         if group_uuid:
             try:
                 qs = qs.filter(study_group__uuid=UUID(group_uuid))
             except (ValueError, TypeError):
                 pass
-        return qs
+
+        ordering = self.request.query_params.get("ordering", "-created_at")
+        allowed = ("-created_at", "created_at", "-updated_at", "updated_at")
+        if ordering not in allowed:
+            ordering = "-created_at"
+
+        return qs.order_by(ordering)
 
     def list(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         return super().list(request, *args, **kwargs)
