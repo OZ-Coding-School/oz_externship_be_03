@@ -14,14 +14,20 @@ class AdminWithdrawalService:
     """관리자 탈퇴 회원 관련 서비스"""
 
     @staticmethod
-    def get_withdrawal_detail(user_id: int) -> Dict[str, Any]:
+    def get_withdrawal_detail(withdrawal_id: int) -> Dict[str, Any]:
         """
         탈퇴 회원 상세 정보 조회
         """
         try:
-            user = User.objects.get(id=user_id)
-        except User.DoesNotExist:
+            anchor: Withdrawal = Withdrawal.objects.select_related("user").get(id=withdrawal_id)
+        except Withdrawal.DoesNotExist:
+            raise NotFound("탈퇴 이력이 없습니다.")
+
+        if anchor.user_id is None or anchor.user is None:
             raise NotFound("회원 정보를 찾을 수 없습니다.")
+
+        user: User = anchor.user
+        user_id = anchor.user_id
 
         base_qs: QuerySet[Withdrawal] = Withdrawal.objects.select_related("user").filter(user_id=user_id)
 
