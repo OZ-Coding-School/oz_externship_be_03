@@ -197,6 +197,7 @@ class ReviewCreateAPITests(_BaseFixtures):
 
     # 인증 사용자 + 정상 입력 → 201 생성(본문 없음) 확인
     def test_create_review_201(self) -> None:
+        GroupMember.objects.create(study_group=self.study_group, user=self.user)
         self.client.force_authenticate(user=self.user)
         res = self.client.post(
             self._url(self.study_group),
@@ -210,6 +211,7 @@ class ReviewCreateAPITests(_BaseFixtures):
 
     # 이미 작성한 사용자/그룹 조합으로 재요청 → 409 충돌
     def test_create_review_duplicate_409(self) -> None:
+        GroupMember.objects.create(study_group=self.study_group, user=self.user)
         self.client.force_authenticate(user=self.user)
         Review.objects.create(
             user=self.user,
@@ -226,6 +228,7 @@ class ReviewCreateAPITests(_BaseFixtures):
 
     # content 공백만 보냄 → 422 검증 실패
     def test_create_review_blank_content_422(self) -> None:
+        GroupMember.objects.create(study_group=self.study_group, user=self.user)
         self.client.force_authenticate(user=self.user)
         res = self.client.post(
             self._url(self.study_group),
