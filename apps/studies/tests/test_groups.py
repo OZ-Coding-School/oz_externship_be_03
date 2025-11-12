@@ -457,8 +457,8 @@ class AdminStudyGroupViewTest(TestCase):
         GroupMember.objects.create(study_group=self.group1, user=self.user, is_leader=True)
 
         # URL 설정
-        self.list_url = reverse("studies:admin-study-group-list")
-        self.detail_url = reverse("studies:admin-study-group-detail", kwargs={"group_uuid": self.group1.uuid})
+        self.list_url = reverse("admin_studies:admin-study-group-list")
+        self.detail_url = reverse("admin_studies:admin-study-group-detail", kwargs={"group_uuid": self.group1.uuid})
 
     # 관리자는 전체 스터디 목록을 조회
     def test_admin_can_list_groups(self) -> None:

@@ -4,7 +4,7 @@ from rest_framework import serializers
 class MemberKickSerializer(serializers.Serializer):  # type: ignore[type-arg]
     """REQ-STDY-006: 리더가 특정 멤버를 추방할 때 사용"""
 
-    member_id = serializers.IntegerField(required=True, min_value=1, help_text="추방할 멤버의 GroupMember ID")
+    target_member_uuid = serializers.UUIDField(required=True)
 
 
 class MemberLeaveSerializer(serializers.Serializer):  # type: ignore[type-arg]
