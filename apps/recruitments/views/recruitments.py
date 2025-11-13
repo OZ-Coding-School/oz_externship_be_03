@@ -1,16 +1,14 @@
 from typing import Any, cast
 
-from django.contrib.auth.models import AbstractUser
 from django.db.models import Count, QuerySet
-from drf_spectacular.utils import OpenApiResponse, extend_schema
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
 from rest_framework import generics, status
-from rest_framework.permissions import (
-    IsAuthenticated,
-    IsAuthenticatedOrReadOnly,
-)
+from rest_framework.mixins import ListModelMixin
+from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework.request import Request
 from rest_framework.response import Response
-from rest_framework.serializers import BaseSerializer, Serializer
+from rest_framework.serializers import Serializer
 
 from apps.recruitments.models import Recruitment
 from apps.recruitments.serializers.recruitments import (
@@ -27,26 +25,10 @@ from apps.recruitments.services.recruitments import (
 )
 from apps.users.models import User
 
+VALID_ORDERING_PARAMS = ("latest", "views", "bookmarks")
 
-@extend_schema(
-    tags=["recruitments"],
-    summary="스터디 구인 공고 작성 및 목록 조회",
-    description=(
-        "로그인한 사용자는 새로운 스터디 구인 공고를 등록할 수 있습니다.\n\n"
-        "- 마크다운 형식 본문(content)\n"
-        "- 이미지 최대 5개 (5MB 이하)\n"
-        "- 첨부파일 최대 3개 (5MB 이하)\n"
-        "- 공고당 최대 5개의 사용자 정의 태그 등록 가능"
-    ),
-    request={"multipart/form-data": RecruitmentCreateUpdateSerializer},
-    responses={
-        200: OpenApiResponse(response=RecruitmentListSerializer, description="스터디 구인 공고 목록 조회 성공"),
-        201: OpenApiResponse(response=RecruitmentDetailSerializer, description="스터디 구인 공고 등록 성공"),
-        400: OpenApiResponse(description="유효하지 않은 요청 데이터"),
-        401: OpenApiResponse(description="인증되지 않은 사용자"),
-    },
-)
-class RecruitmentListCreateAPIView(generics.GenericAPIView):  # type: ignore[type-arg]
+
+class RecruitmentListCreateAPIView(generics.GenericAPIView, ListModelMixin):  # type: ignore[type-arg]
     """REQ-RECM-001, REQ-RECM-003 — 스터디 구인공고 목록 조회 및 생성"""
 
     permission_classes = [IsAuthenticatedOrReadOnly]
@@ -78,22 +60,64 @@ class RecruitmentListCreateAPIView(generics.GenericAPIView):  # type: ignore[typ
 
         return qs
 
+    @extend_schema(
+        tags=["Recruitments"],
+        summary="스터디 구인 공고 작성 및 목록 조회",
+        description="로그인 사용자는 스터디 구인 공고 목록을 조회할 수 있습니다. (태그별 필터링, 검색기능, 정렬기능)",
+        parameters=[
+            OpenApiParameter(
+                name="keyword",
+                type=OpenApiTypes.STR,
+                required=False,
+                description="검색시 사용할 수 있는 쿼리 파라미터입니다. 공고 제목을 기준으로 검색합니다.",
+            ),
+            OpenApiParameter(
+                name="tag",
+                type=OpenApiTypes.STR,
+                required=False,
+                description="검색시 사용할 수 있는 쿼리 파라미터입니다. 공고에 사용된 태그명을 기준으로 필터링 합니다.",
+            ),
+            OpenApiParameter(
+                name="ordering",
+                enum=VALID_ORDERING_PARAMS,
+                required=False,
+                description="정렬에 사용할 쿼리 파라미터 입니다.",
+            ),
+        ],
+    )
     def get(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         queryset = self.get_queryset()
         page = self.paginate_queryset(queryset)
         serializer = RecruitmentListSerializer(page, many=True, context={"request": request})
-        paginated = self.get_paginated_response(serializer.data).data
+        response = self.get_paginated_response(serializer.data)
 
         if request.user.is_authenticated:
             user = cast(User, request.user)  # type: ignore[redundant-cast]
             recommended_qs = get_recommended_recruitments_for_user(user, limit=3)
             recommended_serializer = RecruitmentListSerializer(recommended_qs, many=True, context={"request": request})
-            paginated["recommended_recruitments"] = recommended_serializer.data
+            response.data["recommended_recruitments"] = recommended_serializer.data
         else:
-            paginated["recommended_recruitments"] = []
+            response.data["recommended_recruitments"] = []
 
-        return Response(paginated)
+        return response
 
+    @extend_schema(
+        tags=["Recruitments"],
+        summary="스터디 구인 공고 작성 및 목록 조회",
+        description=(
+            "로그인한 사용자는 새로운 스터디 구인 공고를 등록할 수 있습니다.\n\n"
+            "- 마크다운 형식 본문(content)\n"
+            "- 이미지 최대 5개 (5MB 이하)\n"
+            "- 첨부파일 최대 3개 (5MB 이하)\n"
+            "- 공고당 최대 5개의 사용자 정의 태그 등록 가능"
+        ),
+        request={"multipart/form-data": RecruitmentCreateUpdateSerializer},
+        responses={
+            201: OpenApiResponse(response=RecruitmentDetailSerializer, description="스터디 구인 공고 등록 성공"),
+            400: OpenApiResponse(description="유효하지 않은 요청 데이터"),
+            401: OpenApiResponse(description="인증되지 않은 사용자"),
+        },
+    )
     def post(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         serializer = RecruitmentCreateUpdateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -103,7 +127,21 @@ class RecruitmentListCreateAPIView(generics.GenericAPIView):  # type: ignore[typ
         return Response(detail_serializer.data, status=status.HTTP_201_CREATED)
 
 
-@extend_schema(tags=["recruitments"], summary="내가 작성한 스터디 구인 공고 목록 조회")
+@extend_schema(
+    tags=["Recruitments"],
+    summary="내가 작성한 스터디 구인 공고 목록 조회",
+    parameters=[
+        OpenApiParameter(
+            name="status", enum=["open", "closed"], required=False, description="상태별 필터링 쿼리 파라미터입니다."
+        ),
+        OpenApiParameter(
+            name="ordering",
+            enum=VALID_ORDERING_PARAMS,
+            required=False,
+            description="정렬에 사용할 쿼리 파라미터 입니다.",
+        ),
+    ],
+)
 class RecruitmentUserListAPIView(generics.ListAPIView):  # type: ignore[type-arg]
     """REQ-RECM-005 — 사용자별 스터디 구인 공고 목록 조회"""
 
@@ -136,7 +174,7 @@ class RecruitmentUserListAPIView(generics.ListAPIView):  # type: ignore[type-arg
         return qs
 
 
-@extend_schema(tags=["recruitments"], summary="스터디 구인 공고 상세 조회 / 수정 / 삭제")
+@extend_schema(tags=["Recruitments"], summary="스터디 구인 공고 상세 조회 / 수정 / 삭제")
 class RecruitmentDetailUpdateDeleteAPIView(generics.RetrieveUpdateDestroyAPIView):  # type: ignore[type-arg]
     """REQ-RECM-006, 007, 009 — 스터디 구인 공고 상세, 수정, 삭제"""
 
