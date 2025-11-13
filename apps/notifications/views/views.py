@@ -1,7 +1,7 @@
 from typing import Any
 
 from django.contrib.auth.models import AnonymousUser
-from django.db.models import QuerySet
+from django.db.models import Count, Q, QuerySet
 from rest_framework import generics, permissions
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -31,4 +31,15 @@ class NotificationListAPIView(generics.ListAPIView[Notification]):
         # 알림 목록을 count + results 형태로 반환
         queryset = self.get_queryset()
         serializer = self.get_serializer(queryset, many=True)
-        return Response({"count": queryset.count(), "results": serializer.data})
+        
+        # 한 번의 쿼리로 total, unread, read 카운트 계산
+        counts = queryset.aggregate(
+            total=Count('id'),
+            unread=Count('id', filter=Q(is_read=False)),
+            read=Count('id', filter=Q(is_read=True))
+        )
+        
+        return Response({
+            "counts": counts,
+            "results": serializer.data
+        })
