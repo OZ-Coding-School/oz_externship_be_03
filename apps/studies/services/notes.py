@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import re
 import textwrap
-from typing import ClassVar, cast
+from typing import ClassVar
 
 from django.conf import settings
 from django.utils import timezone
@@ -11,7 +11,6 @@ from google import genai
 from google.genai.types import GenerateContentConfig
 
 from apps.studies.models.notes import StudyNote
-from apps.users.models import User
 
 logger = logging.getLogger(__name__)
 
@@ -25,8 +24,7 @@ class StudyNoteAIService:
     """
 
     MODEL_NAME: ClassVar[str] = settings.GEMINI_MODEL_NAME
-
-    _CLIENT: ClassVar[genai.Client] = genai.Client(api_key=settings.GEMINI_API_KEY)
+    _CLIENT: ClassVar[genai.Client]
 
     if getattr(settings, "GEMINI_API_KEY", None):
         _CLIENT = genai.Client(api_key=settings.GEMINI_API_KEY)
@@ -133,7 +131,7 @@ class StudyNoteAIService:
 
         # author의 데이터 수집, 선언
         date_str = timezone.localtime(note.created_at).strftime("%Y년 %m월 %d일 %A")
-        author_name = cast(User, note.author).nickname
+        author_name = note.author.nickname
 
         prompt = cls.SUMMARY_PROMPT_TEMPLATE.format(
             date_str=date_str,
