@@ -237,7 +237,7 @@ class UserProfileUpdateTests(IsolatedRedisTestClient):
             img = SimpleUploadedFile("avatar.png", buf.getvalue(), content_type="image/png")
             resp = self.client.patch(self.url, {"profile_img": img}, format="multipart")
 
-            self.assertEqual(resp.status_code, status.HTTP_200_OK, msg=resp.content)
+            self.assertEqual(resp.status_code, status.HTTP_200_OK, msg=resp.data)
             body = resp.json()
             self.assertEqual(body["detail"], "내 정보가 수정되었습니다.")
             new_url = body["data"]["profile_img_url"]
@@ -281,7 +281,7 @@ class UserProfileUpdateTests(IsolatedRedisTestClient):
             new_img = SimpleUploadedFile("avatar2.png", buf2.getvalue(), content_type="image/png")
 
             resp = self.client.patch(self.url, {"profile_img": new_img}, format="multipart")
-            self.assertEqual(resp.status_code, status.HTTP_200_OK, msg=resp.content)
+            self.assertEqual(resp.status_code, status.HTTP_200_OK, msg=resp.data)
 
             body = resp.json()
             new_url = body["data"]["profile_img_url"]
