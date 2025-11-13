@@ -46,6 +46,9 @@ class S3Uploader:
     REGION_NAME: ClassVar[str] = getattr(settings, "AWS_S3_REGION", "")
     S3_BASE_URL: ClassVar[str] = f"https://{BUCKET_NAME}.s3.{REGION_NAME}.amazonaws.com/"
 
+    MAX_FILE_SIZE_MB: ClassVar[int] = 10
+    MAX_FILE_SIZE_BYTES: ClassVar[int] = MAX_FILE_SIZE_MB * 1024 * 1024
+
     @classmethod
     def validate_file_name(cls, file: UploadedFile) -> None:
         """File 이름 검증"""
@@ -99,6 +102,14 @@ class S3Uploader:
 
         # 확장자 검증을 통과했다면 일반적으로 도달하지 않음(이중 방어)
         raise ValidationError("허용된 확장자만 등록 가능합니다.")
+
+    @classmethod
+    def validate_file_size(cls, file_size: Optional[int]) -> None:
+        """파일 크기 검증"""
+        if file_size is None:  # 사실상 mypy 통과용에 가까운 None 체크 조건문
+            raise ValidationError("파일 크기를 확인할 수 없습니다.")
+        if file_size > cls.MAX_FILE_SIZE_BYTES:
+            raise ValidationError(f"{cls.MAX_FILE_SIZE_MB}MB 이하만 업로드 가능합니다.")
 
     @classmethod
     def upload_file(cls, file: UploadedFile, prefix: str) -> str:

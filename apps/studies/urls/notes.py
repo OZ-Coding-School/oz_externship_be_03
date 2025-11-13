@@ -29,7 +29,7 @@ urlpatterns = [
     ),
     # 그룹 대표 이미지 Presigned URL 발급
     path(
-        "group/presigned-url",
+        "groups/presigned-url",
         StudyGroupS3PresignedView.as_view(),
         name="study_group_presigned",
     ),

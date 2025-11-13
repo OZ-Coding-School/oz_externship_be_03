@@ -39,9 +39,12 @@ class StudyGroupS3PresignedView(APIView):
 
         files = serializer.validated_data["files"]
 
-        for f in files:
-            S3Uploader.validate_file_name(f.get("file_name"))
-            S3Uploader.validate_file_content_type(f.get("content_type"))
+        for (
+            f
+        ) in files:  # f.get 있을 수도 없을 수도 있으며 없으면 None로 반환해봐 / f[] = 이미 검증된 것들이니 없으면 에러
+            S3Uploader.validate_file_size(f["file_size"])
+            S3Uploader.validate_file_name(f["file_name"])
+            S3Uploader.validate_file_content_type(f["content_type"])
 
         prefix = GROUP_IMAGE_PREFIX
         # 대표 이미지는 단일 업로드겠지만 노트와 공용시리얼라이저 사용 + 썸네일 도입용이함 등을 감안해서 files 복수형 유지
@@ -81,9 +84,11 @@ class StudyNoteS3PresignedView(APIView):
         presigned_urls: list[dict[str, Any]] = []
 
         for f in files:
-            file_name = f.get("file_name")
-            content_type = f.get("content_type")
+            file_name = f["file_name"]
+            content_type = f["content_type"]
+            file_size = f["file_size"]
 
+            S3Uploader.validate_file_size(file_size)
             S3Uploader.validate_file_name(file_name)
 
             ext = file_name.rsplit(".", 1)[-1].lower()
