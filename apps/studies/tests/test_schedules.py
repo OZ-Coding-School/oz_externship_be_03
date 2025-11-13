@@ -4,14 +4,19 @@ from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
-from apps.studies.models.groups import StudyGroup
+from apps.studies.models.groups import GroupMember, StudyGroup
 from apps.studies.models.schedules import GroupSchedule
 from apps.users.models import User
 
 
 class StudyScheduleAPITests(APITestCase):
-    def setUp(self) -> None:
-        self.user = User.objects.create_user(
+    user: User
+    group: StudyGroup
+    members: list[GroupMember]
+
+    @classmethod
+    def setUpTestData(cls) -> None:
+        cls.user = User.objects.create_user(
             email="testuser@example.com",
             password="pw1234",
             nickname="testuser",
@@ -22,18 +27,37 @@ class StudyScheduleAPITests(APITestCase):
             birthday=timezone.now().strftime("%Y-%m-%d"),
         )
 
-        self.group = StudyGroup.objects.create(
+        cls.group = StudyGroup.objects.create(
             name="테스트 그룹",
             max_headcount=5,
             start_at="2025-10-25T00:00:00Z",
             end_at="2025-10-30T00:00:00Z",
         )
+        GroupMember.objects.create(user=cls.user, study_group=cls.group, is_leader=True)
+        other_users = [
+            User(
+                email=f"testuser{i}@example.com",
+                password="pw1234",
+                nickname=f"testuser{i}",
+                name=f"testuser{i}",
+                phone_number=f"012345678{i}0",
+                is_active=True,
+                gender="M",
+                birthday=timezone.now().strftime("%Y-%m-%d"),
+            )
+            for i in range(4)
+        ]
+        other_users = User.objects.bulk_create(other_users)
+        cls.members = GroupMember.objects.bulk_create(
+            [GroupMember(user=user, study_group=cls.group) for user in other_users]
+        )
 
     def test_unauthorized_cannot_create(self) -> None:
         """로그인하지 않은 사용자는 401"""
-        url = reverse("studies:group-schedule-list-create", kwargs={"group_uuid": self.group.uuid})
+        url = reverse("studies:group-schedule-create")
         data = {
             "study_group": self.group.uuid,
+            "participants": [m.uuid for m in self.members],
             "title": "알고리즘 스터디",
             "objective": "탐색 알고리즘 학습",
             "session_date": "2025-10-28",
@@ -46,10 +70,11 @@ class StudyScheduleAPITests(APITestCase):
     def test_create_schedule_success(self) -> None:
         """로그인한 사용자는 스케줄 생성 가능"""
         self.client.force_authenticate(user=self.user)
-        url = reverse("studies:group-schedule-list-create", kwargs={"group_uuid": self.group.uuid})
+        url = reverse("studies:group-schedule-create")
 
         data = {
             "study_group": self.group.uuid,
+            "participants": [m.uuid for m in self.members],
             "title": "자료구조 복습",
             "objective": "큐와 스택 복습",
             "session_date": "2025-10-27",
@@ -65,7 +90,7 @@ class StudyScheduleAPITests(APITestCase):
     def test_duplicate_schedule_conflict(self) -> None:
         """동일한 날짜/시간대 스케줄 중복 생성 방지 (409 Conflict)"""
         self.client.force_authenticate(user=self.user)
-        url = reverse("studies:group-schedule-list-create", kwargs={"group_uuid": self.group.uuid})
+        url = reverse("studies:group-schedule-create")
 
         GroupSchedule.objects.create(
             study_group=self.group,
@@ -78,6 +103,7 @@ class StudyScheduleAPITests(APITestCase):
 
         data = {
             "study_group": self.group.uuid,
+            "participants": [m.uuid for m in self.members],
             "title": "중복 테스트2",
             "objective": "테스트용2",
             "session_date": "2025-10-28",
@@ -92,9 +118,10 @@ class StudyScheduleAPITests(APITestCase):
     def test_invalid_time_validation(self) -> None:
         """종료 시간이 시작 시간보다 빠르면 400"""
         self.client.force_authenticate(user=self.user)
-        url = reverse("studies:group-schedule-list-create", kwargs={"group_uuid": self.group.uuid})
+        url = reverse("studies:group-schedule-create")
         data = {
             "study_group": self.group.uuid,
+            "participants": [m.uuid for m in self.members],
             "title": "잘못된 시간",
             "objective": "시간 검증 테스트",
             "session_date": "2025-10-29",
@@ -108,7 +135,7 @@ class StudyScheduleAPITests(APITestCase):
         """study_group의 uuid에 해당하는 객체가 존재하지 않는 경우 400"""
         self.client.force_authenticate(user=self.user)
         fake_uuid = uuid.uuid4()
-        url = reverse("studies:group-schedule-list-create", kwargs={"group_uuid": fake_uuid})
+        url = reverse("studies:group-schedule-create")
         data = {
             "study_group": fake_uuid,
             "title": "자료구조 복습",
@@ -132,7 +159,7 @@ class StudyScheduleAPITests(APITestCase):
             end_time="12:00:00",
         )
 
-        url = reverse("studies:group-schedule-list-create", kwargs={"group_uuid": self.group.uuid})
+        url = reverse("studies:group-schedule-list", kwargs={"group_uuid": self.group.uuid})
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data), 1)
@@ -151,7 +178,7 @@ class StudyScheduleAPITests(APITestCase):
         )
         url = reverse(
             "studies:group-schedule-detail-update-delete",
-            kwargs={"group_uuid": self.group.uuid, "schedule_uuid": schedule.uuid},
+            kwargs={"schedule_uuid": schedule.uuid},
         )
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
@@ -170,7 +197,7 @@ class StudyScheduleAPITests(APITestCase):
         )
         url = reverse(
             "studies:group-schedule-detail-update-delete",
-            kwargs={"group_uuid": self.group.uuid, "schedule_uuid": schedule.uuid},
+            kwargs={"schedule_uuid": schedule.uuid},
         )
         data = {"title": "수정 후"}
         response = self.client.patch(url, data=data, format="json")
@@ -191,7 +218,7 @@ class StudyScheduleAPITests(APITestCase):
         )
         url = reverse(
             "studies:group-schedule-detail-update-delete",
-            kwargs={"group_uuid": self.group.uuid, "schedule_uuid": schedule.uuid},
+            kwargs={"schedule_uuid": schedule.uuid},
         )
         response = self.client.delete(url)
         self.assertEqual(response.status_code, 204)
