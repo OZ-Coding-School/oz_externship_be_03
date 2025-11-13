@@ -205,7 +205,7 @@ class AdminUserService:
                 raise ValidationError({"error": "프로필 이미지는 파일로만 업로드할 수 있습니다."})
 
             # 파일 유효성 검증
-            S3Uploader.validate_file_name(profile_img)
+            S3Uploader.validate_file_obj_name(profile_img)
             S3Uploader.validate_file_extension(profile_img)
             content_type = getattr(profile_img, "content_type", None)
             S3Uploader.validate_file_content_type(content_type)

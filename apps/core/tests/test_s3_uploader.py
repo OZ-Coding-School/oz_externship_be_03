@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, cast
 
 import boto3
 from django.conf import settings
@@ -62,7 +62,7 @@ class S3UploaderTests(TestCase):
     def test_upload_image_success(self) -> None:
         f = _make_file("cover.png", "image/png")
         # 뷰에서 호출되는 벨리데이터 순서 모방
-        S3Uploader.validate_file_name(f)
+        S3Uploader.validate_file_name(cast(str, f.name))
         S3Uploader.validate_file_extension(f)
 
         url = S3Uploader.upload_file(f, "uploads/test/")
@@ -74,7 +74,7 @@ class S3UploaderTests(TestCase):
 
     def test_upload_attachment_success(self) -> None:
         f = _make_file("notes.pdf", "application/pdf")
-        S3Uploader.validate_file_name(f)
+        S3Uploader.validate_file_name(cast(str, f.name))
         S3Uploader.validate_file_extension(f)
 
         url = S3Uploader.upload_file(f, "uploads/test/")
@@ -90,7 +90,7 @@ class S3UploaderTests(TestCase):
 
         # upload_file() 내부엔 검증이 없으므로, validator 직접 호출
         with self.assertRaises(Exception):
-            S3Uploader.validate_file_name(f)
+            S3Uploader.validate_file_name(cast(str, f.name))
             S3Uploader.validate_file_extension(f)
             # upload_file 호출 시도 (이전 로직과 동일한 최종 트리거)
             S3Uploader.upload_file(f, "uploads/test/")
@@ -104,11 +104,6 @@ class S3UploaderTests(TestCase):
             prefix="uploads/studies/groups/",
             files=files,
         )
-
-        # ✅ 출력 추가
-        import json
-
-        # print("\n[DEBUG] Presigned URL result:\n", json.dumps(result, indent=2, ensure_ascii=False))
 
         self.assertEqual(len(result), 1)
         item = result[0]

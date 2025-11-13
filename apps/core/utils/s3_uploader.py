@@ -50,11 +50,18 @@ class S3Uploader:
     MAX_FILE_SIZE_BYTES: ClassVar[int] = MAX_FILE_SIZE_MB * 1024 * 1024
 
     @classmethod
-    def validate_file_name(cls, file: UploadedFile) -> None:
-        """File 이름 검증"""
+    def validate_file_obj_name(cls, file: UploadedFile) -> None:
         if file.name is None or file.name == "":
             raise ValidationError("유효하지 않은 파일명입니다.")
         if "." not in file.name or file.name.rsplit(".", 1)[0] == "":
+            raise ValidationError("유효하지 않은 파일명입니다.")
+
+    @classmethod
+    def validate_file_name(cls, file_name: str) -> None:
+        """File 이름 검증"""
+        if file_name is None or file_name == "":
+            raise ValidationError("유효하지 않은 파일명입니다.")
+        if "." not in file_name or file_name.rsplit(".", 1)[0] == "":
             raise ValidationError("유효하지 않은 파일명입니다.")
 
     @classmethod

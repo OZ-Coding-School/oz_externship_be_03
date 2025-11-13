@@ -75,7 +75,7 @@ def update_user_profile(
 
     if profile_img is not None:
         # 파일 유효성 검증
-        S3Uploader.validate_file_name(profile_img)
+        S3Uploader.validate_file_obj_name(profile_img)
         S3Uploader.validate_file_extension(profile_img)
         content_type = getattr(profile_img, "content_type", None)
         S3Uploader.validate_file_content_type(content_type)
