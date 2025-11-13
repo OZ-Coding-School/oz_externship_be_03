@@ -59,7 +59,7 @@ class TasksTest(IsolatedRedisTestClient):
 
         await asyncio.sleep(0.1)
 
-        await send_to_pubsub(self.notification.id)
+        send_to_pubsub(self.notification.id)
 
         try:
             await listener_task
@@ -90,7 +90,7 @@ class TasksTest(IsolatedRedisTestClient):
         await asyncio.sleep(1.0)
 
         # 그룹 알림 전송
-        await send_study_group_notification(self.notification.id, str(self.study_group.id))
+        send_study_group_notification(self.notification.id, str(self.study_group.id))
 
         try:
             await listener_task
