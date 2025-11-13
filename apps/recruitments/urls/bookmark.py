@@ -7,7 +7,7 @@ from apps.recruitments.views.bookmark import (
 
 urlpatterns = [
     path(
-        "/bookmarks/<int:recruitment_id>", RecruitmentBookmarkToggleAPIView.as_view(), name="bookmark-toggle"
+        "/bookmarks/<uuid:recruitment_uuid>", RecruitmentBookmarkToggleAPIView.as_view(), name="bookmark-toggle"
     ),  # REQ-RECM-010
     path("/bookmarks", RecruitmentBookmarkedListAPIView.as_view(), name="bookmark-list"),  # REQ-RECM-011
 ]

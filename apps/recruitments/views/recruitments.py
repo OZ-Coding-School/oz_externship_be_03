@@ -58,6 +58,7 @@ class RecruitmentListCreateAPIView(generics.GenericAPIView):  # type: ignore[typ
             Recruitment.objects.filter(is_closed=False)
             .annotate(bookmark_count=Count("bookmarks"))
             .prefetch_related("tags", "images", "attachments")
+            .order_by("-created_at")
         )
         keyword = self.request.query_params.get("keyword")
         tag = self.request.query_params.get("tag")
@@ -139,7 +140,8 @@ class RecruitmentUserListAPIView(generics.ListAPIView):  # type: ignore[type-arg
 class RecruitmentDetailUpdateDeleteAPIView(generics.RetrieveUpdateDestroyAPIView):  # type: ignore[type-arg]
     """REQ-RECM-006, 007, 009 — 스터디 구인 공고 상세, 수정, 삭제"""
 
-    lookup_url_kwarg = "recruitment_id"
+    lookup_field = "uuid"
+    lookup_url_kwarg = "recruitment_uuid"
     queryset = (
         Recruitment.objects.all()
         .annotate(bookmark_count=Count("bookmarks"))
@@ -150,6 +152,8 @@ class RecruitmentDetailUpdateDeleteAPIView(generics.RetrieveUpdateDestroyAPIView
     def get_serializer_class(self) -> type[Serializer[Any]]:
         if self.request.method in ("PUT", "PATCH"):
             return RecruitmentCreateUpdateSerializer
+        elif self.request.method == "GET":
+            return RecruitmentDetailSerializer
         return RecruitmentDetailSerializer
 
     def retrieve(self, request: Request, *args: Any, **kwargs: Any) -> Response:
@@ -167,7 +171,3 @@ class RecruitmentDetailUpdateDeleteAPIView(generics.RetrieveUpdateDestroyAPIView
 
         response_serializer = RecruitmentDetailSerializer(updated_instance, context={"request": request})
         return Response(response_serializer.data, status=status.HTTP_200_OK)
-
-    def perform_update(self, serializer: BaseSerializer[Any]) -> None:
-        recruitment = self.get_object()
-        update_recruitment(recruitment, serializer.validated_data)

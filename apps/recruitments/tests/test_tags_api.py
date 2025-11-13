@@ -25,7 +25,7 @@ class RecruitmentTagAPITestCase(APITestCase):
             gender="M",
             birthday="1997-03-03",
         )
-        self.client.force_authenticate(self.user)
+
         self.study_group = StudyGroup.objects.create(
             name="Django 입문 스터디",
             start_at=timezone.now() + timedelta(days=1),
@@ -44,6 +44,8 @@ class RecruitmentTagAPITestCase(APITestCase):
         self.tag_add_for_recruitment_url = reverse(
             "recruitments:tags-search-add", kwargs={"recruitment_uuid": self.recruitment.uuid}
         )
+
+        self.client.force_authenticate(user=self.user)
 
     def test_002_tag_search(self) -> None:
         """REQ-RECM-002 — 태그 검색"""
