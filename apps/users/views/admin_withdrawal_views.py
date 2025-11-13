@@ -14,7 +14,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.core.views import ExceptionHandledAPIView
-from apps.users.enums import Role
+from apps.users.enums import Reason, Role
 from apps.users.models.user import User
 from apps.users.models.withdrawal import Withdrawal
 from apps.users.permissions import IsAdminRole, IsStaffRole
@@ -56,12 +56,19 @@ from apps.users.services.admin_withdrawal_services import AdminWithdrawalService
             location="query",
             description="정렬에 사용할 필드 - 'id', '-id', 'created_at', '-created_at', 'name', '-name' 만 허용",
         ),
+        OpenApiParameter(
+            name="reason",
+            enum=Reason.values,
+            location="query",
+            description="탈퇴 사유 별 필터링에 사용되는 쿼리 파라미터 입니다.",
+        ),
     ],
 )
 class AdminWithdrawalListView(APIView):
     permission_classes = [IsAuthenticated, IsStaffRole]
     ORDERING_PARAM = "ordering"
     ROLE_FILTERING_PARAM = "role"
+    REASON_FILTERING_PARAM = "reason"
     VALID_ROLE_PARAMS = [r[0] for r in Role.choices]
     VALID_ORDERING_PARAMS = ["id", "-id", "created_at", "-created_at", "name", "-name"]
 
@@ -77,10 +84,20 @@ class AdminWithdrawalListView(APIView):
         keyword = request.query_params.get("keyword")
         ordering = request.query_params.get(self.ORDERING_PARAM)
         role = request.query_params.get(self.ROLE_FILTERING_PARAM)
+        reason = request.query_params.get(self.REASON_FILTERING_PARAM)
 
-        qs = Withdrawal.objects.select_related("user").order_by(
-            ordering if ordering and ordering in self.VALID_ORDERING_PARAMS else "id"
-        )
+        qs = Withdrawal.objects.select_related("user")
+
+        if ordering:
+            if ordering == "-name":
+                qs = qs.order_by("-user__name", "-id")
+            elif ordering == "name":
+                qs = qs.order_by("user__name", "-id")
+            else:
+                qs = qs.order_by(ordering)
+        else:
+            qs = qs.order_by("-id")
+
         # annotate + case 구문을 통해 유저의 role을 필드로 가져옴
         qs = qs.annotate(
             role=Case(
@@ -92,7 +109,10 @@ class AdminWithdrawalListView(APIView):
         )
 
         if role and role in self.VALID_ROLE_PARAMS:
-            qs = qs.filter(role=role)
+            qs = qs.filter(role=role.lower())
+
+        if reason and reason in Reason.values:
+            qs = qs.filter(reason=reason.upper())
 
         # 키워드 검색 (OR 조건)
         if keyword:

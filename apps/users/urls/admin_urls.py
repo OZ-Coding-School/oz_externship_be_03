@@ -42,7 +42,7 @@ urlpatterns = [
         name="admin_withdrawal_detail",
     ),
     path(
-        "admin/<int:withdrawal_id>/restore",
+        "admin/withdrawals/<int:withdrawal_id>/restore",
         AdminUserRestoreView.as_view(),
         name="admin_withdrawal_restore",
     ),
