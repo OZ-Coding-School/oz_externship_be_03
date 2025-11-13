@@ -6,7 +6,10 @@ from celery import shared_task  # type: ignore
 from django.conf import settings
 
 from apps.notifications.models import Notification
-from apps.notifications.services.redis_pubsub_classify import notification_pubsub, RedisPubSubService
+from apps.notifications.services.redis_pubsub_classify import (
+    RedisPubSubService,
+    notification_pubsub,
+)
 from apps.studies.models.schedules import ScheduleParticipant
 
 logger = logging.getLogger(__name__)
@@ -15,9 +18,9 @@ logger = logging.getLogger(__name__)
 @shared_task  # type: ignore[misc]
 def send_to_pubsub(notification_id: int) -> None:
 
-    async def _send_to_pubsub():
+    async def _send_to_pubsub() -> None:
 
-        pubsub_service = RedisPubSubService() # 매번 새로운 인스턴스 생성
+        pubsub_service = RedisPubSubService()  # 매번 새로운 인스턴스 생성
 
         try:
             notification = await Notification.objects.select_related("user").aget(id=notification_id)
@@ -43,9 +46,9 @@ def send_to_pubsub(notification_id: int) -> None:
 @shared_task  # type: ignore[misc]
 def send_study_group_notification(notification_id: int, study_group_id: str) -> None:
 
-    async def _send_study_group_notification():
+    async def _send_study_group_notification() -> None:
 
-        pubsub_service = RedisPubSubService() # 매번 새로운 인스턴스 생성
+        pubsub_service = RedisPubSubService()  # 매번 새로운 인스턴스 생성
 
         try:
             notification = await Notification.objects.aget(id=notification_id)
