@@ -28,8 +28,8 @@ class RecruitmentPagination(PageNumberPagination):
         return Response(
             {
                 "results": data,
-                "page": page.number,
-                "page_size": self.get_page_size(self.request),
+                "next": self.get_next_link(),
+                "previous": self.get_previous_link(),
                 "count": {
                     "total": total,
                     "open": open_count,
