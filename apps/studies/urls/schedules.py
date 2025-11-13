@@ -1,18 +1,24 @@
 from django.urls import path
 
 from apps.studies.views.schedules import (
+    GroupScheduleCreateAPIView,
     GroupScheduleDetailUpdateDeleteView,
-    GroupScheduleListCreateView,
+    GroupScheduleListAPIView,
 )
 
 urlpatterns = [
     path(
         "groups/<uuid:group_uuid>/schedules",
-        GroupScheduleListCreateView.as_view(),
-        name="group-schedule-list-create",
+        GroupScheduleListAPIView.as_view(),
+        name="group-schedule-list",
     ),
     path(
-        "groups/<uuid:group_uuid>/schedules/<uuid:schedule_uuid>",
+        "schedules",
+        GroupScheduleCreateAPIView.as_view(),
+        name="group-schedule-create",
+    ),
+    path(
+        "schedules/<uuid:schedule_uuid>",
         GroupScheduleDetailUpdateDeleteView.as_view(),
         name="group-schedule-detail-update-delete",
     ),
