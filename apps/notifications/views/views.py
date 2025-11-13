@@ -31,15 +31,10 @@ class NotificationListAPIView(generics.ListAPIView[Notification]):
         # 알림 목록을 count + results 형태로 반환
         queryset = self.get_queryset()
         serializer = self.get_serializer(queryset, many=True)
-        
+
         # 한 번의 쿼리로 total, unread, read 카운트 계산
         counts = queryset.aggregate(
-            total=Count('id'),
-            unread=Count('id', filter=Q(is_read=False)),
-            read=Count('id', filter=Q(is_read=True))
+            total=Count("id"), unread=Count("id", filter=Q(is_read=False)), read=Count("id", filter=Q(is_read=True))
         )
-        
-        return Response({
-            "counts": counts,
-            "results": serializer.data
-        })
+
+        return Response({"counts": counts, "results": serializer.data})

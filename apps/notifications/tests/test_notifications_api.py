@@ -59,7 +59,7 @@ class NotificationListAPITestCase(APITestCase):
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(response.data["total"], 1)
         self.assertEqual(response.data["results"][0]["content"], "내 알림 1")
 
     def test_unauthenticated_user_cannot_access_notification_list(self) -> None:
