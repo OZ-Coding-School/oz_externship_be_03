@@ -97,12 +97,16 @@ class RecruitmentListSerializer(ModelSerializer[Recruitment]):
 
 
 class RecruitmentDetailSerializer(ModelSerializer[Recruitment]):
+    """REQ-RECM-006 — 스터디 구인 공고 상세조회"""
+
+    author_nickname = serializers.CharField(source="author.nickname", read_only=True)
     tags = TagSerializer(many=True, read_only=True)
-    images = RecruitmentImageSerializer(many=True, read_only=True)
     attachments = RecruitmentAttachmentSerializer(many=True, read_only=True)
+    lectures = MyRecruitmentLectureSerializer(source="study_group.lectures", many=True, read_only=True)
+
     bookmark_count = serializers.IntegerField(read_only=True)
     is_bookmarked = serializers.SerializerMethodField()
-    author = serializers.CharField(source="author.nickname", read_only=True)
+    study_group_name = serializers.CharField(source="study_group.name", read_only=True)
 
     class Meta:
         model = Recruitment
@@ -113,17 +117,20 @@ class RecruitmentDetailSerializer(ModelSerializer[Recruitment]):
             "estimated_fee",
             "expected_headcount",
             "close_at",
-            "tags",
-            "images",
-            "attachments",
+            "created_at",
             "views_count",
             "bookmark_count",
-            "author",
-            "created_at",
+            "is_closed",
             "is_bookmarked",
+            "study_group_name",
+            "lectures",
+            "tags",
+            "attachments",
+            "author_nickname",
         ]
 
     def get_is_bookmarked(self, obj: Recruitment) -> bool:
+        """현재 로그인한 사용자가 북마크했는지 여부"""
         request = self.context.get("request")
         if not request or not request.user.is_authenticated:
             return False
