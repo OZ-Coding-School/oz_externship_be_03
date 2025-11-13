@@ -9,7 +9,10 @@ from apps.notifications.services.redis_pubsub_classify import (
     RedisPubSubService,
     notification_pubsub,
 )
-from apps.notifications.tasks import send_study_group_notification, send_to_pubsub
+from apps.notifications.tasks import (
+    _send_study_group_notification_async,
+    _send_to_pubsub_async,
+)
 from apps.studies.models.groups import StudyGroup
 from apps.users.enums import Gender
 
@@ -59,7 +62,7 @@ class TasksTest(IsolatedRedisTestClient):
 
         await asyncio.sleep(0.1)
 
-        await send_to_pubsub(self.notification.id)
+        await _send_to_pubsub_async(self.notification.id)
 
         try:
             await listener_task
@@ -72,15 +75,13 @@ class TasksTest(IsolatedRedisTestClient):
         self.assertEqual(data["type"], self.notification.type)
         self.assertEqual(data["content"], self.notification.content)
 
-        await notification_pubsub.redis_client.close()
-
     async def test_send_to_pubsub_group(self) -> None:
         """to redis 그룹 알림 전송 테스트"""
-        notification_pubsub = RedisPubSubService()
+        pubsub_service = RedisPubSubService()
         messages = []
 
         async def group_message_listener() -> None:
-            async for message in notification_pubsub.subscribe_notification(group_ids=[str(self.study_group.id)]):
+            async for message in pubsub_service.subscribe_notification(group_ids=[str(self.study_group.id)]):
                 messages.append(message)
                 if len(messages) >= 1:
                     break
@@ -90,7 +91,7 @@ class TasksTest(IsolatedRedisTestClient):
         await asyncio.sleep(1.0)
 
         # 그룹 알림 전송
-        await send_study_group_notification(self.notification.id, str(self.study_group.id))
+        await _send_study_group_notification_async(self.notification.id, str(self.study_group.id))
 
         try:
             await listener_task
