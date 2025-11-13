@@ -135,6 +135,16 @@ class MyApplicationsAPITests(APITestCase):
             self.assertIn("expected_headcount", it)
             self.assertIn("deadline", it)  # YYYY-MM-DD
 
+            self.assertIn("lectures", it)
+            self.assertIsInstance(it["lectures"], list)
+            for lec in it["lectures"]:
+                self.assertIsInstance(lec, str)
+
+            self.assertIn("tags", it)
+            self.assertIsInstance(it["tags"], list)
+            for tag in it["tags"]:
+                self.assertIsInstance(tag, str)
+
         # 이미지 규칙: recruitment1만 이미지 존재 → 해당 아이템에서는 URL, 다른 하나는 null
         # second가 recruitment1(백엔드)이므로 이미지 있음
         self.assertEqual(second["recruitment_img"], "https://cdn.example.com/study.png")

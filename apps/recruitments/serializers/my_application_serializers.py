@@ -51,6 +51,9 @@ class MyApplicationSerializer(RecruitmentPresentationMixin, serializers.Serializ
     expected_headcount = serializers.IntegerField(source="recruitment.expected_headcount")
     deadline = serializers.SerializerMethodField()
 
+    lectures = serializers.SerializerMethodField()
+    tags = serializers.SerializerMethodField()
+
     def get_uuid(self, obj: Application) -> str:
         val = getattr(obj, "uuid", None)
         return str(val) if val is not None else str(obj.id)
@@ -61,6 +64,26 @@ class MyApplicationSerializer(RecruitmentPresentationMixin, serializers.Serializ
 
     def get_deadline(self, obj: Application) -> str:
         return RecruitmentPresentationMixin.deadline_date(obj.recruitment)
+
+    def get_lectures(self, obj: Application) -> list[str]:
+        """
+        recruitment.study_group.lectures 의 title만 뽑아 배열로 반환.
+        """
+        rec = obj.recruitment
+        group = getattr(rec, "study_group", None)
+        if group is None:
+            return []
+        lectures = getattr(group, "lectures", None)
+        if lectures is None:
+            return []
+        return list(lectures.order_by("id").values_list("title", flat=True))
+
+    def get_tags(self, obj: Application) -> list[str]:
+        rec = obj.recruitment
+        tags_mgr = getattr(rec, "tags", None)
+        if tags_mgr is None:
+            return []
+        return list(tags_mgr.order_by("id").values_list("name", flat=True))
 
 
 class MyApplicationRecruitmentBriefSerializer(RecruitmentPresentationMixin, serializers.Serializer[Any]):

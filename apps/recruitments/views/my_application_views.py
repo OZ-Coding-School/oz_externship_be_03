@@ -40,10 +40,9 @@ class MyApplicationsAPIView(APIView):
             Application.objects.filter(user=cast(User, request.user))
             .select_related("recruitment")
             .prefetch_related(
-                Prefetch(
-                    "recruitment__images",
-                    queryset=RecruitmentImage.objects.order_by("id"),
-                )
+                Prefetch("recruitment__images", queryset=RecruitmentImage.objects.order_by("id")),
+                "recruitment__study_group__lectures",
+                "recruitment__tags",
             )
             .order_by("-created_at")
         )
