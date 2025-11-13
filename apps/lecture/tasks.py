@@ -5,6 +5,7 @@ from typing import Any, Dict, List
 from celery import Task, shared_task  # type: ignore
 from celery.exceptions import SoftTimeLimitExceeded  # type: ignore
 from django.db import transaction
+from django.utils.text import slugify
 
 from apps.lecture.crawlers.inflearn_lecture_crawler_async import (
     InflearnLectureCrawlerAsync,
@@ -131,7 +132,12 @@ def crawl_inflearn_lectures() -> Dict[str, Any]:
         for lecture in created_lectures:
             category_names = lecture_categories.get(lecture.external_id, [])  # type: ignore
             for ctg_name in category_names:
-                ctg, _ = Category.objects.get_or_create(name=ctg_name)
+                if not ctg_name or not ctg_name.strip():
+                    continue
+                slug = slugify(ctg_name, allow_unicode=True)
+                if not slug:
+                    continue
+                ctg, _ = Category.objects.get_or_create(slug=slug, defaults={"name": ctg_name})
                 lecture_category_models.append(LectureCategory(lecture=lecture, category=ctg))
 
         LectureCategory.objects.bulk_create(
