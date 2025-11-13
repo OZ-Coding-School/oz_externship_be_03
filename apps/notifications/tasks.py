@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from datetime import date, timedelta
 
@@ -11,47 +12,69 @@ from apps.studies.models.schedules import ScheduleParticipant
 logger = logging.getLogger(__name__)
 
 
-@shared_task  # type: ignore[misc]
-async def send_to_pubsub(notification_id: int) -> None:
-    try:
-        notification = await Notification.objects.select_related("user").aget(id=notification_id)
+@shared_task(async_=True)  # type: ignore[misc]
+def send_to_pubsub(notification_id: int) -> None:
+    async def _async_task() -> None:
+        try:
+            notification = await Notification.objects.select_related("user").aget(id=notification_id)
 
-        await notification_pubsub.publish_notification(
-            user_id=notification.user.id,
-            notification_data={
+            await notification_pubsub.publish_notification(
+                user_id=notification.user.id,
+                notification_data={
+                    "id": notification.id,
+                    "type": notification.type,
+                    "content": notification.content,
+                    "back_url_link": notification.back_url_link,
+                    "created_at": notification.created_at.isoformat(),
+                    "is_read": notification.is_read,
+                },
+            )
+
+        except Exception as e:
+            logging.error(f"Redis pub 오류: {e}")
+
+    try:
+        event_loop = asyncio.get_event_loop()
+    except RuntimeError:
+        event_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(event_loop)
+
+    if event_loop.is_running():
+        asyncio.create_task(_async_task())
+    else:
+        event_loop.run_until_complete(_async_task())
+
+@shared_task  # type: ignore[misc]
+def send_study_group_notification(notification_id: int, study_group_id: str) -> None:
+    async def _async_task() -> None:
+        try:
+            notification = await Notification.objects.aget(id=notification_id)
+
+            notification_data = {
                 "id": notification.id,
                 "type": notification.type,
                 "content": notification.content,
                 "back_url_link": notification.back_url_link,
                 "created_at": notification.created_at.isoformat(),
                 "is_read": notification.is_read,
-            },
-        )
+            }
 
-    except Exception as e:
-        logging.error(f"Redis pub 오류: {e}")
+            await notification_pubsub.publish_group_notification(
+                group_id=study_group_id, notification_data=notification_data
+            )
+        except Exception as e:
+            logging.error(f"스터디 그룹 알림 발송 오류:{e}")
 
-
-@shared_task  # type: ignore[misc]
-async def send_study_group_notification(notification_id: int, study_group_id: str) -> None:
     try:
-        notification = await Notification.objects.aget(id=notification_id)
+        event_loop = asyncio.get_event_loop()
+    except RuntimeError:
+        event_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(event_loop)
 
-        notification_data = {
-            "id": notification.id,
-            "type": notification.type,
-            "content": notification.content,
-            "back_url_link": notification.back_url_link,
-            "created_at": notification.created_at.isoformat(),
-            "is_read": notification.is_read,
-        }
-
-        await notification_pubsub.publish_group_notification(
-            group_id=study_group_id, notification_data=notification_data
-        )
-    except Exception as e:
-        logging.error(f"스터디 그룹 알림 발송 오류:{e}")
-
+    if event_loop.is_running():
+        asyncio.create_task(_async_task())
+    else:
+        event_loop.run_until_complete(_async_task())
 
 @shared_task(name="send_tomorrow_schedule_notifications")  # type: ignore[misc]
 def send_tomorrow_schedule_notifications() -> None:
