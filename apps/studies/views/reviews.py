@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from abc import abstractmethod
 from typing import Any, Dict
 from uuid import UUID
 
@@ -13,8 +14,10 @@ from drf_spectacular.utils import (
     OpenApiResponse,
     extend_schema,
     extend_schema_view,
+    inline_serializer
 )
 from rest_framework import generics, permissions, serializers, status
+from rest_framework.exceptions import MethodNotAllowed
 from rest_framework.permissions import BasePermission
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -216,16 +219,29 @@ class GroupReviewListCreateView(generics.ListCreateAPIView[Review]):
         }
 
 
-@extend_schema(
-    operation_id="UpdateReview",
-    tags=["StudyGroupReview"],
-    summary="그룹 리뷰 수정",
-    description="리뷰를 수정합니다.",
-    responses={200: ReviewUpdateSerializer},
-)
 class GroupReviewUpdateView(generics.UpdateAPIView[Review]):
     permission_classes = [permissions.IsAuthenticated, IsReviewOwner]
     serializer_class = ReviewUpdateSerializer
+
+    @extend_schema(
+        tags=["StudyGroupReview"],
+        summary="그룹 리뷰 수정",
+        description="리뷰를 수정합니다.",
+        request=inline_serializer(
+            name="ReviewUpdateSerializer",
+            fields={
+                "star_rating": serializers.IntegerField(required=False, min_value=1, max_value=5),
+                "content": serializers.CharField(required=False),
+            }
+        ),
+        responses={200: ReviewUpdateSerializer},
+    )
+    def patch(self, request: Request, *arg: Any, **kwargs: dict[str, Any]) -> Response:
+        return super().patch(request, *arg, **kwargs)
+
+    @extend_schema(exclude=True)
+    def put(self, request: Request, *arg: Any, **kwargs: dict[str, Any]) -> Response:
+        raise MethodNotAllowed(method="PUT")
 
     def get_object(self) -> Review:
         group_uuid = self.kwargs["group_uuid"]
