@@ -117,8 +117,10 @@ class RecruitmentTagSearchAddForRecruitmentAPIView(generics.GenericAPIView[Any])
     serializer_class = RecruitmentTagAddSerializer
 
     def get_object(self) -> Recruitment:
-        """recruitment_id로 해당 공고를 조회"""
-        return Recruitment.objects.get(pk=self.kwargs["recruitment_id"])
+        """recruitment_uuid로 해당 공고를 조회"""
+        from django.shortcuts import get_object_or_404
+
+        return get_object_or_404(Recruitment, uuid=self.kwargs["recruitment_uuid"])
 
     def get(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         keyword: str = request.query_params.get("keyword", "")

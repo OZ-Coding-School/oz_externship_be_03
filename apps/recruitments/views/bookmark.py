@@ -29,12 +29,11 @@ class RecruitmentBookmarkToggleAPIView(generics.GenericAPIView):  # type: ignore
     lookup_field = "uuid"
     lookup_url_kwarg = "recruitment_uuid"
 
-    def post(self, request: Request, recruitment_id: int, *args: Any, **kwargs: Any) -> Response:
+    def post(self, request: Request, recruitment_uuid: str, *args: Any, **kwargs: Any) -> Response:
         """POST /api/v1/recruitments/bookmarks/{recruitment_uuid}/ — 북마크 토글"""
-        try:
-            recruitment = Recruitment.objects.get(pk=recruitment_id)
-        except Recruitment.DoesNotExist:
-            return Response({"error": "해당 공고를 찾을 수 없습니다."}, status=status.HTTP_404_NOT_FOUND)
+        from django.shortcuts import get_object_or_404
+
+        recruitment = get_object_or_404(Recruitment, uuid=recruitment_uuid)
 
         user: User = cast(User, request.user)
         is_bookmarked: bool = toggle_bookmark(recruitment, user)

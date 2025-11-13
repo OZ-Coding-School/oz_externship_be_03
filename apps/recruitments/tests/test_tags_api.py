@@ -42,8 +42,10 @@ class RecruitmentTagAPITestCase(APITestCase):
         )
         self.tag_search_create_url = reverse("recruitments:tags-search-create")
         self.tag_add_for_recruitment_url = reverse(
-            "recruitments:tags-search-add", kwargs={"recruitment_id": self.recruitment.id}
+            "recruitments:tags-search-add", kwargs={"recruitment_uuid": self.recruitment.uuid}
         )
+
+        self.client.force_authenticate(user=self.user)
 
     def test_002_tag_search(self) -> None:
         """REQ-RECM-002 — 태그 검색"""

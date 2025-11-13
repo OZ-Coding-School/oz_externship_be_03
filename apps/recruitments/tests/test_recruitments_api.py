@@ -94,7 +94,7 @@ class RecruitmentAPITestCase(APITestCase):
             expected_headcount=4,
             close_at="2025-12-31T23:59:00Z",
         )
-        url = reverse("recruitments:detail", kwargs={"recruitment_id": recruitment.id})
+        url = reverse("recruitments:detail", kwargs={"recruitment_uuid": recruitment.uuid})
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["title"], recruitment.title)
@@ -111,7 +111,7 @@ class RecruitmentAPITestCase(APITestCase):
             expected_headcount=2,
             close_at="2025-11-30T23:59:00Z",
         )
-        url = reverse("recruitments:detail", kwargs={"recruitment_id": recruitment.id})
+        url = reverse("recruitments:detail", kwargs={"recruitment_uuid": recruitment.uuid})
         data = {
             "title": "수정된 제목",
             "content": "수정된 본문",
@@ -136,7 +136,7 @@ class RecruitmentAPITestCase(APITestCase):
             expected_headcount=2,
             close_at="2025-12-01T23:59:00Z",
         )
-        url = reverse("recruitments:detail", kwargs={"recruitment_id": recruitment.id})
+        url = reverse("recruitments:detail", kwargs={"recruitment_uuid": recruitment.uuid})
         response = self.client.delete(url)
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
         self.assertFalse(Recruitment.objects.filter(pk=recruitment.id).exists())

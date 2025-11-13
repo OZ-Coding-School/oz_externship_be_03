@@ -58,7 +58,7 @@ class TagAPIView(APIView):
         return Response(serializer.data, status=201)
 
     def get_queryset(self, request: Request) -> QuerySet[Tag]:
-        queryset = Tag.objects.all()
+        queryset = Tag.objects.all().order_by("name")
         keyword = request.query_params.get("search")
 
         if keyword:

@@ -49,7 +49,7 @@ class RecruitmentBookmarkAPITestCase(APITestCase):
         )
 
         # 북마크 관련 URL
-        self.toggle_url = reverse("recruitments:bookmark-toggle", kwargs={"recruitment_id": self.recruitment.id})
+        self.toggle_url = reverse("recruitments:bookmark-toggle", kwargs={"recruitment_uuid": self.recruitment.uuid})
         self.list_url = reverse("recruitments:bookmark-list")
 
     def test_010_toggle_bookmark_add(self) -> None:
