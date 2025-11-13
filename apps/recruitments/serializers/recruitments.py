@@ -13,6 +13,7 @@ from apps.recruitments.models import (
     RecruitmentImage,
     Tag,
 )
+from apps.studies.models import StudyGroup
 from apps.users.models import User
 
 # Tag
@@ -104,7 +105,6 @@ class RecruitmentDetailSerializer(ModelSerializer[Recruitment]):
     class Meta:
         model = Recruitment
         fields = [
-            "id",
             "uuid",
             "title",
             "content",
@@ -136,6 +136,9 @@ class RecruitmentCreateUpdateSerializer(ModelSerializer[Recruitment]):
         child=serializers.CharField(max_length=20),
         required=False,
         allow_empty=True,
+    )
+    study_group = serializers.SlugRelatedField(
+        slug_field="uuid", queryset=StudyGroup.objects.all(), required=False, allow_null=True
     )
 
     class Meta:

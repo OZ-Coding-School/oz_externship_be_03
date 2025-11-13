@@ -26,21 +26,20 @@ class RecruitmentBookmarkToggleAPIView(generics.GenericAPIView):  # type: ignore
 
     permission_classes = [IsAuthenticated]
     serializer_class = BookmarkToggleSerializer
+    lookup_field = "uuid"
+    lookup_url_kwarg = "recruitment_uuid"
 
     def post(self, request: Request, recruitment_id: int, *args: Any, **kwargs: Any) -> Response:
-        """POST /api/v1/recruitments/{id}/bookmark — 북마크 추가 or 삭제"""
+        """POST /api/v1/recruitments/bookmarks/{recruitment_uuid}/ — 북마크 토글"""
         try:
             recruitment = Recruitment.objects.get(pk=recruitment_id)
         except Recruitment.DoesNotExist:
             return Response({"error": "해당 공고를 찾을 수 없습니다."}, status=status.HTTP_404_NOT_FOUND)
 
-        # mypy가 AnonymousUser 가능성을 오인하므로 타입 확정
         user: User = cast(User, request.user)
-
         is_bookmarked: bool = toggle_bookmark(recruitment, user)
         data = {
-            "recruitment_id": recruitment.id,
-            "user_id": user.id,
+            "recruitment_uuid": str(recruitment.uuid),
             "is_bookmarked": is_bookmarked,
             "message": "북마크가 추가되었습니다." if is_bookmarked else "북마크가 해제되었습니다.",
         }
@@ -50,9 +49,7 @@ class RecruitmentBookmarkToggleAPIView(generics.GenericAPIView):  # type: ignore
 
 @extend_schema(tags=["recruitments"], summary="북마크한 스터디 구인 공고 목록 조회")
 class RecruitmentBookmarkedListAPIView(generics.ListAPIView):  # type: ignore[type-arg]
-    """
-    REQ-RECM-011 — 북마크 목록 조회
-    """
+    """REQ-RECM-011 — 북마크 목록 조회"""
 
     permission_classes = [IsAuthenticated]
     serializer_class = RecruitmentListSerializer
