@@ -14,7 +14,7 @@ from drf_spectacular.utils import (
     OpenApiResponse,
     extend_schema,
     extend_schema_view,
-    inline_serializer
+    inline_serializer,
 )
 from rest_framework import generics, permissions, serializers, status
 from rest_framework.exceptions import MethodNotAllowed
@@ -232,7 +232,7 @@ class GroupReviewUpdateView(generics.UpdateAPIView[Review]):
             fields={
                 "star_rating": serializers.IntegerField(required=False, min_value=1, max_value=5),
                 "content": serializers.CharField(required=False),
-            }
+            },
         ),
         responses={200: ReviewUpdateSerializer},
     )
