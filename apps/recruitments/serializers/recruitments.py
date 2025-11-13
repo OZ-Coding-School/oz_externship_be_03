@@ -58,6 +58,7 @@ class MyRecruitmentLectureSerializer(serializers.ModelSerializer[CrawledLecture]
 class RecruitmentListSerializer(ModelSerializer[Recruitment]):
     tags = TagSerializer(many=True, read_only=True)
     lectures = MyRecruitmentLectureSerializer(source="study_group.lectures", many=True, read_only=True)
+    study_group_name = serializers.CharField(source="study_group.name", read_only=True)
     bookmark_count = serializers.IntegerField(read_only=True)
     is_bookmarked = serializers.SerializerMethodField()
     thumbnail_img_url = serializers.SerializerMethodField()
@@ -70,6 +71,7 @@ class RecruitmentListSerializer(ModelSerializer[Recruitment]):
             "thumbnail_img_url",
             "expected_headcount",
             "lectures",
+            "study_group_name",
             "tags",
             "close_at",
             "views_count",

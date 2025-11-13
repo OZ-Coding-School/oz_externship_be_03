@@ -152,6 +152,8 @@ class RecruitmentDetailUpdateDeleteAPIView(generics.RetrieveUpdateDestroyAPIView
     def get_serializer_class(self) -> type[Serializer[Any]]:
         if self.request.method in ("PUT", "PATCH"):
             return RecruitmentCreateUpdateSerializer
+        elif self.request.method == "GET":
+            return RecruitmentListSerializer
         return RecruitmentDetailSerializer
 
     def retrieve(self, request: Request, *args: Any, **kwargs: Any) -> Response:
