@@ -64,5 +64,12 @@ async def notification_stream(request: HttpRequest) -> Union[StreamingHttpRespon
     response = StreamingHttpResponse(async_event_stream(), content_type="text/event-stream")
     response["Cache-Control"] = "no-cache"
     response["Connection"] = "keep-alive"
+    response["X-Accel-Buffering"] = "no" # 프록시 버퍼 방지
+    response["Transfer-Encoding"] = "chunked" # chunked encoding 명시
+
+    #CORS 헤더 추가
+    response["Access-Control-Allow-Origin"] = "*"
+    response["Access-Control-Allow-Headers"] = "Cache-Control"
+    response["Access-Control-Allow-Methods"] = "GET"
 
     return response
