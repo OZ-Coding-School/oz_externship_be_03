@@ -7,8 +7,6 @@ from apps.studies.models.groups import StudyGroup
 
 # 스터디 노트 모델
 class StudyNote(BaseModel):
-    # 그룹 연결 (지금은 그룹 담당자분 파트라 임시로 비활성화)
-    # 나중에 그룹 모델이랑 합쳐지면 아래 주석 풀면 됩니다.
     study_group = models.ForeignKey(
         StudyGroup,
         on_delete=models.CASCADE,  # 그룹이 삭제되면 노트도 같이 삭제되게
@@ -18,7 +16,7 @@ class StudyNote(BaseModel):
     # 누가 작성했는지 (User 연결)
     author = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,  # 작성자 삭제되면 이 노트도 같이 삭제됨
+        on_delete=models.CASCADE,  # 작성자가 탈퇴상태 유저로 전환되며 user_id -> null이 되면 CASCADE
         related_name="study_notes",  # user.study_notes 이런 식으로 접근 가능
         null=False,  # mock 단계에서만 True / 서비스화에서 False로 변경
         blank=False,
@@ -27,14 +25,13 @@ class StudyNote(BaseModel):
     # 노트 기본 내용
     title = models.CharField(max_length=255)  # 노트 제목 (최대 255자)
     content = models.TextField()  # 실제 학습 내용 작성하는 부분
-    ai_summary = models.TextField(null=True, blank=True)  # AI가 요약해주는 내용 (필수값)
+    ai_summary = models.TextField(null=True, blank=True)  # AI 요약 (오약 오류가 노트자체에 문제야기함으로 Ture)
 
     class Meta:
         db_table = "study_notes"  # DB 테이블 이름 지정 (ERD랑 맞춤)
         ordering = ["-created_at"]  # 최신순으로 정렬해서 조회됨
 
     def __str__(self) -> str:
-        # 그룹 연결되면 아래 주석 해제해서 그룹 이름도 같이 보이게 만들면 됨
         return f"[{self.study_group.name}] {self.title} by {self.author}"
 
 
