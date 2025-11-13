@@ -111,3 +111,15 @@ def validate_birthday(birthday: Any) -> None:
 
     if birthday > date.today():
         raise ValidationError("생년월일은 미래일 수 없습니다.")
+
+
+# 휴대폰 번호 정규화
+def normalize_phone(phone: str) -> str:
+    if not phone:
+        return ""
+
+    phone = phone.strip().replace(" ", "").replace("-", "")
+    if phone.startswith("+82"):
+        phone = "0" + phone[3:]
+    phone = re.sub(r"[^0-9]", "", phone)
+    return phone
