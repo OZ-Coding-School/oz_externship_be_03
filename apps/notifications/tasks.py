@@ -44,6 +44,7 @@ def send_to_pubsub(notification_id: int) -> None:
     else:
         event_loop.run_until_complete(_async_task())
 
+
 @shared_task  # type: ignore[misc]
 def send_study_group_notification(notification_id: int, study_group_id: str) -> None:
     async def _async_task() -> None:
@@ -75,6 +76,7 @@ def send_study_group_notification(notification_id: int, study_group_id: str) -> 
         asyncio.create_task(_async_task())
     else:
         event_loop.run_until_complete(_async_task())
+
 
 @shared_task(name="send_tomorrow_schedule_notifications")  # type: ignore[misc]
 def send_tomorrow_schedule_notifications() -> None:
