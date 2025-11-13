@@ -1,7 +1,5 @@
-# apps/chat/consumers.py
-
 import json
-from typing import Any, cast
+from typing import Any, Dict, Set, cast
 from uuid import UUID
 
 from channels.db import database_sync_to_async
@@ -10,6 +8,7 @@ from channels.generic.websocket import (
 )
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AbstractBaseUser
+from django_redis import get_redis_connection  # type: ignore[import-untyped]
 
 from apps.chat.models import ChatMessage, LastReadMessage
 from apps.studies.models.groups import GroupMember, StudyGroup
@@ -20,56 +19,59 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):  # type: ignore[misc]
     study_group_uuid: UUID
     room_group_name: str
     user: AbstractBaseUser
+    redis_key: str
 
     async def connect(self) -> None:
         self.study_group_uuid = self.scope["url_route"]["kwargs"]["study_group_uuid"]
         self.room_group_name = f"chat_{self.study_group_uuid}"
+        self.redis_key = f"online_users:{self.study_group_uuid}"
         self.user = self.scope["user"]
 
         if not await self.is_valid_study_group() or not await self.is_group_member(self.user):
             await self.close(code=403)
             return
 
-        # Join room group
         await self.channel_layer.group_add(self.room_group_name, self.channel_name)
 
-        # Join user-specific group to allow direct messaging
         if self.user.is_authenticated:
             assert isinstance(self.user, User)
             await self.channel_layer.group_add(f"user_{self.user.id}", self.channel_name)
 
         await self.accept()
 
-        # Mark all messages as read upon connection
         if self.user.is_authenticated:
             assert isinstance(self.user, User)
             await self.mark_messages_as_read()
 
-    async def mark_messages_as_read(self) -> None:
-        """
-        Marks all messages in the current study group as read for the current user.
-        """
-        # Retrieve the StudyGroup object using its UUID
-        study_group = await StudyGroup.objects.aget(uuid=self.study_group_uuid)
+            online_users = await self._add_user_and_get_online_users()
 
-        latest_message = await ChatMessage.objects.filter(study_group=study_group).alast()
-        if latest_message:
-            await LastReadMessage.objects.aupdate_or_create(
-                study_group=study_group,
-                user=self.user,
-                defaults={"message": latest_message},
+            await self.channel_layer.group_send(
+                self.room_group_name,
+                {
+                    "type": "online_users_update",
+                    "online_users": online_users,
+                },
             )
 
     async def disconnect(self, close_code: int) -> None:
-        # Leave room group
+        if self.user.is_authenticated:
+            assert isinstance(self.user, User)
+            online_users = await self._remove_user_and_get_online_users()
+
+            await self.channel_layer.group_send(
+                self.room_group_name,
+                {
+                    "type": "online_users_update",
+                    "online_users": online_users,
+                },
+            )
+
         await self.channel_layer.group_discard(self.room_group_name, self.channel_name)
 
-        # Leave user-specific group
         if self.user.is_authenticated:
             assert isinstance(self.user, User)
             await self.channel_layer.group_discard(f"user_{self.user.id}", self.channel_name)
 
-    # Receive message from WebSocket
     async def receive_json(self, content: dict[str, Any], **kwargs: Any) -> None:
         message_type = content.get("type")
         user = cast(User, self.scope["user"])
@@ -79,35 +81,40 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):  # type: ignore[misc]
             if not message_content:
                 return
 
-            new_message = await self.create_chat_message(user, message_content)
+            try:
+                new_message = await self.create_chat_message(user, message_content)
 
-            # Send message to room group
-            await self.channel_layer.group_send(
-                self.room_group_name,
-                {
-                    "type": "chat_message",
-                    "id": str(new_message.id),
-                    "content": new_message.content,
-                    "created_at": new_message.created_at.isoformat(),
-                    "sender": {
-                        "id": str(user.id),
-                        "nickname": user.nickname,
+                await self.channel_layer.group_send(
+                    self.room_group_name,
+                    {
+                        "type": "chat_message",
+                        "id": str(new_message.id),
+                        "content": new_message.content,
+                        "created_at": new_message.created_at.isoformat(),
+                        "sender": {
+                            "id": str(user.id),
+                            "nickname": user.nickname,
+                        },
                     },
-                },
-            )
+                )
+            except Exception:
+                await self.send_json({"type": "error", "message": "Failed to send message"})
 
     async def is_valid_study_group(self) -> bool:
-        return await StudyGroup.objects.filter(uuid=self.study_group_uuid).aexists()
+        try:
+            return await StudyGroup.objects.filter(uuid=self.study_group_uuid).aexists()
+        except Exception:
+            return False
 
     async def is_group_member(self, user: AbstractBaseUser) -> bool:
         if not user.is_authenticated or not isinstance(user, get_user_model()):
             return False
-        return await GroupMember.objects.filter(study_group__uuid=self.study_group_uuid, user=user).aexists()
+        try:
+            return await GroupMember.objects.filter(study_group__uuid=self.study_group_uuid, user=user).aexists()
+        except Exception:
+            return False
 
     async def create_chat_message(self, user: AbstractBaseUser, content: str) -> ChatMessage:
-        """
-        Asynchronously creates a chat message in the database.
-        """
         study_group = await StudyGroup.objects.aget(uuid=self.study_group_uuid)
         return await ChatMessage.objects.acreate(
             sender=cast(User, user),
@@ -115,9 +122,7 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):  # type: ignore[misc]
             content=content,
         )
 
-    # Receive message from room group
-    async def chat_message(self, event: dict[str, Any]) -> None:
-        # Send message to WebSocket
+    async def chat_message(self, event: Dict[str, Any]) -> None:
         await self.send(
             text_data=json.dumps(
                 {
@@ -131,8 +136,7 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):  # type: ignore[misc]
             )
         )
 
-    async def system_message(self, event: dict[str, Any]) -> None:
-        """Handler for system messages."""
+    async def system_message(self, event: Dict[str, Any]) -> None:
         await self.send(
             text_data=json.dumps(
                 {
@@ -143,11 +147,94 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):  # type: ignore[misc]
             )
         )
 
-    async def force_disconnect(self, event: dict[str, Any]) -> None:
-        """
-        Handler for the 'force_disconnect' event.
-        Closes the WebSocket connection.
-        """
+    async def force_disconnect(self, event: Dict[str, Any]) -> None:
         disconnected_study_group_id = event.get("study_group_id")
         if disconnected_study_group_id == self.study_group_uuid:
             await self.close(code=4001)
+
+    async def mark_messages_as_read(self) -> None:
+        try:
+            study_group = await StudyGroup.objects.aget(uuid=self.study_group_uuid)
+
+            latest_message = await ChatMessage.objects.filter(study_group_id=study_group.id).alast()
+
+            if latest_message:
+                await LastReadMessage.objects.aupdate_or_create(
+                    study_group=study_group,
+                    user=self.user,
+                    defaults={"message": latest_message},
+                )
+        except Exception:
+            pass
+
+    @database_sync_to_async  # type: ignore[misc]
+    def _add_user_and_get_online_users(self) -> list[dict[str, str]]:
+        user = cast(User, self.user)
+        try:
+            redis_client = get_redis_connection("default")
+
+            redis_client.sadd(self.redis_key, str(user.id))
+            redis_client.expire(self.redis_key, 3600)  # 1 hour TTL
+
+            online_user_ids = redis_client.smembers(self.redis_key)
+            user_ids = [uid.decode("utf-8") if isinstance(uid, bytes) else uid for uid in online_user_ids]
+
+            if not user_ids:
+                return []
+
+            users = User.objects.filter(id__in=user_ids).values("id", "nickname", "name")
+
+            return [
+                {
+                    "id": str(user["id"]),
+                    "nickname": user["nickname"],
+                    "name": user["name"],
+                }
+                for user in users
+            ]
+        except Exception as e:
+            import logging
+
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error in _add_user_and_get_online_users: {e}")
+            return []
+
+    @database_sync_to_async  # type: ignore[misc]
+    def _remove_user_and_get_online_users(self) -> list[dict[str, str]]:
+        user = cast(User, self.user)
+        try:
+            redis_client = get_redis_connection("default")
+
+            redis_client.srem(self.redis_key, str(user.id))
+
+            online_user_ids = redis_client.smembers(self.redis_key)
+            user_ids = [uid.decode("utf-8") if isinstance(uid, bytes) else uid for uid in online_user_ids]
+
+            if not user_ids:
+                return []
+
+            users = User.objects.filter(id__in=user_ids).values("id", "nickname", "name")
+
+            return [
+                {
+                    "id": str(user["id"]),
+                    "nickname": user["nickname"],
+                    "name": user["name"],
+                }
+                for user in users
+            ]
+        except Exception as e:
+            import logging
+
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error in _remove_user_and_get_online_users: {e}")
+            return []
+
+    async def online_users_update(self, event: Dict[str, Any]) -> None:
+        await self.send_json(
+            {
+                "type": "online.users",
+                "count": len(event["online_users"]),
+                "users": event["online_users"],
+            }
+        )
