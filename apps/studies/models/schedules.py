@@ -5,6 +5,7 @@ from django.db import models
 from django.db.models import CheckConstraint, Q
 
 from apps.core.models import UUIDBaseModel
+from apps.studies.models.groups import GroupMember
 
 
 class GroupSchedule(UUIDBaseModel):
@@ -22,6 +23,12 @@ class GroupSchedule(UUIDBaseModel):
     session_date = models.DateField(null=False, help_text="스터디 진행일 (YYYY-MM-DD)")
     start_time = models.TimeField(null=False, help_text="스터디 시작 시간 (HH:MM)")
     end_time = models.TimeField(null=False, help_text="스터디 종료 시간 (HH:MM)")
+
+    participants = models.ManyToManyField(
+        GroupMember,
+        through="studies.ScheduleParticipant",
+        related_name="study_schedules",
+    )
 
     class Meta:
         db_table = "group_schedules"
@@ -53,7 +60,7 @@ class ScheduleParticipant(models.Model):
     schedule = models.ForeignKey(
         "GroupSchedule",
         on_delete=models.CASCADE,
-        related_name="participants",
+        related_name="schedule_participants",
         null=False,
         blank=False,
         help_text="어떤 스케줄에 속하는지 (FK)",
@@ -61,7 +68,7 @@ class ScheduleParticipant(models.Model):
     member = models.ForeignKey(
         "GroupMember",
         on_delete=models.CASCADE,
-        related_name="schedules",
+        related_name="schedule_participants",
         null=False,
         blank=False,
         help_text="스케줄에 참가하는 그룹 멤버 (FK)",
