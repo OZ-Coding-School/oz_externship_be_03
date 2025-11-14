@@ -7,6 +7,7 @@ from typing import Any, Dict, Optional, cast
 
 import requests
 from django.conf import settings
+from django.db.models import Q
 from django.utils import timezone
 from rest_framework.exceptions import APIException, ValidationError
 
@@ -155,7 +156,7 @@ class KakaoAuthService:
         created = False
 
         try:
-            existing_user = User.objects.get(email=user_info["email"])
+            existing_user = User.objects.get(Q(email=user_info["email"]) | Q(phone_number=user_info["phone_number"]))
             linked_social_exists = SocialUser.objects.filter(user=existing_user, provider=Provider.KAKAO.value).exists()
             if linked_social_exists:
                 tokens = _issue_tokens(existing_user)
@@ -295,7 +296,7 @@ class NaverAuthService:
 
         created = False
         try:
-            existing_user = User.objects.get(email=user_info["email"])
+            existing_user = User.objects.get(Q(email=user_info["email"]) | Q(phone_number=user_info["phone_number"]))
             linked_social_exists = SocialUser.objects.filter(user=existing_user, provider=Provider.NAVER.value).exists()
             if linked_social_exists:
                 # 동일 소셜 → 로그인 처리
