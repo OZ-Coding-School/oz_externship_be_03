@@ -17,8 +17,6 @@ class Notification(BaseModel):
         STUDY_SCHEDULE_UPCOMING = "STUDY_SCHEDULE_UPCOMING", "예정 스케줄 알림"
         STUDY_SCHEDULE_TODAY = "STUDY_SCHEDULE_TODAY", "금일 스케줄 알림"
         STUDY_RECORD_CREATED = "STUDY_RECORD_CREATED", "스터디 기록 작성 알림"
-        SYSTEM = "SYSTEM", "시스템 알림"
-        CUSTOM = "CUSTOM", "기타 사용자 정의 알림"
 
     user = models.ForeignKey(
         User,

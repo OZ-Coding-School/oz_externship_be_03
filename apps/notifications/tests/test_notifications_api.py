@@ -43,12 +43,12 @@ class NotificationListAPITestCase(APITestCase):
         Notification.objects.create(
             user=self.user,
             content="내 알림 1",
-            type="SYSTEM",
+            type=Notification.NotificationType.APPLICATION_CREATED,
         )
         Notification.objects.create(
             user=self.other_user,
             content="다른 사람 알림",
-            type="CUSTOM",
+            type=Notification.NotificationType.STUDY_RECORD_CREATED,
         )
 
     def test_authenticated_user_can_view_own_notifications(self) -> None:
