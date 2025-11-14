@@ -10,8 +10,8 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 
 from apps.core.views import ExceptionHandledAPIView
-from apps.recruitments.serializers.application_serializers import (
-    ApplicationResponseSerializer,
+from apps.recruitments.serializers.application_withdrawal_serializers import (
+    ApplicationWithdrawalsSerializer,
 )
 from apps.recruitments.services.application_withdrawal_services import (
     withdraw_application,
@@ -27,10 +27,10 @@ class ApplicationWithdrawAPIView(ExceptionHandledAPIView):
         summary="지원 취소",
         description="특정 지원을 취소합니다. 이미 승인/거절/취소된 항목은 취소할 수 없습니다.",
         responses=inline_serializer(
-            name="ApplicationCreateResponse",
+            name="ApplicationWithdrawalResponse",
             fields={
                 "detail": serializers.CharField(),
-                "data": ApplicationResponseSerializer(),
+                "data": ApplicationWithdrawalsSerializer(),
             },
         ),
     )
@@ -38,10 +38,10 @@ class ApplicationWithdrawAPIView(ExceptionHandledAPIView):
     def patch(self, request: Request, application_uuid: str, *args: Any, **kwargs: Any) -> Response:
         result = withdraw_application(user=cast(User, request.user), application_uuid=application_uuid)
 
-        response_serializer = ApplicationResponseSerializer(result).data
+        response_serializer = ApplicationWithdrawalsSerializer(result).data
         return Response(
             {
-                "detail": "스터디에 성공적으로 지원했습니다.",
+                "detail": "지원이 취소되었습니다.",
                 "data": response_serializer,
             },
             status=status.HTTP_200_OK,
