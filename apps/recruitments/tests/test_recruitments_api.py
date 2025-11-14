@@ -53,7 +53,7 @@ class RecruitmentAPITestCase(APITestCase):
         data = {
             "title": "Django 스터디 모집합니다!",
             "content": "마크다운 기반 본문",
-            "estimated_fee": 30000,
+            "estimated_fee": 30000,  # 기본값 30000을 설정
             "expected_headcount": 5,
             "close_at": "2025-12-01T23:59:00Z",
             "study_group_id": self.study_group.id,
@@ -66,7 +66,24 @@ class RecruitmentAPITestCase(APITestCase):
         self.assertEqual(response.data["title"], data["title"])
         self.assertTrue(Recruitment.objects.filter(title=data["title"]).exists())
 
-    def test_002_list_recruitments(self) -> None:
+    def test_002_create_recruitment_without_fee_or_tags(self) -> None:
+        """스터디 구인 공고 작성시, tags와 estimated_fee이 없을 경우 기본값이 설정되는지 확인"""
+        data = {
+            "title": "웹 개발 스터디 모집합니다!",
+            "content": "자세한 내용은 마크다운으로",
+            "expected_headcount": 5,
+            "close_at": "2025-12-01T23:59:00Z",
+            "study_group_id": self.study_group.id,
+        }
+
+        response = self.client.post(self.create_url, data, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        # serializer 반환 구조에 맞춰 tags 이름만 비교
+        self.assertEqual([tag["name"] for tag in response.data["tags"]], ["undefined"])
+        self.assertEqual(response.data["estimated_fee"], 10000)
+
+    def test_003_list_recruitments(self) -> None:
         """공고 목록 조회 (REQ-RECM-003)"""
         Recruitment.objects.create(
             author=self.user,
@@ -83,7 +100,7 @@ class RecruitmentAPITestCase(APITestCase):
         self.assertIn("results", response.data)
         self.assertGreaterEqual(len(response.data["results"]), 1)
 
-    def test_003_get_detail(self) -> None:
+    def test_004_get_detail(self) -> None:
         """공고 상세 조회 (REQ-RECM-006)"""
         recruitment = Recruitment.objects.create(
             author=self.user,
@@ -100,7 +117,7 @@ class RecruitmentAPITestCase(APITestCase):
         self.assertEqual(response.data["title"], recruitment.title)
         self.assertIn("views_count", response.data)
 
-    def test_004_update_recruitment(self) -> None:
+    def test_005_update_recruitment(self) -> None:
         """공고 수정 (REQ-RECM-007)"""
         recruitment = Recruitment.objects.create(
             author=self.user,
@@ -125,7 +142,7 @@ class RecruitmentAPITestCase(APITestCase):
         recruitment.refresh_from_db()
         self.assertEqual(recruitment.title, "수정된 제목")
 
-    def test_005_delete_recruitment(self) -> None:
+    def test_006_delete_recruitment(self) -> None:
         """공고 삭제 (REQ-RECM-009)"""
         recruitment = Recruitment.objects.create(
             author=self.user,

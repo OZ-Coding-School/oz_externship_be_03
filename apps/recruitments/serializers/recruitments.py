@@ -16,9 +16,8 @@ from apps.recruitments.models import (
 from apps.studies.models import StudyGroup
 from apps.users.models import User
 
+
 # Tag
-
-
 class TagSerializer(ModelSerializer[Tag]):
     class Meta:
         model = Tag
@@ -26,8 +25,6 @@ class TagSerializer(ModelSerializer[Tag]):
 
 
 # Image / Attachment
-
-
 class RecruitmentImageSerializer(ModelSerializer[RecruitmentImage]):
     class Meta:
         model = RecruitmentImage
@@ -47,6 +44,7 @@ class AuthorSerializer(ModelSerializer[User]):
         fields = ["id", "nickname", "profile_img_url"]
 
 
+# Lecture
 class MyRecruitmentLectureSerializer(serializers.ModelSerializer[CrawledLecture]):
     class Meta:
         model = CrawledLecture
@@ -94,16 +92,11 @@ class RecruitmentListSerializer(ModelSerializer[Recruitment]):
 
 
 # Detail
-
-
 class RecruitmentDetailSerializer(ModelSerializer[Recruitment]):
-    """REQ-RECM-006 — 스터디 구인 공고 상세조회"""
-
     author_nickname = serializers.CharField(source="author.nickname", read_only=True)
     tags = TagSerializer(many=True, read_only=True)
     attachments = RecruitmentAttachmentSerializer(many=True, read_only=True)
     lectures = MyRecruitmentLectureSerializer(source="study_group.lectures", many=True, read_only=True)
-
     bookmark_count = serializers.IntegerField(read_only=True)
     is_bookmarked = serializers.SerializerMethodField()
     study_group_name = serializers.CharField(source="study_group.name", read_only=True)
@@ -130,7 +123,6 @@ class RecruitmentDetailSerializer(ModelSerializer[Recruitment]):
         ]
 
     def get_is_bookmarked(self, obj: Recruitment) -> bool:
-        """현재 로그인한 사용자가 북마크했는지 여부"""
         request = self.context.get("request")
         if not request or not request.user.is_authenticated:
             return False
@@ -138,17 +130,18 @@ class RecruitmentDetailSerializer(ModelSerializer[Recruitment]):
 
 
 # Create / Update
-
-
 class RecruitmentCreateUpdateSerializer(ModelSerializer[Recruitment]):
     tags = serializers.ListField(
         child=serializers.CharField(max_length=20),
         required=False,
         allow_empty=True,
+        default=["undefined"],  # 기본값
     )
     study_group = serializers.SlugRelatedField(
         slug_field="uuid", queryset=StudyGroup.objects.all(), required=False, allow_null=True
     )
+    attachments = RecruitmentAttachmentSerializer(many=True, required=False)  # 첨부
+    estimated_fee = serializers.IntegerField(required=False)  # optional
 
     class Meta:
         model = Recruitment
@@ -160,20 +153,20 @@ class RecruitmentCreateUpdateSerializer(ModelSerializer[Recruitment]):
             "close_at",
             "study_group",
             "tags",
+            "attachments",
         ]
 
     def validate_expected_headcount(self, value: int) -> int:
         if value < 1 or value > 10:
-            raise serializers.ValidationError("예상 모집 인원은 1~10 사이여야 합니다.")
+            raise serializers.ValidationError("예상 모집 인원은 1~10 사이")
         return value
 
 
-# Create Response Serializer
-
-
+# Create Response
 class RecruitmentCreateSerializer(ModelSerializer[Recruitment]):
     author = AuthorSerializer(read_only=True)
     tags = TagSerializer(many=True, read_only=True)
+    attachments = RecruitmentAttachmentSerializer(many=True, read_only=True)
 
     class Meta:
         model = Recruitment
@@ -188,5 +181,6 @@ class RecruitmentCreateSerializer(ModelSerializer[Recruitment]):
             "study_group",
             "author",
             "tags",
+            "attachments",
         ]
         read_only_fields = ["id", "uuid", "author"]
