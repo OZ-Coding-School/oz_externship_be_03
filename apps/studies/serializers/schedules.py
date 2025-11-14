@@ -20,13 +20,13 @@ class ScheduleParticipantSerializer(serializers.ModelSerializer[GroupMember]):
 
     class Meta:
         model = GroupMember
-        fields = ["id", "user", "is_leader"]
+        fields = ["uuid", "user", "is_leader"]
 
 
 class ScheduleListSerializer(serializers.ModelSerializer[GroupSchedule]):
     class Meta:
         model = GroupSchedule
-        fields = ["id", "title", "session_date", "start_time", "end_time"]
+        fields = ["uuid", "title", "session_date", "start_time", "end_time"]
 
 
 class ScheduleUpdateSerializer(serializers.ModelSerializer[GroupSchedule]):
@@ -39,7 +39,8 @@ class ScheduleUpdateSerializer(serializers.ModelSerializer[GroupSchedule]):
 
     class Meta:
         model = GroupSchedule
-        fields = ["participants", "title", "objective", "session_date", "start_time", "end_time"]
+        fields = ["uuid", "participants", "title", "objective", "session_date", "start_time", "end_time"]
+        extra_kwargs = {"uuid": {"read_only": True}}
 
     @transaction.atomic
     def update(self, instance: GroupSchedule, validated_data: dict[str, Any]) -> GroupSchedule:
@@ -78,4 +79,4 @@ class ScheduleDetailSerializer(serializers.ModelSerializer[GroupSchedule]):
 
     class Meta:
         model = GroupSchedule
-        fields = ["id", "title", "participants", "objective", "session_date", "start_time", "end_time"]
+        fields = ["uuid", "title", "participants", "objective", "session_date", "start_time", "end_time"]
