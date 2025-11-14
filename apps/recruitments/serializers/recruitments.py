@@ -16,9 +16,8 @@ from apps.recruitments.models import (
 from apps.studies.models import StudyGroup
 from apps.users.models import User
 
+
 # Tag
-
-
 class TagSerializer(ModelSerializer[Tag]):
     class Meta:
         model = Tag
@@ -26,8 +25,6 @@ class TagSerializer(ModelSerializer[Tag]):
 
 
 # Image / Attachment
-
-
 class RecruitmentImageSerializer(ModelSerializer[RecruitmentImage]):
     class Meta:
         model = RecruitmentImage
@@ -47,6 +44,7 @@ class AuthorSerializer(ModelSerializer[User]):
         fields = ["id", "nickname", "profile_img_url"]
 
 
+# Lecture
 class MyRecruitmentLectureSerializer(serializers.ModelSerializer[CrawledLecture]):
     class Meta:
         model = CrawledLecture
@@ -94,14 +92,11 @@ class RecruitmentListSerializer(ModelSerializer[Recruitment]):
 
 
 # Detail
-
-
 class RecruitmentDetailSerializer(ModelSerializer[Recruitment]):
-    """REQ-RECM-006 — 스터디 구인 공고 상세조회"""
-
     author_nickname = serializers.CharField(source="author.nickname", read_only=True)
     tags = TagSerializer(many=True, read_only=True)
     attachments = RecruitmentAttachmentSerializer(many=True, read_only=True)
+    images = RecruitmentImageSerializer(many=True, read_only=True)
     lectures = MyRecruitmentLectureSerializer(source="study_group.lectures", many=True, read_only=True)
 
     bookmark_count = serializers.IntegerField(read_only=True)
@@ -125,29 +120,48 @@ class RecruitmentDetailSerializer(ModelSerializer[Recruitment]):
             "study_group_name",
             "lectures",
             "tags",
+            "images",
             "attachments",
             "author_nickname",
         ]
 
     def get_is_bookmarked(self, obj: Recruitment) -> bool:
-        """현재 로그인한 사용자가 북마크했는지 여부"""
         request = self.context.get("request")
         if not request or not request.user.is_authenticated:
             return False
         return Bookmark.objects.filter(user=request.user, recruitment=obj).exists()
 
 
-# Create / Update
-
-
+# Create
 class RecruitmentCreateUpdateSerializer(ModelSerializer[Recruitment]):
+    # tags: 문자열 리스트
     tags = serializers.ListField(
         child=serializers.CharField(max_length=20),
         required=False,
         allow_empty=True,
     )
-    study_group = serializers.SlugRelatedField(
-        slug_field="uuid", queryset=StudyGroup.objects.all(), required=False, allow_null=True
+
+    # study_group_id 사용
+    study_group_id = serializers.PrimaryKeyRelatedField(
+        source="study_group",
+        queryset=StudyGroup.objects.all(),
+        required=True,
+    )
+
+    estimated_fee = serializers.IntegerField(required=False, allow_null=True)
+
+    # 업로드 파일들
+    images = serializers.ListField(
+        child=serializers.ImageField(),
+        required=False,
+        allow_empty=True,
+        write_only=True,
+    )
+    attachments = serializers.ListField(
+        child=serializers.FileField(),
+        required=False,
+        allow_empty=True,
+        write_only=True,
     )
 
     class Meta:
@@ -158,8 +172,10 @@ class RecruitmentCreateUpdateSerializer(ModelSerializer[Recruitment]):
             "estimated_fee",
             "expected_headcount",
             "close_at",
-            "study_group",
+            "study_group_id",
             "tags",
+            "images",
+            "attachments",
         ]
 
     def validate_expected_headcount(self, value: int) -> int:
@@ -167,13 +183,75 @@ class RecruitmentCreateUpdateSerializer(ModelSerializer[Recruitment]):
             raise serializers.ValidationError("예상 모집 인원은 1~10 사이여야 합니다.")
         return value
 
+    def validate_tags(self, value: list[str]) -> list[str]:
+        # undefined 제거
+        if not value:
+            return []
+        return [tag for tag in value if tag and tag != "undefined"]
 
-# Create Response Serializer
+
+# Update (PATCH)
+class RecruitmentUpdateSerializer(ModelSerializer[Recruitment]):
+    title = serializers.CharField(required=False)
+    content = serializers.CharField(required=False)
+    expected_headcount = serializers.IntegerField(required=False)
+    estimated_fee = serializers.IntegerField(required=False, allow_null=True)
+    close_at = serializers.DateTimeField(required=False)
+
+    # tags: object 리스트
+    tags = serializers.ListField(
+        child=serializers.DictField(child=serializers.CharField()),
+        required=False,
+        allow_empty=True,
+    )
+
+    images = serializers.ListField(
+        child=serializers.ImageField(),
+        required=False,
+        allow_empty=True,
+        write_only=True,
+    )
+    attachments = serializers.ListField(
+        child=serializers.FileField(),
+        required=False,
+        allow_empty=True,
+        write_only=True,
+    )
+
+    class Meta:
+        model = Recruitment
+        fields = [
+            "title",
+            "content",
+            "expected_headcount",
+            "estimated_fee",
+            "close_at",
+            "tags",
+            "images",
+            "attachments",
+        ]
+
+    def validate_expected_headcount(self, value: int) -> int:
+        if value < 1 or value > 10:
+            raise serializers.ValidationError("예상 모집 인원은 1~10 사이여야 합니다.")
+        return value
+
+    def validate_tags(self, value: list[dict[str, str]]) -> list[dict[str, str]]:
+        cleaned = []
+        for item in value:
+            name = item.get("name")
+            if not name or name == "undefined":
+                continue
+            cleaned.append(item)
+        return cleaned
 
 
+# Create Response
 class RecruitmentCreateSerializer(ModelSerializer[Recruitment]):
     author = AuthorSerializer(read_only=True)
     tags = TagSerializer(many=True, read_only=True)
+    images = RecruitmentImageSerializer(many=True, read_only=True)
+    attachments = RecruitmentAttachmentSerializer(many=True, read_only=True)
 
     class Meta:
         model = Recruitment
@@ -188,5 +266,10 @@ class RecruitmentCreateSerializer(ModelSerializer[Recruitment]):
             "study_group",
             "author",
             "tags",
+            "images",
+            "attachments",
+            "views_count",
+            "bookmark_count",
+            "created_at",
         ]
-        read_only_fields = ["id", "uuid", "author"]
+        read_only_fields = ["id", "uuid", "author", "views_count", "bookmark_count", "created_at"]
