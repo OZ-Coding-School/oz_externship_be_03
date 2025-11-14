@@ -22,8 +22,7 @@ from apps.studies.serializers.notes import (
     StudyNoteListItemSerializer,
     StudyNoteUpdateSerializer,
 )
-
-# from apps.studies.services.notes import StudyNoteAIService  # ❌ 비활성화: AI 서비스 import 제거
+from apps.studies.services.notes import StudyNoteAIService
 
 logger = logging.getLogger(__name__)
 
@@ -61,13 +60,14 @@ class StudyNoteListAPIView(BaseResponseMixin, APIView):
 
 class StudyNoteCreateAPIView(BaseResponseMixin, APIView):
     """
-    스터디 노트 생성 API
+    스터디 노트 목록 생성 API
     """
 
     permission_classes = [IsAuthenticated, IsGroupMember]
 
     @extend_schema(tags=["StudyGroupNote"], summary="스터디 노트 생성 API")
     def post(self, request: Request) -> Response:
+        # IsGroupMember.has_permission() 통과 시, view._group 이 주입되어 있음
         serializer = StudyNoteCreateSerializer(
             data=request.data,
             context={"request": request, "view": self},
@@ -77,13 +77,11 @@ class StudyNoteCreateAPIView(BaseResponseMixin, APIView):
 
         note = serializer.save()
 
-        # ----------------------------------------------------------------------
-        # ❌ Gemini 요약 기능 완전 비활성화
-        # try:
-        #     StudyNoteAIService.summarize(note)
-        # except Exception as e:
-        #     logger.error("[NoteCreate] AI 요약 생성 실패: note_id=%s, error=%s", note.id, e, exc_info=True)
-        # ----------------------------------------------------------------------
+        # Gemini 요약문 생성 및 DB 저장 수행
+        try:
+            StudyNoteAIService.summarize(note)
+        except Exception as e:
+            logger.error("[NoteCreate] AI 요약 생성 실패: note_id=%s, error=%s", note.id, e, exc_info=True)
 
         return self.success(
             "노트가 성공적으로 생성되었습니다.",
@@ -95,12 +93,14 @@ class StudyNoteCreateAPIView(BaseResponseMixin, APIView):
 class StudyNoteDetailAPIView(BaseResponseMixin, APIView):
     """
     노트 단일 조회, 수정, 삭제 API
+    - GET: [IsAuthenticated, IsGroupMember]
+    - PATCH/DELETE: [IsAuthenticated, IsGroupMember, IsStudyNoteAuthor]
     """
 
     permission_classes = [IsAuthenticated, IsGroupMember, IsStudyNoteAuthor]
 
     def get_permissions(self) -> list[BasePermission]:
-        """메서드별 다른 권한 적용"""
+        """메서드별로 다른 권한 적용"""
         if self.request.method == "GET":
             return [IsAuthenticated(), IsGroupMember()]
         return [IsAuthenticated(), IsGroupMember(), IsStudyNoteAuthor()]
@@ -111,11 +111,16 @@ class StudyNoteDetailAPIView(BaseResponseMixin, APIView):
             id=note_id,
         )
 
+    # 도저히 self._check_object_permission(note.study_group)만 넘겨서 그룹멤버+노트어써 검증 꼬이지않게 하는법 모르겠어서
+    # 테스트 코드를 그에 맞춰서 깎지도 못 하겠고 검증 2개씩 넣어도 note퍼미션이 note 객체를 그룹퍼미션에서 찾는 등의 오류를
+    # 막기위해 싹 다 포문으로 굴리려다가 헬퍼만들어서 개별로 맥이기가 더 간단하다고하여 헬퍼 생성했습니다
     def _check_group_member_permission(self, request: Request, study_group: StudyGroup) -> None:
+        """그룹 멤버 권한 체크"""
         if not IsGroupMember().has_object_permission(request, self, study_group):
             self.permission_denied(request, message="스터디 그룹 멤버만 접근할 수 있습니다.")
 
     def _check_note_author_permission(self, request: Request, note: StudyNote) -> None:
+        """노트 작성자 권한 체크"""
         if not IsStudyNoteAuthor().has_object_permission(request, self, note):
             self.permission_denied(request, message="해당 노트를 수정 또는 삭제할 권한이 없습니다.")
 
@@ -136,15 +141,18 @@ class StudyNoteDetailAPIView(BaseResponseMixin, APIView):
         serializer.is_valid(raise_exception=True)
         updated_note = serializer.save()
 
-        # ----------------------------------------------------------------------
-        # ❌ Gemini 요약 재생성 기능 비활성화
-        # if "content" in serializer.validated_data:
-        #     try:
-        #         StudyNoteAIService.summarize(updated_note)
-        #     except Exception as e:
-        #         logger.error("[NoteUpdate] AI 요약 재생성 실패: note_id=%s, error=%s", updated_note.id, e, exc_info=True)
-        # ----------------------------------------------------------------------
-
+        # content에 실제 변경이 일어난 경우에만 AI 요약 재생성
+        # 요구사항엔 없지만 필요하다고 생각돼서 추가
+        if "content" in serializer.validated_data:
+            try:
+                StudyNoteAIService.summarize(updated_note)
+            except Exception as e:
+                logger.error(
+                    "[NoteUpdate] AI 요약 재생성 실패: note_id=%s, error=%s",
+                    updated_note.id,
+                    e,
+                    exc_info=True,
+                )
         return self.success("노트가 성공적으로 수정되었습니다.", StudyNoteDetailSerializer(updated_note).data)
 
     @extend_schema(tags=["StudyGroupNote"], summary="스터디 노트 삭제 API")
