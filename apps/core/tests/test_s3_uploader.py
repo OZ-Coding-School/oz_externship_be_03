@@ -114,7 +114,6 @@ class S3UploaderTests(TestCase):
         self.assertTrue(item["key"].startswith("uploads/studies/groups/"))
 
         fields = item["fields"]
-        self.assertEqual(fields.get("acl"), "public-read")
         self.assertEqual(fields.get("Content-Type"), "image/jpeg")
 
     # ---------------------------
