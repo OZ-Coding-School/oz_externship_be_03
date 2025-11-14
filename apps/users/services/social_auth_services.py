@@ -153,23 +153,21 @@ class KakaoAuthService:
         provider_id = user_info.pop("provider_id")
 
         created = False
-        tokens: Dict[str, str] = {}
 
         try:
             existing_user = User.objects.get(email=user_info["email"])
-            if existing_user:
-                linked_social_exists = SocialUser.objects.filter(user=existing_user, provider=Provider.KAKAO).exists()
-                if linked_social_exists:
-                    tokens = _issue_tokens(existing_user)
-                else:
-                    # 일반 회원 → 소셜 테이블 생성 + 로그인 처리
-                    SocialUser.objects.create(
-                        user=existing_user,
-                        provider=Provider.KAKAO.value,
-                        provider_id=user_info["provider_id"],
-                    )
-                    tokens = _issue_tokens(existing_user)
-                    created = True
+            linked_social_exists = SocialUser.objects.filter(user=existing_user, provider=Provider.KAKAO.value).exists()
+            if linked_social_exists:
+                tokens = _issue_tokens(existing_user)
+            else:
+                # 일반 회원 → 소셜 테이블 생성 + 로그인 처리
+                SocialUser.objects.create(
+                    user=existing_user,
+                    provider=Provider.KAKAO.value,
+                    provider_id=user_info["provider_id"],
+                )
+                tokens = _issue_tokens(existing_user)
+                created = True
 
         except User.DoesNotExist:
             user = User.objects.create(is_active=True, **user_info)
@@ -259,14 +257,13 @@ class NaverAuthService:
         provider_id = cast(str, user_info.get("provider_id") or "")
         phone_number = normalize_phone(user_info.get("phone_number") or "")
 
-        existing_user = User.objects.filter(email=email).first()
-        if existing_user:
-            linked_social_exists = SocialUser.objects.filter(user=existing_user, provider=Provider.NAVER).exists()
-
+        created = False
+        try:
+            existing_user = User.objects.get(email=email)
+            linked_social_exists = SocialUser.objects.filter(user=existing_user, provider=Provider.NAVER.value).exists()
             if linked_social_exists:
                 # 동일 소셜 → 로그인 처리
                 tokens = _issue_tokens(existing_user)
-                return {"detail": "네이버 로그인에 성공했습니다.", "data": tokens, "created": False}
             else:
                 # 일반 회원 → 소셜 테이블 새로 생성 + 로그인 처리
                 SocialUser.objects.create(
@@ -275,29 +272,31 @@ class NaverAuthService:
                     provider_id=provider_id,
                 )
                 tokens = _issue_tokens(existing_user)
-                return {"detail": "네이버 로그인에 성공했습니다.", "data": tokens, "created": False}
+                created = True
+        except User.DoesNotExist:
+            # 신규 가입 처리
+            nickname = cast(str, user_info.get("nickname") or "")
+            if User.objects.filter(nickname=nickname).exists():
+                nickname = f"{nickname}_{User.objects.count() + 1}"
 
-        # 신규 가입 처리
-        nickname = cast(str, user_info.get("nickname") or "")
-        if User.objects.filter(nickname=nickname).exists():
-            nickname = f"{nickname}_{User.objects.count() + 1}"
+            user = User.objects.create(
+                email=email,
+                name=cast(str, user_info.get("name") or ""),
+                nickname=nickname,
+                gender=_convert_gender(user_info.get("gender")),
+                birthday=cast(str, user_info.get("birthday") or ""),
+                phone_number=phone_number,
+                profile_img_url=cast(str, user_info.get("profile_img_url") or ""),
+                is_active=True,
+            )
 
-        user = User.objects.create(
-            email=email,
-            name=cast(str, user_info.get("name") or ""),
-            nickname=nickname,
-            gender=_convert_gender(user_info.get("gender")),
-            birthday=cast(str, user_info.get("birthday") or ""),
-            phone_number=phone_number,
-            profile_img_url=cast(str, user_info.get("profile_img_url") or ""),
-            is_active=True,
-        )
+            SocialUser.objects.create(
+                user=user,
+                provider=Provider.NAVER.value,
+                provider_id=provider_id,
+            )
 
-        SocialUser.objects.create(
-            user=user,
-            provider=Provider.NAVER.value,
-            provider_id=provider_id,
-        )
+            tokens = _issue_tokens(user)
+            created = True
 
-        tokens = _issue_tokens(user)
-        return {"detail": "네이버 로그인에 성공했습니다.", "data": tokens, "created": True}
+        return {"detail": "네이버 로그인에 성공했습니다.", "data": tokens, "created": created}
