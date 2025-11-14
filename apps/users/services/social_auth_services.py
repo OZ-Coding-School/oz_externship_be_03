@@ -154,8 +154,8 @@ class KakaoAuthService:
 
         existing_user = User.objects.filter(email=user_info["email"]).first()
         if existing_user:
-            linked_social = SocialUser.objects.filter(user=existing_user, provider=Provider.KAKAO).first()
-            if linked_social:
+            linked_social_exists = SocialUser.objects.filter(user=existing_user, provider=Provider.KAKAO).exists()
+            if linked_social_exists:
                 tokens = _issue_tokens(existing_user)
                 return {"detail": "카카오 로그인에 성공했습니다.", "data": tokens, "created": False}
             else:
@@ -256,9 +256,9 @@ class NaverAuthService:
 
         existing_user = User.objects.filter(email=email).first()
         if existing_user:
-            linked_social = SocialUser.objects.filter(user=existing_user, provider=Provider.NAVER).first()
+            linked_social_exists = SocialUser.objects.filter(user=existing_user, provider=Provider.NAVER).exists()
 
-            if linked_social:
+            if linked_social_exists:
                 # 동일 소셜 → 로그인 처리
                 tokens = _issue_tokens(existing_user)
                 return {"detail": "네이버 로그인에 성공했습니다.", "data": tokens, "created": False}
