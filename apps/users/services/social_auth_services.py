@@ -154,16 +154,10 @@ class KakaoAuthService:
 
         existing_user = User.objects.filter(email=user_info["email"]).first()
         if existing_user:
-            linked_social = SocialUser.objects.filter(user=existing_user).first()
-
+            linked_social = SocialUser.objects.filter(user=existing_user, provider=Provider.KAKAO).first()
             if linked_social:
-                if linked_social.provider == Provider.KAKAO.value:
-                    tokens = _issue_tokens(existing_user)
-                    return {"detail": "카카오 로그인에 성공했습니다.", "data": tokens, "created": False}
-                else:
-                    raise ValidationError(
-                        "이미 다른 소셜 계정으로 가입된 사용자입니다. 연결하신 소셜로 다시 로그인해주세요."
-                    )
+                tokens = _issue_tokens(existing_user)
+                return {"detail": "카카오 로그인에 성공했습니다.", "data": tokens, "created": False}
             else:
                 # 일반 회원 → 소셜 테이블 생성 + 로그인 처리
                 SocialUser.objects.create(
@@ -262,21 +256,14 @@ class NaverAuthService:
 
         existing_user = User.objects.filter(email=email).first()
         if existing_user:
-            linked_social = SocialUser.objects.filter(user=existing_user).first()
+            linked_social = SocialUser.objects.filter(user=existing_user, provider=Provider.NAVER).first()
 
             if linked_social:
-                # ✅ 이미 소셜 연동된 경우
-                if linked_social.provider == Provider.NAVER.value:
-                    # 동일 소셜 → 로그인 처리
-                    tokens = _issue_tokens(existing_user)
-                    return {"detail": "네이버 로그인에 성공했습니다.", "data": tokens, "created": False}
-                else:
-                    # 다른 소셜과 연결된 계정
-                    raise ValidationError(
-                        "이미 다른 소셜 계정으로 가입된 사용자입니다. 연결하신 소셜로 다시 로그인해주세요."
-                    )
+                # 동일 소셜 → 로그인 처리
+                tokens = _issue_tokens(existing_user)
+                return {"detail": "네이버 로그인에 성공했습니다.", "data": tokens, "created": False}
             else:
-                # ✅ 일반 회원 → 소셜 테이블 새로 생성 + 로그인 처리
+                # 일반 회원 → 소셜 테이블 새로 생성 + 로그인 처리
                 SocialUser.objects.create(
                     user=existing_user,
                     provider=Provider.NAVER.value,
@@ -285,15 +272,7 @@ class NaverAuthService:
                 tokens = _issue_tokens(existing_user)
                 return {"detail": "네이버 로그인에 성공했습니다.", "data": tokens, "created": False}
 
-        # ✅ 전화번호 중복 확인
-        if phone_number:
-            phone_owner = User.objects.filter(phone_number=phone_number).exclude(email=email).first()
-            if phone_owner:
-                raise ValidationError(
-                    "이미 다른 소셜 계정으로 가입된 사용자입니다. 연결하신 소셜로 다시 로그인해주세요."
-                )
-
-        # ✅ 신규 가입 처리
+        # 신규 가입 처리
         nickname = cast(str, user_info.get("nickname") or "")
         if User.objects.filter(nickname=nickname).exists():
             nickname = f"{nickname}_{User.objects.count() + 1}"
