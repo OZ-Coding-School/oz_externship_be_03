@@ -210,8 +210,61 @@ class NaverAuthService:
         except requests.RequestException as e:
             raise ValidationError(f"[NaverTokenRequestException] 인가 코드 교환 실패: {str(e)}")
 
-    @staticmethod
-    def get_user_info(access_token: str) -> Dict[str, Any]:
+    def _get_birthday(self, response_data: dict[str, Any]) -> str:
+        birthyear = response_data.get("birthyear")
+        birthday = response_data.get("birthdate")
+
+        if not birthyear or not birthday:
+            return timezone.now().strftime("%Y-%m-%d")
+
+        return f"{birthyear}-{birthday[:2]}-{birthday[2:]}"
+
+    def _get_phone_number(self, response_data: dict[str, Any]) -> str:
+        phone_number = response_data.get("mobile")
+        if not phone_number:
+            return ""
+        return normalize_phone(phone_number)
+
+    def _get_provider_id(self, response_data: dict[str, Any]) -> str:
+        provider_id: str = response_data.get("id", "")
+        if not provider_id:
+            logger.error("[ERROR] 네이버 사용자 정보 조회 응답으로부터 provider_id 가 누락되었습니다.")
+            raise APIException("네이버 인증서버 응답에서 필수 데이터가 누락되었습니다.")
+        return provider_id
+
+    def _get_gender(self, response_data: dict[str, Any]) -> str:
+        gender = response_data.get("gender", "")
+        if not gender:
+            return Gender.MALE
+
+        return _convert_gender(gender)
+
+    def _get_nickname(self, response_data: dict[str, Any]) -> str:
+        nickname: str = response_data.get("nickname", "")
+        if not nickname:
+            return "naver_user" + uuid.uuid4().hex[:8]
+        return nickname
+
+    def _get_name(self, kakao_account: dict[str, Any]) -> str:
+        name: str = kakao_account.get("name", "")
+        if not name:
+            return self._get_nickname(kakao_account)
+        return name
+
+    def _get_email(self, response_data: dict[str, Any]) -> str:
+        email: str = response_data.get("email", "")
+        if not email:
+            logger.error("[ERROR] 네이버 사용자 정보 조회 응답으로부터 email 이 누락되었습니다.")
+            raise APIException("네이버 인증서버 응답에서 필수 데이터가 누락되었습니다.")
+        return email
+
+    def _get_profile_img_url(self, response_data: dict[str, Any]) -> str:
+        profile_img_url: str = response_data.get("profile_image_url", "")
+        if not profile_img_url:
+            return DEFAULT_PROFILE_IMAGE_URL
+        return profile_img_url
+
+    def get_user_info(self, access_token: str) -> Dict[str, Any]:
         headers = {"Authorization": f"Bearer {access_token}"}
         try:
             resp = requests.get("https://openapi.naver.com/v1/nid/me", headers=headers, timeout=5)
@@ -219,47 +272,30 @@ class NaverAuthService:
             if resp.status_code != 200:
                 raise ValidationError(f"[NaverUserInfoError] {resp.status_code}: {resp.text}")
 
-            naver_account: Dict[str, Any] = resp.json().get("response", {})
-            birthyear = naver_account.get("birthyear")
-            birthday_fragment = naver_account.get("birthday")
-
-            birthday: Optional[str] = None
-            if isinstance(birthyear, str) and isinstance(birthday_fragment, str):
-                try:
-                    full_date = f"{birthyear}-{birthday_fragment}"
-                    datetime.strptime(full_date, "%Y-%m-%d")
-                    birthday = full_date
-                except ValueError:
-                    birthday = None
-
-            phone_number = normalize_phone(naver_account.get("mobile") or "")
+            response_data: Dict[str, Any] = resp.json().get("response", {})
 
             return {
-                "email": cast(str, naver_account.get("email") or f"no_email_{naver_account.get('id')}@naver.local"),
-                "name": cast(str, naver_account.get("name") or ""),
-                "nickname": cast(str, naver_account.get("nickname") or "네이버사용자"),
-                "gender": cast(str, naver_account.get("gender") or ""),
-                "birthday": birthday,
-                "phone_number": phone_number,
-                "profile_img_url": cast(str, naver_account.get("profile_image") or ""),
-                "provider_id": cast(str, naver_account.get("id") or ""),
+                "email": self._get_email(response_data),
+                "name": self._get_name(response_data),
+                "nickname": self._get_nickname(response_data),
+                "gender": self._get_gender(response_data),
+                "birthday": self._get_birthday(response_data),
+                "phone_number": self._get_phone_number(response_data),
+                "profile_img_url": self._get_profile_img_url(response_data),
+                "provider_id": self._get_provider_id(response_data),
             }
 
         except requests.RequestException as e:
             raise ValidationError(f"[NaverUserInfoException] 유저 정보를 가져올 수 없습니다: {str(e)}")
 
-    @staticmethod
-    def handle_login(code: str, state: str) -> Dict[str, Any]:
-        access_token = NaverAuthService.exchange_code_for_token(code, state)
-        user_info = NaverAuthService.get_user_info(access_token)
-
-        email = cast(str, user_info.get("email") or "")
-        provider_id = cast(str, user_info.get("provider_id") or "")
-        phone_number = normalize_phone(user_info.get("phone_number") or "")
+    def handle_login(self, code: str, state: str) -> Dict[str, Any]:
+        access_token = self.exchange_code_for_token(code, state)
+        user_info = self.get_user_info(access_token)
+        provider_id = user_info.pop("provider_id")
 
         created = False
         try:
-            existing_user = User.objects.get(email=email)
+            existing_user = User.objects.get(email=user_info["email"])
             linked_social_exists = SocialUser.objects.filter(user=existing_user, provider=Provider.NAVER.value).exists()
             if linked_social_exists:
                 # 동일 소셜 → 로그인 처리
@@ -275,21 +311,7 @@ class NaverAuthService:
                 created = True
         except User.DoesNotExist:
             # 신규 가입 처리
-            nickname = cast(str, user_info.get("nickname") or "")
-            if User.objects.filter(nickname=nickname).exists():
-                nickname = f"{nickname}_{User.objects.count() + 1}"
-
-            user = User.objects.create(
-                email=email,
-                name=cast(str, user_info.get("name") or ""),
-                nickname=nickname,
-                gender=_convert_gender(user_info.get("gender")),
-                birthday=cast(str, user_info.get("birthday") or ""),
-                phone_number=phone_number,
-                profile_img_url=cast(str, user_info.get("profile_img_url") or ""),
-                is_active=True,
-            )
-
+            user = User.objects.create(is_active=True, **user_info)
             SocialUser.objects.create(
                 user=user,
                 provider=Provider.NAVER.value,

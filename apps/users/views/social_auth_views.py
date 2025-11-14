@@ -119,7 +119,7 @@ class NaverAuthView(APIView):
         state = validated_data.get("state")
 
         try:
-            result = NaverAuthService.handle_login(code, state)
+            result = NaverAuthService().handle_login(code, state)
             response_data = {
                 "detail": result.get("detail", "네이버 로그인이 완료되었습니다."),
                 "data": {
