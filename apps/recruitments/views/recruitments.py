@@ -203,7 +203,7 @@ class RecruitmentDetailUpdateDeleteAPIView(generics.RetrieveUpdateDestroyAPIView
     def update(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         """PUT/PATCH 시에는 create/update serializer로 검증 → detail serializer로 응답"""
         instance = self.get_object()
-        serializer = RecruitmentCreateUpdateSerializer(instance, data=request.data, partial=False)
+        serializer = RecruitmentCreateUpdateSerializer(instance, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         updated_instance = update_recruitment(instance, serializer.validated_data)
 

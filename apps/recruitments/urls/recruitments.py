@@ -5,6 +5,7 @@ from apps.recruitments.views.recruitments import (
     RecruitmentListCreateAPIView,
     RecruitmentUserListAPIView,
 )
+from apps.recruitments.views.s3_presign import RecruitmentS3PresignedView
 
 urlpatterns = [
     path("", RecruitmentListCreateAPIView.as_view(), name="list-create"),  # REQ-RECM-001,003
@@ -12,4 +13,5 @@ urlpatterns = [
         "/<uuid:recruitment_uuid>", RecruitmentDetailUpdateDeleteAPIView.as_view(), name="detail"
     ),  # REQ-RECM-006,007,009
     path("/mine", RecruitmentUserListAPIView.as_view(), name="user-list"),  # REQ-RECM-005
+    path("/presgined_url", RecruitmentS3PresignedView.as_view(), name="presgined_url"),
 ]
