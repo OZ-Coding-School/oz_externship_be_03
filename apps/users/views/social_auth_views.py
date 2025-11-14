@@ -42,16 +42,13 @@ class KakaoAuthView(APIView):
     authentication_classes: tuple[Any, ...] = ()
 
     def post(self, request: Request, *args: Any, **kwargs: Any) -> Response:
-
-        # code = request.query_params.get("code")
-
         serializer = KakaoAuthRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         code = serializer.validated_data["code"]
 
         try:
-            result = KakaoAuthService.handle_login(code)
+            result = KakaoAuthService().handle_login(code)
             response_data = {
                 "detail": result.get("detail", "카카오 로그인이 완료되었습니다."),
                 "data": {
@@ -114,9 +111,6 @@ class NaverAuthView(APIView):
     authentication_classes: tuple[Any, ...] = ()
 
     def post(self, request: Request, *args: Any, **kwargs: Any) -> Response:
-        # code = request.query_params.get("code")
-        # state = request.query_params.get("state")
-
         serializer = NaverSocialRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         validated_data = serializer.validated_data
