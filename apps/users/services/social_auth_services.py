@@ -164,7 +164,7 @@ class KakaoAuthService:
                 SocialUser.objects.create(
                     user=existing_user,
                     provider=Provider.KAKAO.value,
-                    provider_id=user_info["provider_id"],
+                    provider_id=provider_id,
                 )
                 tokens = _issue_tokens(existing_user)
                 created = True
