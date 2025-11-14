@@ -1,20 +1,21 @@
-from typing import Any, cast
+from typing import Any
 
 from django.db.models import Count, QuerySet
-from drf_spectacular.types import OpenApiTypes
-from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import generics, status
 from rest_framework.mixins import ListModelMixin
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.serializers import Serializer
+from rest_framework.views import APIView
 
 from apps.recruitments.models import Recruitment
 from apps.recruitments.serializers.recruitments import (
     RecruitmentCreateUpdateSerializer,
     RecruitmentDetailSerializer,
     RecruitmentListSerializer,
+    RecruitmentUpdateSerializer,
 )
 from apps.recruitments.services.pagination import RecruitmentPagination
 from apps.recruitments.services.recruitments import (
@@ -28,20 +29,22 @@ from apps.users.models import User
 VALID_ORDERING_PARAMS = ("latest", "views", "bookmarks")
 
 
-class RecruitmentListCreateAPIView(generics.GenericAPIView, ListModelMixin):  # type: ignore[type-arg]
-    """REQ-RECM-001, REQ-RECM-003 — 스터디 구인공고 목록 조회 및 생성"""
+# 목록 + 생성
+class RecruitmentListCreateAPIView(generics.GenericAPIView[Recruitment], ListModelMixin):
+    """공고 목록 + 생성"""
 
     permission_classes = [IsAuthenticatedOrReadOnly]
-    serializer_class: type[RecruitmentListSerializer] = RecruitmentListSerializer
+    serializer_class = RecruitmentListSerializer
     pagination_class = RecruitmentPagination
 
     def get_queryset(self) -> QuerySet[Recruitment]:
+        """목록 필터/정렬"""
         qs = (
             Recruitment.objects.filter(is_closed=False)
             .annotate(bookmark_count=Count("bookmarks"))
             .prefetch_related("tags", "images", "attachments")
-            .order_by("-created_at")
         )
+
         keyword = self.request.query_params.get("keyword")
         tag = self.request.query_params.get("tag")
         ordering = self.request.query_params.get("ordering", "latest")
@@ -52,50 +55,34 @@ class RecruitmentListCreateAPIView(generics.GenericAPIView, ListModelMixin):  # 
             qs = qs.filter(tags__name__icontains=tag)
 
         if ordering == "views":
-            qs = qs.order_by("-views_count")
-        elif ordering == "bookmarks":
-            qs = qs.order_by("-bookmark_count")
-        else:
-            qs = qs.order_by("-created_at")
+            return qs.order_by("-views_count")
+        if ordering == "bookmarks":
+            return qs.order_by("-bookmark_count")
 
-        return qs
+        return qs.order_by("-created_at")
 
     @extend_schema(
         tags=["Recruitments"],
-        summary="스터디 구인 공고 작성 및 목록 조회",
-        description="로그인 사용자는 스터디 구인 공고 목록을 조회할 수 있습니다. (태그별 필터링, 검색기능, 정렬기능)",
+        summary="스터디 구인공고 목록 조회",
         parameters=[
-            OpenApiParameter(
-                name="keyword",
-                type=OpenApiTypes.STR,
-                required=False,
-                description="검색시 사용할 수 있는 쿼리 파라미터입니다. 공고 제목을 기준으로 검색합니다.",
-            ),
-            OpenApiParameter(
-                name="tag",
-                type=OpenApiTypes.STR,
-                required=False,
-                description="검색시 사용할 수 있는 쿼리 파라미터입니다. 공고에 사용된 태그명을 기준으로 필터링 합니다.",
-            ),
-            OpenApiParameter(
-                name="ordering",
-                enum=VALID_ORDERING_PARAMS,
-                required=False,
-                description="정렬에 사용할 쿼리 파라미터 입니다.",
-            ),
+            OpenApiParameter("keyword", required=False),
+            OpenApiParameter("tag", required=False),
+            OpenApiParameter("ordering", enum=VALID_ORDERING_PARAMS, required=False),
         ],
     )
     def get(self, request: Request, *args: Any, **kwargs: Any) -> Response:
-        queryset = self.get_queryset()
-        page = self.paginate_queryset(queryset)
-        serializer = RecruitmentListSerializer(page, many=True, context={"request": request})
-        response = self.get_paginated_response(serializer.data)
+        """공고 목록"""
+        qs = self.get_queryset()
+        page = self.paginate_queryset(qs)
+        data = RecruitmentListSerializer(page, many=True, context={"request": request}).data
+        response = self.get_paginated_response(data)
 
-        if request.user.is_authenticated:
-            user = cast(User, request.user)  # type: ignore[redundant-cast]
-            recommended_qs = get_recommended_recruitments_for_user(user, limit=3)
-            recommended_serializer = RecruitmentListSerializer(recommended_qs, many=True, context={"request": request})
-            response.data["recommended_recruitments"] = recommended_serializer.data
+        # 추천 공고
+        if request.user.is_authenticated and isinstance(request.user, User):
+            rec = get_recommended_recruitments_for_user(request.user, limit=3)
+            response.data["recommended_recruitments"] = RecruitmentListSerializer(
+                rec, many=True, context={"request": request}
+            ).data
         else:
             response.data["recommended_recruitments"] = []
 
@@ -103,53 +90,33 @@ class RecruitmentListCreateAPIView(generics.GenericAPIView, ListModelMixin):  # 
 
     @extend_schema(
         tags=["Recruitments"],
-        summary="스터디 구인 공고 작성 및 목록 조회",
-        description=(
-            "로그인한 사용자는 새로운 스터디 구인 공고를 등록할 수 있습니다.\n\n"
-            "- 마크다운 형식 본문(content)\n"
-            "- 이미지 최대 5개 (5MB 이하)\n"
-            "- 첨부파일 최대 3개 (5MB 이하)\n"
-            "- 공고당 최대 5개의 사용자 정의 태그 등록 가능"
-        ),
+        summary="스터디 구인 공고 생성",
         request={"multipart/form-data": RecruitmentCreateUpdateSerializer},
-        responses={
-            201: OpenApiResponse(response=RecruitmentDetailSerializer, description="스터디 구인 공고 등록 성공"),
-            400: OpenApiResponse(description="유효하지 않은 요청 데이터"),
-            401: OpenApiResponse(description="인증되지 않은 사용자"),
-        },
     )
     def post(self, request: Request, *args: Any, **kwargs: Any) -> Response:
+        """공고 생성"""
         serializer = RecruitmentCreateUpdateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        user = cast(User, request.user)
-        recruitment = create_recruitment(user, serializer.validated_data)
-        detail_serializer = RecruitmentDetailSerializer(recruitment, context={"request": request})
-        return Response(detail_serializer.data, status=status.HTTP_201_CREATED)
+
+        if not isinstance(request.user, User):
+            return Response({"detail": "Unauthorized"}, status=status.HTTP_401_UNAUTHORIZED)
+
+        recruitment = create_recruitment(request.user, serializer.validated_data)
+        data = RecruitmentDetailSerializer(recruitment, context={"request": request}).data
+
+        return Response(data, status=status.HTTP_201_CREATED)
 
 
-@extend_schema(
-    tags=["Recruitments"],
-    summary="내가 작성한 스터디 구인 공고 목록 조회",
-    parameters=[
-        OpenApiParameter(
-            name="status", enum=["open", "closed"], required=False, description="상태별 필터링 쿼리 파라미터입니다."
-        ),
-        OpenApiParameter(
-            name="ordering",
-            enum=VALID_ORDERING_PARAMS,
-            required=False,
-            description="정렬에 사용할 쿼리 파라미터 입니다.",
-        ),
-    ],
-)
-class RecruitmentUserListAPIView(generics.ListAPIView):  # type: ignore[type-arg]
-    """REQ-RECM-005 — 사용자별 스터디 구인 공고 목록 조회"""
+# 내가 작성한 공고
+class RecruitmentUserListAPIView(generics.ListAPIView[Recruitment]):
+    """내가 작성한 공고"""
 
     serializer_class = RecruitmentListSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
     pagination_class = RecruitmentPagination
 
     def get_queryset(self) -> QuerySet[Recruitment]:
+        """내 공고 + 상태별 필터링"""
         qs = (
             Recruitment.objects.filter(author_id=self.request.user.id)
             .annotate(bookmark_count=Count("bookmarks"))
@@ -165,47 +132,56 @@ class RecruitmentUserListAPIView(generics.ListAPIView):  # type: ignore[type-arg
             qs = qs.filter(is_closed=True)
 
         if ordering == "views":
-            qs = qs.order_by("-views_count")
-        elif ordering == "bookmarks":
-            qs = qs.order_by("-bookmark_count")
-        else:
-            qs = qs.order_by("-created_at")
+            return qs.order_by("-views_count")
+        if ordering == "bookmarks":
+            return qs.order_by("-bookmark_count")
 
-        return qs
+        return qs.order_by("-created_at")
 
 
-@extend_schema(tags=["Recruitments"], summary="스터디 구인 공고 상세 조회 / 수정 / 삭제")
-class RecruitmentDetailUpdateDeleteAPIView(generics.RetrieveUpdateDestroyAPIView):  # type: ignore[type-arg]
-    """REQ-RECM-006, 007, 009 — 스터디 구인 공고 상세, 수정, 삭제"""
+# 상세 / 수정 / 삭제
+class RecruitmentDetailUpdateDeleteAPIView(generics.RetrieveUpdateDestroyAPIView[Recruitment]):
+    """공고 상세 / 수정 / 삭제"""
 
     lookup_field = "uuid"
     lookup_url_kwarg = "recruitment_uuid"
-    queryset = (
-        Recruitment.objects.all()
-        .annotate(bookmark_count=Count("bookmarks"))
-        .prefetch_related("tags", "images", "attachments")
+    queryset = Recruitment.objects.annotate(bookmark_count=Count("bookmarks")).prefetch_related(
+        "tags", "images", "attachments"
     )
     permission_classes = [IsAuthenticatedOrReadOnly]
 
     def get_serializer_class(self) -> type[Serializer[Any]]:
-        if self.request.method in ("PUT", "PATCH"):
+        """요청 방식에 따라 Serializer 분기"""
+        if self.request.method == "PATCH":
+            return RecruitmentUpdateSerializer
+        if self.request.method == "PUT":
             return RecruitmentCreateUpdateSerializer
-        elif self.request.method == "GET":
-            return RecruitmentDetailSerializer
         return RecruitmentDetailSerializer
 
     def retrieve(self, request: Request, *args: Any, **kwargs: Any) -> Response:
+        """상세 조회"""
         instance = self.get_object()
         increase_views(instance)
-        serializer = self.get_serializer(instance, context={"request": request})
-        return Response(serializer.data)
+        data = RecruitmentDetailSerializer(instance, context={"request": request}).data
+        return Response(data)
 
     def update(self, request: Request, *args: Any, **kwargs: Any) -> Response:
-        """PUT/PATCH 시에는 create/update serializer로 검증 → detail serializer로 응답"""
+        """공고 수정"""
         instance = self.get_object()
-        serializer = RecruitmentCreateUpdateSerializer(instance, data=request.data, partial=False)
-        serializer.is_valid(raise_exception=True)
-        updated_instance = update_recruitment(instance, serializer.validated_data)
+        partial = request.method == "PATCH"
 
-        response_serializer = RecruitmentDetailSerializer(updated_instance, context={"request": request})
-        return Response(response_serializer.data, status=status.HTTP_200_OK)
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+
+        updated = update_recruitment(instance, serializer.validated_data)
+        data = RecruitmentDetailSerializer(updated, context={"request": request}).data
+
+        return Response(data, status=status.HTTP_200_OK)
+
+
+#  presigned-url API 추가
+class RecruitmentPresignedURLAPIView(APIView):
+    """파일 업로드용 presigned-url 생성"""
+
+    def get(self, request: Request, *args: Any, **kwargs: Any) -> Response:
+        return Response({"url": "presigned-url-sample", "fields": {}}, status=status.HTTP_200_OK)
