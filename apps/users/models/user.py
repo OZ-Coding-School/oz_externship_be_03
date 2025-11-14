@@ -27,7 +27,7 @@ class User(AbstractBaseUser, UUIDBaseModel):
 
     nickname = models.CharField(max_length=10, unique=True, null=False)
 
-    phone_number = models.CharField(max_length=20, unique=True, validators=[validate_korean_phone], null=False)
+    phone_number = models.CharField(max_length=20, unique=True, validators=[validate_korean_phone], null=True)
 
     gender = models.CharField(max_length=6, choices=Gender, null=False)
 

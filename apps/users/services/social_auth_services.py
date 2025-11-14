@@ -1,26 +1,32 @@
 from __future__ import annotations
 
+import logging
+import uuid
 from datetime import datetime
 from typing import Any, Dict, Optional, cast
 
 import requests
 from django.conf import settings
-from rest_framework.exceptions import ValidationError
+from django.utils import timezone
+from rest_framework.exceptions import APIException, ValidationError
 
 from apps.users.enums import Gender, Provider
 from apps.users.models import SocialUser, User
 from apps.users.services.auth_services import _issue_tokens
 from apps.users.validators import normalize_phone, validate_korean_phone
 
+logger = logging.getLogger(__name__)
+DEFAULT_PROFILE_IMAGE_URL = "https://oz-externship.s3.ap-northeast-2.amazonaws.com/default_user_icon.png"
+
 
 # 공통
 def _debug_log_response(prefix: str, response: requests.Response) -> None:
     if settings.DEBUG:
-        print(f"\n[{prefix}] 상태 코드: {response.status_code}")
+        logger.info(f"\n[{prefix}] 상태 코드: {response.status_code}")
         try:
-            print(f"[{prefix}] 응답 본문:", response.json())
+            logger.info(f"[{prefix}] 응답 본문:", response.json())
         except Exception:
-            print(f"[{prefix}] 원본 응답:", response.text)
+            logger.info(f"[{prefix}] 원본 응답:", response.text)
 
 
 def _convert_gender(value: Optional[str]) -> str:
@@ -61,8 +67,61 @@ class KakaoAuthService:
         except requests.RequestException as e:
             raise ValidationError(f"[KakaoTokenRequestException] 인가 코드 교환 실패: {str(e)}")
 
-    @staticmethod
-    def get_user_info(access_token: str) -> Dict[str, Any]:
+    def _get_birthday(self, kakao_account: dict[str, Any]) -> str:
+        birthyear = kakao_account.get("birthyear")
+        birthday = kakao_account.get("birthdate")
+
+        if not birthyear or not birthday:
+            return timezone.now().strftime("%Y-%m-%d")
+
+        return f"{birthyear}-{birthday[:2]}-{birthday[2:]}"
+
+    def _get_phone_number(self, kakao_account: dict[str, Any]) -> str:
+        phone_number = kakao_account.get("phone_number")
+        if not phone_number:
+            return ""
+        return normalize_phone(phone_number)
+
+    def _get_provider_id(self, response_data: dict[str, Any]) -> str:
+        provider_id: str = response_data.get("id", "")
+        if not provider_id:
+            logger.error("[ERROR] 카카오 사용자 정보 조회 응답으로부터 provider_id 가 누락되었습니다.")
+            raise APIException("카카오 인증서버 응답에서 필수 데이터가 누락되었습니다.")
+        return provider_id
+
+    def _get_gender(self, kakao_account: dict[str, Any]) -> str:
+        gender = kakao_account.get("gender", "")
+        if not gender:
+            return Gender.MALE
+
+        return _convert_gender(gender)
+
+    def _get_nickname(self, profile_data: dict[str, Any]) -> str:
+        nickname: str = profile_data.get("nickname", "")
+        if not nickname:
+            return "kakao_user" + uuid.uuid4().hex[:8]
+        return nickname
+
+    def _get_name(self, kakao_account: dict[str, Any]) -> str:
+        name: str = kakao_account.get("name", "")
+        if not name:
+            return self._get_nickname(kakao_account)
+        return name
+
+    def _get_email(self, kakao_account: dict[str, Any]) -> str:
+        email: str = kakao_account.get("email", "")
+        if not email:
+            logger.error("[ERROR] 카카오 사용자 정보 조회 응답으로부터 email 이 누락되었습니다.")
+            raise APIException("카카오 인증서버 응답에서 필수 데이터가 누락되었습니다.")
+        return email
+
+    def _get_profile_img_url(self, profile_data: dict[str, Any]) -> str:
+        profile_img_url: str = profile_data.get("profile_image_url", "")
+        if not profile_img_url:
+            return DEFAULT_PROFILE_IMAGE_URL
+        return profile_img_url
+
+    def get_user_info(self, access_token: str) -> Dict[str, Any]:
         headers = {"Authorization": f"Bearer {access_token}"}
         try:
             resp = requests.get("https://kapi.kakao.com/v2/user/me", headers=headers, timeout=5)
@@ -74,60 +133,26 @@ class KakaoAuthService:
             kakao_account: Dict[str, Any] = data.get("kakao_account", {})
             profile: Dict[str, Any] = kakao_account.get("profile", {})
 
-            # 생년월일
-            birthday: Optional[str] = None
-            birthdate = kakao_account.get("birthdate")
-            if isinstance(birthdate, str):
-                try:
-                    datetime.strptime(birthdate, "%Y-%m-%d")
-                    birthday = birthdate
-                except ValueError:
-                    birthday = None
-            else:
-                birthyear = kakao_account.get("birthyear")
-                birthday_fragment = kakao_account.get("birthday")
-                if isinstance(birthyear, str) and isinstance(birthday_fragment, str) and len(birthday_fragment) == 4:
-                    formatted = f"{birthyear}-{birthday_fragment[:2]}-{birthday_fragment[2:]}"
-                    try:
-                        datetime.strptime(formatted, "%Y-%m-%d")
-                        birthday = formatted
-                    except ValueError:
-                        print(f"[WARN] 잘못된 생년월일 조합: {formatted}")
-
-            # 전화번호 정규화
-            raw_phone = kakao_account.get("phone_number", "")
-            phone_number = normalize_phone(raw_phone)
-            if phone_number:
-                try:
-                    validate_korean_phone(phone_number)
-                except ValidationError:
-                    print(f"[WARN] 잘못된 전화번호 형식 감지: {raw_phone} → {phone_number}")
-                    phone_number = ""
-
             return {
-                "email": cast(str, kakao_account.get("email") or f"no_email_{data.get('id')}@kakao.local"),
-                "name": cast(str, kakao_account.get("name") or profile.get("nickname") or ""),
-                "nickname": cast(str, profile.get("nickname") or "카카오사용자"),
-                "gender": cast(str, kakao_account.get("gender") or ""),
-                "birthday": birthday,
-                "phone_number": phone_number,
-                "profile_img_url": cast(str, profile.get("profile_image_url") or ""),
-                "provider_id": cast(str, data.get("id") or ""),
+                "email": self._get_email(kakao_account),
+                "name": self._get_name(kakao_account),
+                "nickname": self._get_nickname(profile),
+                "gender": self._get_gender(kakao_account),
+                "birthday": self._get_birthday(kakao_account),
+                "phone_number": self._get_phone_number(kakao_account),
+                "profile_img_url": self._get_profile_img_url(profile),
+                "provider_id": self._get_provider_id(data),
             }
 
         except requests.RequestException as e:
             raise ValidationError(f"[KakaoUserInfoException] 유저 정보를 가져올 수 없습니다: {str(e)}")
 
-    @staticmethod
-    def handle_login(code: str) -> Dict[str, Any]:
+    def handle_login(self, code: str) -> Dict[str, Any]:
         access_token = KakaoAuthService.exchange_code_for_token(code)
-        user_info = KakaoAuthService.get_user_info(access_token)
+        user_info = KakaoAuthService.get_user_info(self, access_token)
+        provider_id = user_info.pop("provider_id")
 
-        email = cast(str, user_info.get("email") or "")
-        provider_id = cast(str, user_info.get("provider_id") or "")
-        phone_number = normalize_phone(user_info.get("phone_number") or "")
-
-        existing_user = User.objects.filter(email=email).first()
+        existing_user = User.objects.filter(email=user_info["email"]).first()
         if existing_user:
             linked_social = SocialUser.objects.filter(user=existing_user).first()
 
@@ -140,44 +165,23 @@ class KakaoAuthService:
                         "이미 다른 소셜 계정으로 가입된 사용자입니다. 연결하신 소셜로 다시 로그인해주세요."
                     )
             else:
-                # ✅ 일반 회원 → 소셜 테이블 생성 + 로그인 처리
+                # 일반 회원 → 소셜 테이블 생성 + 로그인 처리
                 SocialUser.objects.create(
                     user=existing_user,
                     provider=Provider.KAKAO.value,
-                    provider_id=provider_id,
+                    provider_id=user_info["provider_id"],
                 )
                 tokens = _issue_tokens(existing_user)
-                return {"detail": "카카오 로그인에 성공했습니다.", "data": tokens, "created": False}
 
-        if phone_number:
-            phone_owner = User.objects.filter(phone_number=phone_number).exclude(email=email).first()
-            if phone_owner:
-                raise ValidationError(
-                    "이미 다른 소셜 계정으로 가입된 사용자입니다. 연결하신 소셜로 다시 로그인해주세요."
-                )
+        else:
+            user = User.objects.create(is_active=True, **user_info)
+            SocialUser.objects.create(
+                user=user,
+                provider=Provider.KAKAO.value,
+                provider_id=provider_id,
+            )
+            tokens = _issue_tokens(user)
 
-        nickname = cast(str, user_info.get("nickname") or "")
-        if User.objects.filter(nickname=nickname).exists():
-            nickname = f"{nickname}_{User.objects.count() + 1}"
-
-        user = User.objects.create(
-            email=email,
-            name=cast(str, user_info.get("name") or ""),
-            nickname=nickname,
-            gender=_convert_gender(user_info.get("gender")),
-            birthday=cast(str, user_info.get("birthday") or ""),
-            phone_number=phone_number,
-            profile_img_url=cast(str, user_info.get("profile_img_url") or ""),
-            is_active=True,
-        )
-
-        SocialUser.objects.create(
-            user=user,
-            provider=Provider.KAKAO.value,
-            provider_id=provider_id,
-        )
-
-        tokens = _issue_tokens(user)
         return {"detail": "카카오 로그인에 성공했습니다.", "data": tokens, "created": True}
 
 

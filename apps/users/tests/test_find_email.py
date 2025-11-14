@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import date
-from typing import Any
+from typing import Any, cast
 
 from django.contrib.auth import get_user_model
 from django.urls import reverse
@@ -49,7 +49,7 @@ class FindEmailTests(IsolatedRedisTestClient):
         2) 헤더에 실어서 GET
         3) 이메일 마스킹되어서 반환
         """
-        token = self._issue_find_email_token(phone=self.user.phone_number)
+        token = self._issue_find_email_token(phone=cast(str, self.user.phone_number))
 
         resp = self.client.get(
             self.url,
@@ -75,7 +75,7 @@ class FindEmailTests(IsolatedRedisTestClient):
         """
         같은 토큰 두 번 쓰면 두 번째는 퍼미션에서 403
         """
-        token = self._issue_find_email_token(phone=self.user.phone_number)
+        token = self._issue_find_email_token(phone=cast(str, self.user.phone_number))
 
         # 1회차: 성공
         r1 = self.client.get(
