@@ -152,22 +152,26 @@ class KakaoAuthService:
         user_info = KakaoAuthService.get_user_info(self, access_token)
         provider_id = user_info.pop("provider_id")
 
-        existing_user = User.objects.filter(email=user_info["email"]).first()
-        if existing_user:
-            linked_social_exists = SocialUser.objects.filter(user=existing_user, provider=Provider.KAKAO).exists()
-            if linked_social_exists:
-                tokens = _issue_tokens(existing_user)
-                return {"detail": "카카오 로그인에 성공했습니다.", "data": tokens, "created": False}
-            else:
-                # 일반 회원 → 소셜 테이블 생성 + 로그인 처리
-                SocialUser.objects.create(
-                    user=existing_user,
-                    provider=Provider.KAKAO.value,
-                    provider_id=user_info["provider_id"],
-                )
-                tokens = _issue_tokens(existing_user)
+        created = False
+        tokens: Dict[str, str] = {}
 
-        else:
+        try:
+            existing_user = User.objects.get(email=user_info["email"])
+            if existing_user:
+                linked_social_exists = SocialUser.objects.filter(user=existing_user, provider=Provider.KAKAO).exists()
+                if linked_social_exists:
+                    tokens = _issue_tokens(existing_user)
+                else:
+                    # 일반 회원 → 소셜 테이블 생성 + 로그인 처리
+                    SocialUser.objects.create(
+                        user=existing_user,
+                        provider=Provider.KAKAO.value,
+                        provider_id=user_info["provider_id"],
+                    )
+                    tokens = _issue_tokens(existing_user)
+                    created = True
+
+        except User.DoesNotExist:
             user = User.objects.create(is_active=True, **user_info)
             SocialUser.objects.create(
                 user=user,
@@ -175,8 +179,9 @@ class KakaoAuthService:
                 provider_id=provider_id,
             )
             tokens = _issue_tokens(user)
+            created = True
 
-        return {"detail": "카카오 로그인에 성공했습니다.", "data": tokens, "created": True}
+        return {"detail": "카카오 로그인에 성공했습니다.", "data": tokens, "created": created}
 
 
 # 네이버
