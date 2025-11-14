@@ -245,10 +245,10 @@ class NaverAuthService:
             return "naver_user" + uuid.uuid4().hex[:8]
         return nickname
 
-    def _get_name(self, kakao_account: dict[str, Any]) -> str:
-        name: str = kakao_account.get("name", "")
+    def _get_name(self, response_data: dict[str, Any]) -> str:
+        name: str = response_data.get("name", "")
         if not name:
-            return self._get_nickname(kakao_account)
+            return self._get_nickname(response_data)
         return name
 
     def _get_email(self, response_data: dict[str, Any]) -> str:
@@ -259,7 +259,7 @@ class NaverAuthService:
         return email
 
     def _get_profile_img_url(self, response_data: dict[str, Any]) -> str:
-        profile_img_url: str = response_data.get("profile_image_url", "")
+        profile_img_url: str = response_data.get("profile_image", "")
         if not profile_img_url:
             return DEFAULT_PROFILE_IMAGE_URL
         return profile_img_url
@@ -317,7 +317,6 @@ class NaverAuthService:
                 provider=Provider.NAVER.value,
                 provider_id=provider_id,
             )
-
             tokens = _issue_tokens(user)
             created = True
 
