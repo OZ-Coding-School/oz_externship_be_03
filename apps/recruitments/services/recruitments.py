@@ -12,12 +12,12 @@ from apps.users.models import User
 @transaction.atomic
 def create_recruitment(author: User, validated_data: dict[str, Any]) -> Recruitment:
     from apps.recruitments.models import RecruitmentAttachment
-    
+
     tag_names = validated_data.pop("tags", [])
     attachments = validated_data.pop("attachments", [])
-    
+
     validated_data.setdefault("estimated_fee", 0)
-    
+
     recruitment: Recruitment = Recruitment.objects.create(author=author, **validated_data)
     _set_recruitment_tags(recruitment, tag_names)
     _set_recruitment_attachments(recruitment, attachments)
@@ -49,20 +49,16 @@ def _set_recruitment_tags(recruitment: Recruitment, tag_names: list[str]) -> Non
 
 def _set_recruitment_attachments(recruitment: Recruitment, attachment_urls: list[str]) -> None:
     from apps.recruitments.models import RecruitmentAttachment
-    
+
     # 기존 첨부파일 삭제
     recruitment.attachments.all().delete()
-    
+
     # 새로운 첨부파일 추가 (최대 3개)
     for url in attachment_urls[:3]:
         if url and url.strip():
             # URL에서 파일명 추출
             file_name = url.split("/")[-1]
-            RecruitmentAttachment.objects.create(
-                recruitment=recruitment,
-                file_url=url.strip(),
-                file_name=file_name
-            )
+            RecruitmentAttachment.objects.create(recruitment=recruitment, file_url=url.strip(), file_name=file_name)
 
 
 def increase_views(recruitment: Recruitment) -> Recruitment:
