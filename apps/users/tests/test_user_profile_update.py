@@ -165,7 +165,7 @@ class UserProfileUpdateTests(IsolatedRedisTestClient):
         휴대폰 중복 → 409 매핑 확인
         """
         # 바꾸려는 번호로 인증 토큰 발급
-        dup_phone = self.other.phone_number
+        dup_phone = cast(str, self.other.phone_number)
         token = issue_verify_token(
             sub=dup_phone,
             to="me@example.com",
