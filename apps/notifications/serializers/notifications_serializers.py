@@ -7,7 +7,6 @@ from apps.notifications.models import Notification
 class NotificationSerializer(ModelSerializer[Notification]):
     # 알림을 소유한 user_id만 응답 (user_id만 응답하여 DB조인 최소화)
     user_id = serializers.IntegerField(source="user.id", read_only=True)
-    # NotificationType의 한글명 반환 (ex : SYSTEM = "SYSTEM" -> "시스템 알림")
     type_display = serializers.CharField(source="get_type_display", read_only=True)
 
     class Meta:
