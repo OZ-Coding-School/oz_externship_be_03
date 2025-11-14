@@ -165,9 +165,8 @@ class S3Uploader:
                 presigned_post = cls.s3_client.generate_presigned_post(
                     Bucket=cls.BUCKET_NAME,
                     Key=key,
-                    Fields={"acl": "public-read", "Content-Type": content_type},
+                    Fields={"Content-Type": content_type},
                     Conditions=[
-                        {"acl": "public-read"},
                         {"Content-Type": content_type},
                         ["content-length-range", 1, 10 * 1024 * 1024],
                     ],
