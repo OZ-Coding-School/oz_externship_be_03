@@ -156,7 +156,10 @@ class KakaoAuthService:
         created = False
 
         try:
-            existing_user = User.objects.get(Q(email=user_info["email"]) | Q(phone_number=user_info["phone_number"]))
+            filter_set = Q(email=user_info["email"])
+            if user_info["phone_number"]:
+                filter_set |= Q(phone_number=user_info["phone_number"])
+            existing_user = User.objects.get(filter_set)
             linked_social_exists = SocialUser.objects.filter(user=existing_user, provider=Provider.KAKAO.value).exists()
             if linked_social_exists:
                 tokens = _issue_tokens(existing_user)
