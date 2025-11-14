@@ -13,5 +13,5 @@ urlpatterns = [
         "/<uuid:recruitment_uuid>", RecruitmentDetailUpdateDeleteAPIView.as_view(), name="detail"
     ),  # REQ-RECM-006,007,009
     path("/mine", RecruitmentUserListAPIView.as_view(), name="user-list"),  # REQ-RECM-005
-    path("/presgined_url", RecruitmentS3PresignedView.as_view(), name="presgined_url"),
+    path("/presigned_url", RecruitmentS3PresignedView.as_view(), name="presigned_url"),
 ]
