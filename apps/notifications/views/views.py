@@ -36,7 +36,7 @@ class NotificationListAPIView(generics.ListAPIView[Notification]):
 
     def list(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         # 알림 목록을 count + results 형태로 반환 (페이지네이션 적용)
-        queryset = self.filter_queryset(self.get_queryset())
+        queryset = self.get_queryset()
 
         # 페이지네이션 적용
         paginator = self.get_paginator()
