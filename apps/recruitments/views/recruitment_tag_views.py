@@ -17,7 +17,7 @@ from apps.recruitments.services.tags import add_tags_to_recruitment, search_tags
 
 
 @extend_schema(
-    tags=["recruitments"],
+    tags=["Recruitments"],
     summary="스터디 구인 공고 태그 검색 및 신규 등록",
     description=(
         "공고 작성 시 사용자는 태그를 검색하여 기존 태그를 선택하거나 "
@@ -90,7 +90,7 @@ class RecruitmentTagSearchCreateAPIView(generics.GenericAPIView[Any]):
 
 
 @extend_schema(
-    tags=["recruitments"],
+    tags=["Recruitments"],
     summary="특정 공고에 태그 검색 및 추가",
     description=(
         "공고 수정 시 해당 공고에 추가할 태그를 검색하거나 신규 등록할 수 있습니다.\n\n"

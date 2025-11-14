@@ -18,7 +18,7 @@ from apps.recruitments.services.bookmark import (
 from apps.users.models import User
 
 
-@extend_schema(tags=["recruitments"], summary="스터디 구인 공고 북마크 추가 / 삭제")
+@extend_schema(tags=["Recruitments"], summary="스터디 구인 공고 북마크 추가 / 삭제")
 class RecruitmentBookmarkToggleAPIView(generics.GenericAPIView):  # type: ignore[type-arg]
     """
     REQ-RECM-010 — 북마크 추가 or 삭제
@@ -46,7 +46,7 @@ class RecruitmentBookmarkToggleAPIView(generics.GenericAPIView):  # type: ignore
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
-@extend_schema(tags=["recruitments"], summary="북마크한 스터디 구인 공고 목록 조회")
+@extend_schema(tags=["Recruitments"], summary="북마크한 스터디 구인 공고 목록 조회")
 class RecruitmentBookmarkedListAPIView(generics.ListAPIView):  # type: ignore[type-arg]
     """REQ-RECM-011 — 북마크 목록 조회"""
 

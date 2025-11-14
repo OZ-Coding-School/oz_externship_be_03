@@ -142,12 +142,18 @@ class RecruitmentDetailSerializer(ModelSerializer[Recruitment]):
 
 class RecruitmentCreateUpdateSerializer(ModelSerializer[Recruitment]):
     tags = serializers.ListField(
-        child=serializers.CharField(max_length=20),
+        child=serializers.CharField(max_length=20, allow_blank=True),
         required=False,
         allow_empty=True,
     )
     study_group = serializers.SlugRelatedField(
         slug_field="uuid", queryset=StudyGroup.objects.all(), required=False, allow_null=True
+    )
+    attachments = serializers.ListField(
+        child=serializers.CharField(allow_blank=True),
+        required=False,
+        allow_empty=True,
+        write_only=True,
     )
 
     class Meta:
@@ -160,7 +166,11 @@ class RecruitmentCreateUpdateSerializer(ModelSerializer[Recruitment]):
             "close_at",
             "study_group",
             "tags",
+            "attachments",
         ]
+        extra_kwargs = {
+            "estimated_fee": {"required": False, "default": 0},
+        }
 
     def validate_expected_headcount(self, value: int) -> int:
         if value < 1 or value > 10:
