@@ -60,12 +60,17 @@ class StudyNoteListAPIView(BaseResponseMixin, APIView):
 
 class StudyNoteCreateAPIView(BaseResponseMixin, APIView):
     """
-    스터디 노트 목록 생성 API
+    스터디 노트 생성 API
     """
 
     permission_classes = [IsAuthenticated, IsGroupMember]
 
-    @extend_schema(tags=["StudyGroupNote"], summary="스터디 노트 생성 API")
+    @extend_schema(
+        tags=["StudyGroupNote"],
+        summary="스터디 노트 생성 API",
+        request=StudyNoteCreateSerializer,
+        responses={201: StudyNoteDetailSerializer},
+    )
     def post(self, request: Request) -> Response:
         # IsGroupMember.has_permission() 통과 시, view._group 이 주입되어 있음
         serializer = StudyNoteCreateSerializer(
@@ -131,7 +136,12 @@ class StudyNoteDetailAPIView(BaseResponseMixin, APIView):
         serializer = StudyNoteDetailSerializer(note)
         return self.success("노트를 성공적으로 조회했습니다.", serializer.data)
 
-    @extend_schema(tags=["StudyGroupNote"], summary="스터디 노트 수정 API")
+    @extend_schema(
+        tags=["StudyGroupNote"],
+        summary="스터디 노트 수정 API",
+        request=StudyNoteUpdateSerializer,
+        responses={200: StudyNoteDetailSerializer},
+    )
     def patch(self, request: Request, note_id: int) -> Response:
         note = self._get_note(note_id)
         self._check_group_member_permission(request, note.study_group)
