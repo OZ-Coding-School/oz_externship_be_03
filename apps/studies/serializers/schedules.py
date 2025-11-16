@@ -79,4 +79,4 @@ class ScheduleDetailSerializer(serializers.ModelSerializer[GroupSchedule]):
 
     class Meta:
         model = GroupSchedule
-        fields = ["uuid", "title", "participants", "objective", "session_date", "start_time", "end_time"]
+        fields = ["uuid", "title", "participants", "objective", "session_date", "start_time", "end_time", "created_at"]
