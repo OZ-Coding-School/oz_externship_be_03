@@ -77,6 +77,17 @@ class S3Uploader:
         raise ValidationError("허용된 확장자만 등록 가능합니다.")
 
     @classmethod
+    def validate_file_str_extension(cls, file_name: str) -> None:
+        """
+        파일 확장자 검증 (str 전용)
+        """
+        ext = file_name.rsplit(".", 1)[-1].lower()
+        if ext in ALLOWED_IMAGE_EXTENSIONS or ext in ALLOWED_ATTACHMENT_EXTENSIONS:
+            return
+
+        raise ValidationError("허용된 확장자만 등록 가능합니다.")
+
+    @classmethod
     def validate_file_content_type(cls, content_type: Optional[str]) -> None:
         """
         파일 확장자 검증

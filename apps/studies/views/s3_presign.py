@@ -95,7 +95,7 @@ class StudyNoteS3PresignedView(APIView):
 
             S3Uploader.validate_file_content_type(content_type)
             S3Uploader.validate_file_mime(ext, content_type)
-            S3Uploader.validate_file_extension(file_name)
+            S3Uploader.validate_file_str_extension(file_name)
 
             prefix = NOTE_IMAGE_PREFIX if content_type.startswith("image/") else NOTE_FILE_PREFIX
 
