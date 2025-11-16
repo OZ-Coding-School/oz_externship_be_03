@@ -11,7 +11,8 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from ..models.groups import StudyGroup, StudyGroupStatus, GroupMember
+from ...users.models import User
+from ..models.groups import StudyGroup, StudyGroupStatus
 from ..paginations import StudyGroupPagination
 from ..permissions import IsGroupLeader
 from ..serializers.groups import (
@@ -65,8 +66,8 @@ class StudyGroupListCreateView(APIView):
                 name="is_member",
                 type=OpenApiTypes.BOOL,
                 location=OpenApiParameter.QUERY,
-                description="요청을 보낸 유저가 속한 그룹의 목록만 가져올 수 있는 필터링용 쿼리파라미터 입니다."
-            )
+                description="요청을 보낸 유저가 속한 그룹의 목록만 가져올 수 있는 필터링용 쿼리파라미터 입니다.",
+            ),
         ],
         responses={
             200: StudyGroupListSerializer(many=True),
@@ -86,7 +87,7 @@ class StudyGroupListCreateView(APIView):
             queryset = queryset.filter(name__icontains=search_param)
 
         if request.query_params.get("is_member"):
-            queryset = queryset.filter(group_members__user=request.user)
+            queryset = queryset.filter(group_members__user=cast(User, request.user))
 
         queryset = queryset.annotate(current_headcount=Count("members"))
 
