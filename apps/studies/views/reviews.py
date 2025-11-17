@@ -277,6 +277,7 @@ class GroupReviewUpdateView(generics.UpdateAPIView[Review]):
         ),
         OpenApiParameter(name="page", type=OpenApiTypes.INT, location=OpenApiParameter.QUERY),
         OpenApiParameter(name="page_size", type=OpenApiTypes.INT, location=OpenApiParameter.QUERY),
+        OpenApiParameter(name="ordering", enum=["lastest", "oldest"], location=OpenApiParameter.QUERY),
     ],
     responses={200: AdminReviewListSerializer(many=True)},
 )
@@ -294,12 +295,15 @@ class AdminReviewListView(generics.ListAPIView[Review]):
             except (ValueError, TypeError):
                 pass
 
-        ordering = self.request.query_params.get("ordering", "-created_at")
-        allowed = ("-created_at", "created_at", "-updated_at", "updated_at")
-        if ordering not in allowed:
-            ordering = "-created_at"
+        ordering = self.request.query_params.get("ordering", "latest")
+        allowed = ("lastest", "oldest")
 
-        return qs.order_by(ordering)
+        if ordering.lower() not in allowed or ordering.lower() == "lastest":
+            qs = qs.order_by("-created_at", "-id")
+        else:
+            qs = qs.order_by("created_at", "id")
+
+        return qs
 
     def list(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         return super().list(request, *args, **kwargs)
