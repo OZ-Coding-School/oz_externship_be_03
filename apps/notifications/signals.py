@@ -97,7 +97,7 @@ def study_group_review_created(sender: Any, instance: StudyGroup, created: bool,
                 user_id=member.user_id,
                 content=f"오늘은 {instance.name}의 종료일이에요! 스터디 후기를 기록해주세요!",
                 type=Notification.NotificationType.STUDY_REVIEW_REQUEST,
-                back_url_link="https://account.ozcoding.site/mypage",
+                back_url_link="https://account.ozcoding.site/mypage/completed-study",
             )
             for member in group_members
         ]
