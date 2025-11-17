@@ -58,7 +58,7 @@ class RecruitmentS3PresignedView(APIView):
             file_name = f["file_name"]
             content_type = f["content_type"]
 
-            S3Uploader.validate_file_obj_name(file_name)
+            S3Uploader.validate_file_name(file_name)
 
             ext = file_name.rsplit(".", 1)[-1].lower()
             S3Uploader.validate_file_content_type(content_type)
