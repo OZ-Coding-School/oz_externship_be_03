@@ -36,19 +36,22 @@ class StudyGroupS3PresignedView(APIView):
     def post(self, request: Request, *args: object, **kwargs: object) -> Response:
         serializer = PresignedRequestSerializer(data=request.data, many=True)
         serializer.is_valid(raise_exception=True)
+        file_data = serializer.validated_data
 
-        files = serializer.validated_data["files"]
+        for f in file_data:
+            file_name = f["file_name"]
+            content_type = f["content_type"]
 
-        for (
-            f
-        ) in files:  # f.get 있을 수도 없을 수도 있으며 없으면 None로 반환해봐 / f[] = 이미 검증된 것들이니 없으면 에러
-            S3Uploader.validate_file_size(f["file_size"])
-            S3Uploader.validate_file_name(f["file_name"])
-            S3Uploader.validate_file_content_type(f["content_type"])
+            S3Uploader.validate_file_obj_name(file_name)
+
+            ext = file_name.rsplit(".", 1)[-1].lower()
+            S3Uploader.validate_file_content_type(content_type)
+            S3Uploader.validate_file_mime(ext, content_type)
+            S3Uploader.validate_file_str_extension(file_name)
 
         prefix = GROUP_IMAGE_PREFIX
         # 대표 이미지는 단일 업로드겠지만 노트와 공용시리얼라이저 사용 + 썸네일 도입용이함 등을 감안해서 files 복수형 유지
-        presigned_urls = S3Uploader.generate_presigned_urls(prefix, files)[0]  # 이중리스트같아서 리스트 감싸기 해제
+        presigned_urls = S3Uploader.generate_presigned_urls(prefix, file_data)[0]  # 이중리스트같아서 리스트 감싸기 해제
 
         return Response(
             {
@@ -79,16 +82,14 @@ class StudyNoteS3PresignedView(APIView):
         serializer = PresignedRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        files = serializer.validated_data["files"]
+        files = serializer.validated_data
 
         presigned_urls: list[dict[str, Any]] = []
 
         for f in files:
             file_name = f["file_name"]
             content_type = f["content_type"]
-            file_size = f["file_size"]
 
-            S3Uploader.validate_file_size(file_size)
             S3Uploader.validate_file_name(file_name)
 
             ext = file_name.rsplit(".", 1)[-1].lower()
