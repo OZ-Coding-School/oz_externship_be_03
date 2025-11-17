@@ -47,7 +47,7 @@ class RecruitmentS3PresignedView(APIView):
         },
     )
     def post(self, request: Request, *args: object, **kwargs: object) -> Response:
-        serializer = PresignedRequestSerializer(data=request.data)
+        serializer = PresignedRequestSerializer(data=request.data, many=True)
         serializer.is_valid(raise_exception=True)
 
         file_data = serializer.validated_data

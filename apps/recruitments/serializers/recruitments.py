@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Optional
+import json
+from typing import Optional, Union
 
 from rest_framework import serializers
 from rest_framework.serializers import ModelSerializer
@@ -186,26 +187,30 @@ class RecruitmentCreateUpdateSerializer(ModelSerializer[Recruitment]):
             raise serializers.ValidationError("예상 모집 인원은 1~10 사이여야 합니다.")
         return value
 
+    def validate_tags(self, value: str | list[str]) -> list[str]:
+        if isinstance(value, str):
+            try:
+                tags: list[str] = json.loads(value)
+            except (json.JSONDecodeError, TypeError):
+                raise serializers.ValidationError({"tags": "잘못된 JSON형식입니다."})
+        else:
+            tags = value
 
-# Create Response Serializer
+        if len(tags) > 5:
+            raise serializers.ValidationError({"tags": "태그는 최대 5개까지 등록 가능합니다."})
 
+        return tags
 
-class RecruitmentCreateSerializer(ModelSerializer[Recruitment]):
-    author = AuthorSerializer(read_only=True)
-    tags = TagSerializer(many=True, read_only=True)
+    def validate_attachments(self, value: Union[str, list[str]]) -> list[str]:
+        if isinstance(value, str):
+            try:
+                attachments: list[str] = json.loads(value)
+            except (json.JSONDecodeError, TypeError):
+                raise serializers.ValidationError({"attachments": "잘못된 JSON형식입니다."})
+        else:
+            attachments = value
 
-    class Meta:
-        model = Recruitment
-        fields = [
-            "id",
-            "uuid",
-            "title",
-            "content",
-            "estimated_fee",
-            "expected_headcount",
-            "close_at",
-            "study_group",
-            "author",
-            "tags",
-        ]
-        read_only_fields = ["id", "uuid", "author"]
+        if len(attachments) > 3:
+            raise serializers.ValidationError({"attachments": "파일첨부는 최대 3개까지 가능합니다."})
+
+        return attachments
