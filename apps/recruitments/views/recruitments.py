@@ -3,7 +3,7 @@ from typing import Any, cast
 from django.db.models import Count, QuerySet
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
-from rest_framework import generics, status
+from rest_framework import generics, parsers, status
 from rest_framework.mixins import ListModelMixin
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework.request import Request
@@ -34,6 +34,7 @@ class RecruitmentListCreateAPIView(generics.GenericAPIView, ListModelMixin):  # 
     permission_classes = [IsAuthenticatedOrReadOnly]
     serializer_class: type[RecruitmentListSerializer] = RecruitmentListSerializer
     pagination_class = RecruitmentPagination
+    parser_classes = [parsers.JSONParser, parsers.MultiPartParser, parsers.FormParser]
 
     def get_queryset(self) -> QuerySet[Recruitment]:
         qs = (
