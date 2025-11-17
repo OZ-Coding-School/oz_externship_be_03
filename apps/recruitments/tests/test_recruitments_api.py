@@ -60,7 +60,7 @@ class RecruitmentAPITestCase(APITestCase):
             "tags": ["Django", "Python"],
         }
 
-        response = self.client.post(self.create_url, data, format="json")
+        response = self.client.post(self.create_url, data, format="multipart")
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertIn("title", response.data)
         self.assertEqual(response.data["title"], data["title"])
