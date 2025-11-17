@@ -43,14 +43,14 @@ def application_approved_rejected_created(sender: Any, instance: Application, cr
                 user_id=instance.user_id,
                 content=f"'{recruitment.title}' 구인 공고에 대한 지원내역이 승인되었습니다.",
                 type=Notification.NotificationType.APPLICATION_STATUS_APPROVAL,
-                back_url_link="https://account.ozcoding.site/mypage",
+                back_url_link="https://account.ozcoding.site/mypage/study",
             )
         else:
             notification = Notification.objects.create(
                 user_id=instance.user_id,
                 content=f"'{recruitment.title}' 구인 공고에 대한 지원내역이 거절되었습니다.",
                 type=Notification.NotificationType.APPLICATION_STATUS_REJECTION,
-                back_url_link="https://account.ozcoding.site/mypage",
+                back_url_link="https://account.ozcoding.site/mypage/study",
             )
 
         send_to_pubsub.delay(notification.id)
