@@ -25,8 +25,18 @@ class NotificationListAPIView(generics.ListAPIView[Notification]):
         user = self.request.user
         if isinstance(user, AnonymousUser):
             return Notification.objects.none()
+
+        queryset = Notification.objects.filter(user=user)
+
+        # is_read 쿼리파라미터 처리
+        is_read = self.request.query_params.get("is_read", "")
+        if is_read.lower() == "true":
+            queryset = queryset.filter(is_read=True)
+        elif is_read.lower() == "false":
+            queryset = queryset.filter(is_read=False)
+
         # 최신순으로 정렬 반환 타입은 Django QuerySet
-        return Notification.objects.filter(user=user).order_by("-created_at")
+        return queryset.order_by("-created_at")
 
     def get_paginator(self) -> LimitOffsetPagination:
         paginator = self.pagination_class()
