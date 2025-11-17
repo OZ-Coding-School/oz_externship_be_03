@@ -50,7 +50,16 @@ class AuthorSerializer(ModelSerializer[User]):
 class MyRecruitmentLectureSerializer(serializers.ModelSerializer[CrawledLecture]):
     class Meta:
         model = CrawledLecture
-        fields = ["uuid", "title", "instructor", "thumbnail_img_url", "platform", "url_link"]
+        fields = [
+            "uuid",
+            "title",
+            "instructor",
+            "thumbnail_img_url",
+            "platform",
+            "original_price",
+            "discount_price",
+            "url_link",
+        ]
         read_only_fields = fields
 
 
