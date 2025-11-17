@@ -26,7 +26,7 @@ def recruitment_apply_created(sender: Any, instance: Application, created: bool,
         user_id=recruitment.author_id,
         content=f"공고 '{recruitment.title}'에 새로운 지원자가 지원했습니다.",
         type=Notification.NotificationType.APPLICATION_CREATED,
-        back_url_link=f"{settings.FRONTEND_DOMAIN}/api/admin/recruitments",
+        back_url_link="https://learn.ozcoding.site/recruit/manage",
     )
 
     send_to_pubsub.delay(notification.id)
@@ -43,14 +43,14 @@ def application_approved_rejected_created(sender: Any, instance: Application, cr
                 user_id=instance.user_id,
                 content=f"'{recruitment.title}' 구인 공고에 대한 지원내역이 승인되었습니다.",
                 type=Notification.NotificationType.APPLICATION_STATUS_APPROVAL,
-                back_url_link=f"{settings.FRONTEND_DOMAIN}/api/v1/applications",
+                back_url_link="https://account.ozcoding.site/mypage/study",
             )
         else:
             notification = Notification.objects.create(
                 user_id=instance.user_id,
                 content=f"'{recruitment.title}' 구인 공고에 대한 지원내역이 거절되었습니다.",
                 type=Notification.NotificationType.APPLICATION_STATUS_REJECTION,
-                back_url_link=f"{settings.FRONTEND_DOMAIN}/api/v1/applications",
+                back_url_link="https://account.ozcoding.site/mypage/study",
             )
 
         send_to_pubsub.delay(notification.id)
@@ -74,7 +74,7 @@ def study_member_joined_created(sender: Any, instance: Application, created: boo
                     user_id=member.user.id,
                     content=f"{study_group.name}에 {new_member.nickname}님이 참여했습니다. 환영해주세요!",
                     type=Notification.NotificationType.STUDY_MEMBER_JOINED,
-                    back_url_link=f"{settings.FRONTEND_DOMAIN}/api/v1/chat/ws/study-groups/{study_group.id}",
+                    back_url_link=f"{study_group.uuid}",
                 )
                 for member in existing_member
             ]
@@ -97,7 +97,7 @@ def study_group_review_created(sender: Any, instance: StudyGroup, created: bool,
                 user_id=member.user_id,
                 content=f"오늘은 {instance.name}의 종료일이에요! 스터디 후기를 기록해주세요!",
                 type=Notification.NotificationType.STUDY_REVIEW_REQUEST,
-                back_url_link=f"{settings.FRONTEND_DOMAIN}/api/v1/studies/groups/{instance.id}/reviews",
+                back_url_link="https://account.ozcoding.site/mypage/completed-study",
             )
             for member in group_members
         ]
@@ -125,7 +125,7 @@ def study_note_created(sender: Any, instance: StudyNote, created: bool, **kwargs
                 user_id=member.user.id,
                 content=f"{author.nickname}님이 {study_group.name}에 스터디 기록을 작성하셨습니다. 확인해보세요!",
                 type=Notification.NotificationType.STUDY_RECORD_CREATED,
-                back_url_link=f"{settings.FRONTEND_DOMAIN}/api/v1/studies/groups/{study_group.id}",
+                back_url_link=f"https://study.ozcoding.site/study-groups/{study_group.uuid}",
             )
             for member in existing_member
         ]

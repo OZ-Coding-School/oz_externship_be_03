@@ -94,7 +94,7 @@ def send_tomorrow_schedule_notifications() -> None:
                 content=f"내일은 {participant.schedule.study_group.name}에서 "
                 f"{participant.schedule.title}이 예정되어 있습니다! 잊지말고 참여해주세요!",
                 type=Notification.NotificationType.STUDY_SCHEDULE_UPCOMING,
-                back_url_link=f"{settings.FRONTEND_DOMAIN}/api/v1/studies/groups/{participant.schedule.study_group.id}",
+                back_url_link=f"https://study.ozcoding.site/study-groups/{participant.schedule.study_group.uuid}",
             )
             for participant in participants
         ]
@@ -126,7 +126,7 @@ def send_today_schedule_notifications() -> None:
                 f"{participant.schedule.study_group.name}에서 {participant.schedule.title}이 "
                 f"예정되어 있습니다! 잊지말고 참여해주세요!",
                 type=Notification.NotificationType.STUDY_SCHEDULE_TODAY,
-                back_url_link=f"{settings.FRONTEND_DOMAIN}/api/v1/studies/groups/{participant.schedule.study_group.id}",
+                back_url_link=f"https://study.ozcoding.site/study-groups/{participant.schedule.study_group.uuid}",
             )
             for participant in participants
         ]
