@@ -104,7 +104,7 @@ class ScheduleTasksTestCase(TestCase):
 
         self.assertIn(expected_content, notification.content)
         assert notification.back_url_link is not None
-        self.assertIn("api/v1/studies/groups/", notification.back_url_link)
+        self.assertIn("https://study.ozcoding.site/study-groups/", notification.back_url_link)
 
         self.assertEqual(mock_send.call_count, 1)
         mock_send.assert_any_call(notification.id)
@@ -123,7 +123,7 @@ class ScheduleTasksTestCase(TestCase):
 
         self.assertIn(expected_content, notification.content)
         assert notification.back_url_link is not None
-        self.assertIn(f"/api/v1/studies/groups/", notification.back_url_link)
+        self.assertIn("https://study.ozcoding.site/study-groups/", notification.back_url_link)
 
         self.assertEqual(mock_send.call_count, 1)
         mock_send.assert_any_call(notification.id)
