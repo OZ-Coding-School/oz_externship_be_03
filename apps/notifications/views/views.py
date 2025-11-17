@@ -2,6 +2,8 @@ from typing import Any
 
 from django.contrib.auth.models import AnonymousUser
 from django.db.models import Count, Q, QuerySet
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import generics, permissions
 from rest_framework.pagination import LimitOffsetPagination
 from rest_framework.request import Request
@@ -19,6 +21,23 @@ class NotificationListAPIView(generics.ListAPIView[Notification]):
     # 인증된 사용자만 접근 가능하게 설정 (permissions.py)
     permission_classes = [permissions.IsAuthenticated]
     pagination_class = LimitOffsetPagination
+
+    @extend_schema(
+        tags=["Notifications"],
+        summary="알림 목록 조회 API",
+        responses={200: NotificationSerializer(many=True)},
+        parameters=[
+            OpenApiParameter(
+                name="is_read",
+                type=OpenApiTypes.BOOL,
+                required=False,
+                location="query",
+                description="읽음 여부를 필터링하여 목록을 조회할 수 있는 쿼리 파라미터입니다. 미적용 시 모든 알림이 조회됩니다.",
+            )
+        ],
+    )
+    def get(self, request: Request, *args: Any, **kwargs: Any) -> Response:
+        return self.list(request, *args, **kwargs)
 
     def get_queryset(self) -> QuerySet[Notification]:
         # 요청을 보낸 사용자만의 알림을 조회하도록 쿼리셋을 반환
