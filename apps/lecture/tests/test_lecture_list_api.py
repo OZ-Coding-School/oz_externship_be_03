@@ -1,0 +1,182 @@
+from datetime import date
+from typing import Any
+
+from django.contrib.auth import get_user_model
+from django.urls import reverse
+from rest_framework import status
+from rest_framework.test import APITestCase
+
+from apps.lecture.models import (
+    Category,
+    CrawledLecture,
+    CrawledLectureReview,
+    LectureBookmark,
+    LectureCategory,
+    LectureSearchLog,
+)
+
+from .base_lecture import BaseLectureTest
+
+User = get_user_model()
+
+
+class LectureListApiViewTest(BaseLectureTest):
+    list_url: str
+    user: Any
+
+    @classmethod
+    def setUpTestData(cls) -> None:
+        super().setUpTestData()
+        cls.list_url = reverse("lecture-list")
+        cls.user = User.objects.create_user(
+            email="test@example.com",
+            password="testtest123!",
+            nickname="테스트유저",
+            name="테스터",
+            phone_number="010-1234-5678",
+            birthday=date(1990, 1, 1),
+            gender="MALE",
+        )
+
+    def test_lecture_list(self) -> None:
+        """강의 목록 조회 성공"""
+        response = self.client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("results", response.data)
+        self.assertEqual(len(response.data["results"]), 2)
+
+    def test_lecture_list_with_bookmark(self) -> None:
+        """북마크 확인"""
+        LectureBookmark.objects.create(user=self.user, lecture=self.lecture1)
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        results = response.data["results"]
+        lecture1_data = next((l for l in results if l["title"] == "Python 기초"), None)
+
+        self.assertIsNotNone(lecture1_data)
+        assert lecture1_data is not None
+        self.assertTrue(lecture1_data["is_bookmarked"])
+
+    def test_search_by_title(self) -> None:
+        """검색기능 테스트"""
+        response = self.client.get(self.list_url, {"search": "Python"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(response.data["results"][0]["title"], "Python 기초")
+
+    def test_filter_by_category(self) -> None:
+        """카테고리 필터링"""
+        response = self.client.get(self.list_url, {"category": "C++"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(response.data["results"][0]["title"], "C++ 심화")
+
+    def test_ordering_by_rating(self) -> None:
+        """평점 내림차순 정렬"""
+        response = self.client.get(self.list_url, {"ordering": "-rating"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["results"][0]["average_rating"], 4.80)
+
+    def test_empty_result(self) -> None:
+        """검색 결과 없음"""
+        response = self.client.get(self.list_url, {"search": "FastAPI 종결"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["results"]), 0)
+
+    def test_search_log_created(self) -> None:
+        """검색 로그 저장"""
+        self.client.force_authenticate(user=self.user)
+        log_count = LectureSearchLog.objects.count()
+
+        self.client.get(self.list_url, {"search": "Python"})
+
+        self.assertEqual(LectureSearchLog.objects.count(), log_count + 1)
+        log = LectureSearchLog.objects.all()[0]
+        self.assertEqual(log.keyword, "Python")
+
+
+class LectureReviewListApiViewTest(APITestCase):
+    category: Category
+    lecture: CrawledLecture
+    review1: CrawledLectureReview
+    review2: CrawledLectureReview
+    review3: CrawledLectureReview
+    review4: CrawledLectureReview
+    review5: CrawledLectureReview
+    review_url: str
+
+    @classmethod
+    def setUpTestData(cls) -> None:
+        cls.category = Category.objects.create(name="Python")
+
+        cls.lecture = CrawledLecture.objects.create(
+            title="Python 기초",
+            instructor="홍길동",
+            average_rating=4.5,
+            duration=600,
+            difficulty="EASY",
+            description="Python 기초 강의",
+            platform="INFLEARN",
+            external_id=1,
+            original_price=50000,
+            discount_price=30000,
+            url_link="https://www.inflearn.com/python",
+        )
+        LectureCategory.objects.create(lecture=cls.lecture, category=cls.category)
+
+        cls.review1, cls.review2, cls.review3, cls.review4, cls.review5 = CrawledLectureReview.objects.bulk_create(
+            [
+                CrawledLectureReview(
+                    lecture=cls.lecture,
+                    rating="5_OUT_OF_5_STARS",
+                    content="최고의 강의",
+                    external_id=1,
+                ),
+                CrawledLectureReview(
+                    lecture=cls.lecture,
+                    rating="4_OUT_OF_5_STARS",
+                    content="좋은 강의",
+                    external_id=2,
+                ),
+                CrawledLectureReview(
+                    lecture=cls.lecture,
+                    rating="5_OUT_OF_5_STARS",
+                    content="평범한 강의",
+                    external_id=3,
+                ),
+                CrawledLectureReview(
+                    lecture=cls.lecture,
+                    rating="5_OUT_OF_5_STARS",
+                    content="나쁜 강의",
+                    external_id=4,
+                ),
+                CrawledLectureReview(
+                    lecture=cls.lecture,
+                    rating="5_OUT_OF_5_STARS",
+                    content="최악의 강의",
+                    external_id=5,
+                ),
+            ]
+        )
+
+        cls.review_url = reverse("lecture-review-list", kwargs={"uuid": cls.lecture.uuid})
+
+    def test_lecture_review_list(self) -> None:
+        """강의 리뷰 조회 확인 (최신4개)"""
+        response = self.client.get(self.review_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 4)
+
+        review_ids = [review["id"] for review in response.data]
+        self.assertNotIn(self.review1.id, review_ids)
+        self.assertIn(self.review5.id, review_ids)
+
+    def test_lecture_review_list_nonexistent_uuid(self) -> None:
+        """존재하지않은 uuid"""
+        nonexistent_url = reverse("lecture-review-list", kwargs={"uuid": "00000000-0000-0000-0000-000000000000"})
+        response = self.client.get(nonexistent_url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(response.data["detail"], "lecture_not_found")

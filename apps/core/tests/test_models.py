@@ -1,0 +1,3 @@
+"""
+Core App Model Tests
+"""

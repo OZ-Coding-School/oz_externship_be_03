@@ -1,6 +1,7 @@
 import os
 from datetime import timedelta
 from pathlib import Path
+from typing import cast
 
 from dotenv import load_dotenv
 
@@ -13,6 +14,11 @@ SECRET_KEY = os.getenv("DJANGO_SECRET_KEY")
 if not SECRET_KEY:
     raise ValueError("DJANGO_SECRET_KEY environment variable not set")
 
+# dj_rest_auth 기본 설정 (allauth) 내가 넣음
+REST_USE_JWT = True
+DJ_REST_AUTH = {
+    "TOKEN_MODEL": None,
+}
 
 # Application definition
 DJANGO_APPS = [
@@ -21,18 +27,33 @@ DJANGO_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "django.contrib.sites",
+    "rest_framework.authtoken",
 ]
 
 THIRD_PARTY_APPS = [
     "debug_toolbar",
     "rest_framework_simplejwt",
+    "rest_framework_simplejwt.token_blacklist",
     "rest_framework",
     "corsheaders",
     "drf_spectacular",
     "django_filters",
+    "django_celery_beat",
+    "channels",
 ]
 
-INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS
+LOCAL_APPS = [
+    "apps.core",
+    "apps.users",
+    "apps.lecture",
+    "apps.notifications",
+    "apps.recruitments",
+    "apps.studies",
+    "apps.chat",
+]
+
+INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
@@ -133,6 +154,8 @@ SIMPLE_JWT = {
     "AUTH_HEADER_NAME": "HTTP_AUTHORIZATION",
     "USER_ID_FIELD": "id",
     "USER_ID_CLAIM": "user_id",
+    "BLACKLIST_AFTER_ROTATION": True,
+    "BLACKLIST_TOKENS_ON_LOGOUT": True,
 }
 
 # Internationalization
@@ -155,6 +178,8 @@ CORS_ALLOW_HEADERS = [
     "user-agent",
     "x-csrftoken",
     "x-requested-with",
+    "X-Phone-Verify-Token",
+    "X-Email-Verify-Token",
 ]
 
 # drf 관련 설정
@@ -194,6 +219,8 @@ SPECTACULAR_SETTINGS = {
     ],
 }
 
+AUTH_USER_MODEL = "users.User"
+
 # SMTP Settings
 EMAIL_BACKEND = os.environ.get("EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend")
 EMAIL_HOST = os.environ.get("EMAIL_HOST", "smtp.gmail.com")
@@ -204,13 +231,15 @@ EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
 # Twilio SMS Verify Settings
-TWILIO_ACCOUNT_SID = os.environ.get("TWILIO_ACCOUNT_SID")
-TWILIO_AUTH_TOKEN = os.environ.get("TWILIO_AUTH_TOKEN")
-TWILIO_VERIFY_SERVICE_SID = os.environ.get("TWILIO_VERIFY_SERVICE_SID")
+TWILIO_ACCOUNT_SID = os.environ.get("TWILIO_ACCOUNT_SID", "TWILIO_ACCOUNT_SID")
+TWILIO_AUTH_TOKEN = os.environ.get("TWILIO_AUTH_TOKEN", "TWILIO_ACCOUNT_SID")
+TWILIO_VERIFY_SERVICE_SID = os.environ.get("TWILIO_VERIFY_SERVICE_SID", "TWILIO_ACCOUNT_SID")
 
 # Kakao OAuth Settings
 KAKAO_CLIENT_ID = os.getenv("KAKAO_CLIENT_ID")
 KAKAO_REDIRECT_URI = os.getenv("KAKAO_REDIRECT_URI")
+KAKAO_ADMIN_KEY = os.getenv("KAKAO_ADMIN_KEY")
+KAKAO_UNLINK_URL = os.getenv("KAKAO_UNLINK_URL", "https://kapi.kakao.com/v1/user/unlink")
 
 # NAVER OAuth Settings
 NAVER_CLIENT_ID = os.getenv("NAVER_CLIENT_ID")
@@ -218,7 +247,54 @@ NAVER_CLIENT_SECRET = os.getenv("NAVER_CLIENT_SECRET")
 NAVER_REDIRECT_URI = os.getenv("NAVER_REDIRECT_URI")
 
 # AWS S3 settings
-AWS_S3_REGION = os.getenv("AWS_S3_REGION", "")
+AWS_S3_REGION = os.getenv("AWS_S3_REGION", "ap-northeast-2")
 AWS_S3_ACCESS_KEY_ID = os.getenv("AWS_S3_ACCESS_KEY_ID", "")
 AWS_S3_SECRET_ACCESS_KEY = os.getenv("AWS_S3_SECRET_ACCESS_KEY", "")
 AWS_S3_BUCKET_NAME = os.getenv("AWS_S3_BUCKET_NAME", "")
+
+# Verify Flow 정책
+ONE_TIME_TTL_SECONDS = 10 * 60  # 검증 토큰/대기 키 TTL (10분)
+RESEND_COOLDOWN_SECONDS = 60  # 재전송 쿨다운 (60초)
+ATTEMPT_LOCK_SECONDS = 10 * 60  # 실패 잠금 (10분)
+MAX_FAIL_ATTEMPTS = 5
+
+# Global Verify Flow 정책
+GLOBAL_MAX_FAILS = 10
+GLOBAL_LOCK_SECONDS = 3600
+
+# 검증 토큰(JWT)
+VERIFY_TOKEN_SECRET = os.getenv("VERIFY_TOKEN_SECRET", default=SECRET_KEY)
+VERIFY_TOKEN_ALGO = "HS256"
+VERIFY_TOKEN_EXPIRES_SECONDS = 10 * 60
+
+# Celery 필수 설정
+CELERY_BROKER_URL = f"redis://{REDIS_HOST}:6379/1"  # 환경에 맞게 수정
+CELERY_RESULT_BACKEND = f"redis://{REDIS_HOST}:6379/2"  # 선택
+CELERY_TIMEZONE = "Asia/Seoul"
+CELERY_ENABLE_UTC = False
+
+# 매일 00:10에 due_date 지난 유저 삭제
+from celery.schedules import crontab  # type: ignore[import-untyped]
+
+CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"
+
+
+# 리프레쉬 토큰 쿠키 설정
+AUTH_REFRESH_COOKIE_NAME = "refresh_token"
+AUTH_REFRESH_COOKIE_PATH = "/"
+AUTH_REFRESH_COOKIE_MAX_AGE = int(cast(timedelta, SIMPLE_JWT["REFRESH_TOKEN_LIFETIME"]).total_seconds())
+AUTH_REFRESH_COOKIE_SECURE = True
+AUTH_REFRESH_COOKIE_HTTPONLY = True
+AUTH_REFRESH_COOKIE_SAMESITE = "None"
+
+FRONTEND_DOMAIN = os.environ.get("FRONTEND_DOMAIN", "")
+
+
+# 추천 모델 저장 경로 설정
+MODEL_STORAGE_PATH = os.getenv("MODEL_STORAGE_PATH", os.path.join(BASE_DIR, "model_storage"))
+
+APPEND_SLASH = False
+
+# 외부 API 키
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_MODEL_NAME = os.getenv("GEMINI_MODEL_NAME", "gemini-2.5-flash")
